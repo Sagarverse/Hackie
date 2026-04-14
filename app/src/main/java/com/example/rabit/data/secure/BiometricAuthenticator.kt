@@ -25,7 +25,7 @@ class BiometricAuthenticator(private val activity: FragmentActivity) {
     }
 
     fun authenticate(
-        title: String = "Rabit Pro Security",
+        title: String = "Hackie Security",
         subtitle: String = "Authenticate to unlock",
         onSuccess: () -> Unit,
         onError: (String) -> Unit

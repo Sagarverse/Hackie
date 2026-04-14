@@ -176,12 +176,12 @@ class HidDeviceManager private constructor(private val context: Context) {
 
     private fun registerApp() {
         scope.launch(Dispatchers.IO) {
-            if (bluetoothAdapter?.name != "Rabit Keyboard & Mouse") {
-                bluetoothAdapter?.name = "Rabit Keyboard & Mouse"
+            if (bluetoothAdapter?.name != "Hackie Keyboard & Mouse") {
+                bluetoothAdapter?.name = "Hackie Keyboard & Mouse"
             }
             
             val sdpSettings = BluetoothHidDeviceAppSdpSettings(
-                "Rabit Keyboard & Mouse", "Keyboard + Mouse", "Rabit",
+                "Hackie Keyboard & Mouse", "Keyboard + Mouse", "Hackie",
                 0xC0.toByte(), // 0xC0 = Keyboard (0x40) | Mouse (0x80)
                 HID_REPORT_DESCRIPTOR
             )

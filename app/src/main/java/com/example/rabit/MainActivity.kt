@@ -42,6 +42,7 @@ import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.assistant.AssistantScreen
 import com.example.rabit.ui.assistant.AssistantViewModel
 import com.example.rabit.ui.keyboard.KeyboardScreen
+import com.example.rabit.ui.home.HomeScreen
 import com.example.rabit.ui.onboarding.OnboardingScreen
 import com.example.rabit.ui.pairing.PairingScreen
 import com.example.rabit.ui.settings.PasswordManagerScreen
@@ -123,7 +124,7 @@ class MainActivity : FragmentActivity() {
 @Composable
 fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewModel) {
     val navController = rememberNavController()
-    val startDest = if (viewModel.onboardingCompleted) "pairing" else "onboarding"
+    val startDest = if (viewModel.onboardingCompleted) "home" else "onboarding"
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: startDest
     val featureWebBridgeVisible by viewModel.featureWebBridgeVisible.collectAsState()
@@ -178,10 +179,19 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                     OnboardingScreen(
                         onComplete = {
                             viewModel.markOnboardingCompleted()
-                            navController.navigate("pairing") {
+                            navController.navigate("home") {
                                 popUpTo("onboarding") { inclusive = true }
                             }
                         }
+                    )
+                }
+                composable("home") {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onNavigateToHelper = { navController.navigate("helper") },
+                        onNavigateToKeyboard = { navController.navigate("keyboard") },
+                        onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") },
+                        onNavigateToPairing = { navController.navigate("pairing") }
                     )
                 }
                 composable("pairing") {
@@ -202,7 +212,8 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         onNavigateToAutomation = { if (featureAutomationVisible) navController.navigate("automation") },
                         onNavigateToProfile = { navController.navigate("profile") },
                         onNavigateToCustomization = { navController.navigate("customization") },
-                        onNavigateToPasswordManager = { navController.navigate("password_manager") }
+                        onNavigateToPasswordManager = { navController.navigate("password_manager") },
+                        onNavigateToHelper = { navController.navigate("helper") }
                     )
                 }
                 composable("keyboard") {
@@ -298,6 +309,12 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("password_manager") {
                     PasswordManagerScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("helper") {
+                    com.example.rabit.ui.helper.HelperScreen(
                         viewModel = viewModel,
                         onBack = { navController.popBackStack() }
                     )
@@ -495,7 +512,7 @@ fun BluetoothPermissions(content: @Composable () -> Unit) {
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    "Rabit needs Bluetooth access to connect to your Mac.",
+                    "Hackie needs Bluetooth access to connect to your Mac.",
                     color = Color(0xFF8E8E93),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center

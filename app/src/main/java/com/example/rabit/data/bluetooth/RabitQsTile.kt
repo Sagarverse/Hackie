@@ -153,21 +153,21 @@ class RabitQsTile : TileService() {
         when (state) {
             is HidDeviceManager.ConnectionState.Connected -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.label = "Rabit Pro"
+                tile.label = "Hackie"
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = state.deviceName
                 }
             }
             is HidDeviceManager.ConnectionState.Connecting -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.label = "Rabit Pro"
+                tile.label = "Hackie"
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = "Connecting..."
                 }
             }
             is HidDeviceManager.ConnectionState.Disconnected -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.label = "Rabit Pro"
+                tile.label = "Hackie"
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = "Tap to connect"
                 }

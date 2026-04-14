@@ -61,7 +61,8 @@ fun PairingScreen(
     onNavigateToAutomation: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToCustomization: () -> Unit,
-    onNavigateToPasswordManager: () -> Unit
+    onNavigateToPasswordManager: () -> Unit,
+    onNavigateToHelper: () -> Unit = {}
 ) {
     val scannedDevices by viewModel.scannedDevices.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
@@ -196,6 +197,18 @@ fun PairingScreen(
                         unselectedTextColor = Silver
                     ),
                     modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Hackie Helper", fontWeight = FontWeight.SemiBold) },
+                    selected = false,
+                    onClick = { 
+                        scope.launch { drawerState.close() }
+                        onNavigateToHelper()
+                    },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent, unselectedIconColor = Silver, unselectedTextColor = Silver)
                 )
 
                 NavigationDrawerItem(
@@ -517,6 +530,16 @@ fun PairingScreen(
                                     .padding(horizontal = 10.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                AssistChip(
+                                    onClick = onNavigateToHelper,
+                                    label = { Text("Helper Target") },
+                                    leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = AccentPurple.copy(alpha = 0.16f),
+                                        labelColor = Platinum,
+                                        leadingIconContentColor = AccentPurple
+                                    )
+                                )
                                 AssistChip(
                                     onClick = onNavigateToWebBridge,
                                     label = { Text("Web Share") },

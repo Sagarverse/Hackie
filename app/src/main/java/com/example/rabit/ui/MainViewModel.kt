@@ -2822,6 +2822,275 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             null
         }
     }
+
+    private val _helperDeviceIp = kotlinx.coroutines.flow.MutableStateFlow("Unknown")
+    val helperDeviceIp: kotlinx.coroutines.flow.StateFlow<String> = _helperDeviceIp
+
+    private val _helperDeviceMac = kotlinx.coroutines.flow.MutableStateFlow("Unknown")
+    val helperDeviceMac: kotlinx.coroutines.flow.StateFlow<String> = _helperDeviceMac
+
+    private val _helperDeviceName = kotlinx.coroutines.flow.MutableStateFlow("Unknown")
+    val helperDeviceName: kotlinx.coroutines.flow.StateFlow<String> = _helperDeviceName
+
+    private val _helperBaseUrl = kotlinx.coroutines.flow.MutableStateFlow(
+        prefs.getString("helper_base_url", "") ?: ""
+    )
+    val helperBaseUrl: kotlinx.coroutines.flow.StateFlow<String> = _helperBaseUrl
+
+    private val _isHelperConnected = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isHelperConnected: kotlinx.coroutines.flow.StateFlow<Boolean> = _isHelperConnected
+
+    private val _terminalOutput = kotlinx.coroutines.flow.MutableStateFlow("")
+    val terminalOutput: kotlinx.coroutines.flow.StateFlow<String> = _terminalOutput
+
+    init {
+        // Initial fetch of helper details
+        fetchHelperDeviceDetails()
+    }
+
+    private fun normalizeHelperUrl(url: String): String {
+        val trimmed = url.trim().removeSuffix("/")
+        if (trimmed.isBlank()) return ""
+        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "http://$trimmed"
+    }
+
+    private fun postHelperCommand(command: String, payload: JSONObject = JSONObject()): JSONObject? {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return null
+
+        return try {
+            payload.put("command", command)
+            val conn = (URL("$base/command").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 2500
+                readTimeout = 6000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray())
+                out.flush()
+            }
+
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            JSONObject(body)
+        } catch (e: Exception) {
+            _terminalOutput.value = "[Error] ${e.message ?: "Command failed"}"
+            null
+        }
+    }
+
+    fun setHelperBaseUrl(url: String) {
+        val normalized = normalizeHelperUrl(url)
+        _helperBaseUrl.value = normalized
+        prefs.edit().putString("helper_base_url", normalized).apply()
+    }
+
+    fun fetchHelperDeviceDetails() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val base = _helperBaseUrl.value
+            if (base.isBlank()) {
+                _isHelperConnected.value = false
+                _helperDeviceName.value = "Unknown"
+                _helperDeviceIp.value = "Unknown"
+                _helperDeviceMac.value = "Unknown"
+                return@launch
+            }
+
+            try {
+                val conn = (URL("$base/info").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 2500
+                    readTimeout = 4000
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                _helperDeviceName.value = json.optString("name", "Unknown")
+                _helperDeviceIp.value = json.optString("ipAddress", "Unknown")
+                _helperDeviceMac.value = json.optString("macAddress", "Unknown")
+                _isHelperConnected.value = json.optString("status", "").equals("online", ignoreCase = true)
+            } catch (_: Exception) {
+                _isHelperConnected.value = false
+                _helperDeviceName.value = "Unknown"
+                _helperDeviceIp.value = "Unknown"
+                _helperDeviceMac.value = "Unknown"
+            }
+        }
+    }
+
+    fun discoverHelperOnLocalWifi() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val local = _localIp.value
+            if (local == "0.0.0.0" || !local.contains(".")) {
+                refreshLocalIp()
+            }
+
+            // Fast path: listen for helper UDP beacon first.
+            try {
+                DatagramSocket(8766).use { socket ->
+                    socket.soTimeout = 1200
+                    val buf = ByteArray(2048)
+                    val packet = DatagramPacket(buf, buf.size)
+                    socket.receive(packet)
+                    val jsonText = String(packet.data, 0, packet.length)
+                    val payload = JSONObject(jsonText)
+                    if (payload.optString("type") == "hackie_helper_beacon") {
+                        val ip = payload.optString("ipAddress", packet.address.hostAddress ?: "")
+                        val port = payload.optInt("port", 8765)
+                        if (ip.isNotBlank()) {
+                            val url = "http://$ip:$port"
+                            setHelperBaseUrl(url)
+                            fetchHelperDeviceDetails()
+                            _terminalOutput.value = "Helper found via beacon: $url"
+                            return@launch
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val baseIp = _localIp.value.substringBeforeLast('.', "")
+            if (baseIp.isBlank()) return@launch
+
+            _terminalOutput.value = "Scanning local network for Helper..."
+            var foundUrl: String? = null
+
+            for (i in 1..254) {
+                if (!isActive) break
+                val host = "$baseIp.$i"
+                val candidate = "http://$host:8765"
+                try {
+                    val conn = (URL("$candidate/health").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 180
+                        readTimeout = 250
+                    }
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        foundUrl = candidate
+                        break
+                    }
+                } catch (_: Exception) {}
+            }
+
+            if (foundUrl != null) {
+                setHelperBaseUrl(foundUrl)
+                fetchHelperDeviceDetails()
+                _terminalOutput.value = "Helper found on local Wi-Fi: $foundUrl"
+            } else {
+                _terminalOutput.value = "No local helper found. Use internet URL manually (public IP/DDNS)."
+            }
+        }
+    }
+
+    fun runRemoteShellCommand(cmd: String) {
+        _terminalOutput.value = "Running command..."
+        val response = postHelperCommand("run_shell", JSONObject().put("cmd", cmd)) ?: return
+        val stdout = response.optString("stdout", "")
+        val stderr = response.optString("stderr", "")
+        _terminalOutput.value = buildString {
+            if (stdout.isNotBlank()) append(stdout)
+            if (stderr.isNotBlank()) {
+                if (isNotEmpty()) append("\n")
+                append("[Error] $stderr")
+            }
+        }
+    }
+
+    fun pingRemoteDevice() {
+        fetchHelperDeviceDetails()
+    }
+
+    fun openUrlOnRemote(url: String) {
+        val normalizedUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
+        postHelperCommand("open_url", JSONObject().put("url", normalizedUrl))
+    }
+
+    fun lockRemoteScreen() {
+        postHelperCommand("lock_screen")
+    }
+
+    fun listRemoteFiles() {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conn = (URL("$base/files?path=/").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 2500
+                    readTimeout = 5000
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                _terminalOutput.value = body
+            } catch (e: Exception) {
+                _terminalOutput.value = "[Error] ${e.message ?: "File listing failed"}"
+            }
+        }
+    }
+
+    fun sendFileToHelper(uri: Uri) {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val name = queryDisplayName(uri) ?: "shared_${System.currentTimeMillis()}"
+                val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Cannot read selected file")
+
+                val conn = (URL("$base/upload?name=${java.net.URLEncoder.encode(name, "UTF-8")}").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 3000
+                    readTimeout = 15000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/octet-stream")
+                    setRequestProperty("Content-Length", bytes.size.toString())
+                }
+                conn.outputStream.use { out ->
+                    out.write(bytes)
+                    out.flush()
+                }
+                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                _terminalOutput.value = "Upload complete: $response"
+            } catch (e: Exception) {
+                _terminalOutput.value = "[Error] ${e.message ?: "Upload failed"}"
+            }
+        }
+    }
+
+    fun setClipboardSyncState(sync: Boolean) {
+        if (sync) {
+            val clipboardContent = ClipboardHelper.getFromClipboard(getApplication())
+            if (clipboardContent.isNotEmpty()) {
+                val payload = JSONObject().put("content", clipboardContent)
+                val base = _helperBaseUrl.value
+                if (base.isBlank()) return
+                try {
+                    val conn = (URL("$base/clipboard").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 2500
+                        readTimeout = 4000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    conn.outputStream.use { out ->
+                        out.write(payload.toString().toByteArray())
+                        out.flush()
+                    }
+                    conn.inputStream.close()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        return getApplication<Application>().contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                    if (idx >= 0) cursor.getString(idx) else null
+                } else null
+            }
+    }
 }
 
 data class CustomMacro(

@@ -68,7 +68,7 @@ fun RabitAppScaffold(
     }
 
     // Main routes accessible from drawer
-    val mainRoutes = listOf("main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "media_deck", "airplay_receiver", "global_search", "automation", "password_manager")
+    val mainRoutes = listOf("main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "media_deck", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
     val isSubPage = currentRoute !in mainRoutes
 
     val screenTitle = when(currentRoute) {
@@ -86,6 +86,7 @@ fun RabitAppScaffold(
         "media_deck" -> "MEDIA DECK"
         "airplay_receiver" -> "AIRPLAY RX"
         "global_search" -> "GLOBAL SEARCH"
+        "helper" -> "HACKIE HELPER"
         else -> "HACKIE"
     }
 
@@ -261,6 +262,17 @@ fun RabitAppScaffold(
                         }
                     )
                 }
+
+                DrawerItem(
+                    label = "Hackie Helper",
+                    subLabel = "Target device control & sync",
+                    icon = Icons.Default.Devices,
+                    isSelected = currentRoute == "helper",
+                    onClick = {
+                        onNavigate("helper")
+                        scope.launch { drawerState.close() }
+                    }
+                )
 
                             Spacer(modifier = Modifier.height(12.dp))
 

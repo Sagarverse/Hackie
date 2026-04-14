@@ -75,6 +75,7 @@ dependencies {
     // Firebase for Production Signaling
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
+    implementation("com.google.firebase:firebase-database-ktx")
     implementation(libs.firebase.analytics)
 
     testImplementation(libs.junit)
