@@ -68,10 +68,11 @@ fun RabitAppScaffold(
     }
 
     // Main routes accessible from drawer
-    val mainRoutes = listOf("main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "media_deck", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "media_deck", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
     val isSubPage = currentRoute !in mainRoutes
 
     val screenTitle = when(currentRoute) {
+        "home" -> "HOME"
         "main", "keyboard" -> "CONTROL HUB"
         "web_bridge" -> "WEB BRIDGE"
         "assistant" -> "GENIE AI"
@@ -142,12 +143,23 @@ fun RabitAppScaffold(
                         ) {
                             // Navigation Items
                             DrawerItem(
+                                label = "Home",
+                                subLabel = "Dashboard & status overview",
+                                icon = Icons.Default.Home,
+                                isSelected = currentRoute == "home",
+                                onClick = {
+                                    onNavigate("home")
+                                    scope.launch { drawerState.close() }
+                                }
+                            )
+
+                            DrawerItem(
                                 label = "Control Hub",
                                 subLabel = "Keyboard & Trackpad",
                                 icon = Icons.AutoMirrored.Filled.Dvr,
                                 isSelected = currentRoute == "main" || currentRoute == "keyboard",
                                 onClick = {
-                                    onNavigate("keyboard")
+                                    onNavigate("main")
                                     scope.launch { drawerState.close() }
                                 }
                             )

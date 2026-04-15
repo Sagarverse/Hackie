@@ -2,5 +2,15 @@
   "projects": {
     "default": "hackie-260414-01",
     "legacy-rabit": "rabit-260412-183123"
-  }
+  },
+  "targets": {
+    "hackie-260414-01": {
+      "hosting": {
+        "hackie-sagar": [
+          "hackie-sagar"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

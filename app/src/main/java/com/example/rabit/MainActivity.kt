@@ -37,6 +37,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.data.bluetooth.HidService
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.assistant.AssistantScreen
@@ -135,6 +136,8 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
     val featureWakeOnLanVisible by viewModel.featureWakeOnLanVisible.collectAsState()
     val featureSshTerminalVisible by viewModel.featureSshTerminalVisible.collectAsState()
     val webBridgeEnabled by viewModel.webBridgeEnabled.collectAsState()
+    val bluetoothState by viewModel.connectionState.collectAsState()
+    val isBluetoothConnected = bluetoothState is HidDeviceManager.ConnectionState.Connected
 
     // Routes that should NOT show the professional drawer (Onboarding & Initial Pairing)
     val noDrawerRoutes = listOf("onboarding", "pairing", "onboarding_splash", "assistant")
@@ -188,10 +191,11 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 composable("home") {
                     HomeScreen(
                         viewModel = viewModel,
-                        onNavigateToHelper = { navController.navigate("helper") },
-                        onNavigateToKeyboard = { navController.navigate("keyboard") },
-                        onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") },
-                        onNavigateToPairing = { navController.navigate("pairing") }
+                        onOpenHelper = {
+                            navController.navigate("helper") {
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
                 composable("pairing") {
@@ -401,7 +405,10 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
         com.example.rabit.ui.components.RabitAppScaffold(
             currentRoute = if (currentRoute == "keyboard") "main" else currentRoute,
             onNavigate = { route ->
-                val target = if (route == "main") "keyboard" else route
+                val target = when (route) {
+                    "main" -> if (isBluetoothConnected) "keyboard" else "pairing"
+                    else -> route
+                }
                 if (!routeAllowed(target)) return@RabitAppScaffold
                 navController.navigate(target) {
                     popUpTo("keyboard") { saveState = true }

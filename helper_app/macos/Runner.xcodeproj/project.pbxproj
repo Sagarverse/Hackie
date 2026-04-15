@@ -336,10 +336,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/flutter_embed.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\n";
+			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed && touch \"$SCRIPT_OUTPUT_FILE_0\"\n";
 		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -350,16 +351,16 @@
 				Flutter/ephemeral/FlutterInputs.xcfilelist,
 			);
 			inputPaths = (
-				Flutter/ephemeral/tripwire,
 			);
 			outputFileListPaths = (
 				Flutter/ephemeral/FlutterOutputs.xcfilelist,
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/flutter_assemble.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
+			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch \"$SCRIPT_OUTPUT_FILE_0\"";
 		};
 		4D7C128B820A144EAA1C2F0A /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -19,6 +19,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -629,6 +630,64 @@ object RabitNetworkServer {
                     }
                 }
 
+                // ───── Helper Companion Upload (No token, local helper flow) ─────
+                post("/helper/upload") {
+                    try {
+                        val multipart = call.receiveMultipart()
+                        val savedFiles = mutableListOf<String>()
+
+                        multipart.forEachPart { part ->
+                            if (part is PartData.FileItem) {
+                                val originalName = part.originalFileName ?: "rabit_file_${System.currentTimeMillis()}"
+                                val transferId = UUID.randomUUID().toString()
+                                val contentLength = part.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: -1L
+                                updateTransferJob(
+                                    id = transferId,
+                                    name = originalName,
+                                    direction = "mac_to_phone",
+                                    status = "running",
+                                    totalBytes = contentLength,
+                                    processedBytes = 0L
+                                )
+                                val outputDir = Environment.getExternalStoragePublicDirectory(
+                                    Environment.DIRECTORY_DOWNLOADS
+                                ).also { it.mkdirs() }
+                                val destFile = File(outputDir, "Hackie_$originalName")
+                                part.streamProvider().use { input ->
+                                    destFile.outputStream().use { output ->
+                                        copyWithProgress(input, output) { processed ->
+                                            updateTransferJob(
+                                                id = transferId,
+                                                name = originalName,
+                                                direction = "mac_to_phone",
+                                                status = "running",
+                                                totalBytes = contentLength,
+                                                processedBytes = processed
+                                            )
+                                        }
+                                    }
+                                }
+                                savedFiles.add(originalName)
+                                updateTransferJob(
+                                    id = transferId,
+                                    name = originalName,
+                                    direction = "mac_to_phone",
+                                    status = "completed",
+                                    totalBytes = contentLength,
+                                    processedBytes = if (contentLength > 0) contentLength else 0L
+                                )
+                                addFileToMediaStore(appContext, destFile)
+                                Log.d(TAG, "Helper upload saved: ${destFile.absolutePath}")
+                            }
+                            part.dispose()
+                        }
+                        call.respond(HttpStatusCode.OK, ApiResponse(true, "Saved ${savedFiles.size} files: ${savedFiles.joinToString(", ")}"))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Helper upload error", e)
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(false, e.message ?: "Error"))
+                    }
+                }
+
                 // ───── Feature: Universal Clipboard (Bi-directional) ─────
                 get("/clipboard") {
                     if (!call.validateToken()) {
@@ -646,9 +705,41 @@ object RabitNetworkServer {
                         return@post
                     }
                     try {
-                        val payload = call.receive<ClipboardPayload>()
-                        recordClipboardHistory(payload.text)
-                        clipboardReceiver?.invoke(payload.text)
+                        val payloadText = runCatching {
+                            val payload = call.receive<ClipboardPayload>()
+                            payload.text
+                        }.getOrElse {
+                            val body = call.receiveText()
+                            val json = JSONObject(body)
+                            json.optString("text", json.optString("content", ""))
+                        }
+                        recordClipboardHistory(payloadText)
+                        clipboardReceiver?.invoke(payloadText)
+                        call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard updated"))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                // ───── Helper Companion Clipboard (No token, local helper flow) ─────
+                get("/helper/clipboard") {
+                    val text = clipboardProvider?.invoke() ?: ""
+                    recordClipboardHistory(text)
+                    call.respond(HttpStatusCode.OK, ClipboardPayload(text))
+                }
+
+                post("/helper/clipboard") {
+                    try {
+                        val payloadText = runCatching {
+                            val payload = call.receive<ClipboardPayload>()
+                            payload.text
+                        }.getOrElse {
+                            val body = call.receiveText()
+                            val json = JSONObject(body)
+                            json.optString("text", json.optString("content", ""))
+                        }
+                        recordClipboardHistory(payloadText)
+                        clipboardReceiver?.invoke(payloadText)
                         call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard updated"))
                     } catch (e: Exception) {
                         call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))

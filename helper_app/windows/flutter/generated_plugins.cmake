@@ -4,10 +4,8 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   clipboard
-  cloud_firestore
-  firebase_core
-  firebase_database
-  firebase_storage
+  desktop_drop
+  file_selector_windows
   get_mac_address
   permission_handler_windows
   screen_retriever_windows

@@ -14,6 +14,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Environment
 import android.os.VibrationEffect
@@ -342,6 +343,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _remoteFiles = MutableStateFlow<List<RemoteFile>>(emptyList())
     val remoteFiles = _remoteFiles.asStateFlow()
+    private val _helperRemoteFiles = MutableStateFlow<List<HelperRemoteFile>>(emptyList())
+    val helperRemoteFiles = _helperRemoteFiles.asStateFlow()
 
     private data class IncomingUploadSession(
         val transferId: String,
@@ -360,6 +363,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentRemotePath = MutableStateFlow("/")
     val currentRemotePath = _currentRemotePath.asStateFlow()
+
+    private val clipboardManager = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    private var clipboardSyncJob: Job? = null
+    private var clipboardSyncEnabled = prefs.getBoolean("clipboard_sync_enabled", true)
+    private var suppressClipboardEcho = false
+    private var lastSentClipboardText: String? = null
+    private var lastAppliedHelperClipboardText: String? = null
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        if (!clipboardSyncEnabled || suppressClipboardEcho) return@OnPrimaryClipChangedListener
+
+        viewModelScope.launch(Dispatchers.IO) {
+            syncLocalClipboardToHelper()
+        }
+    }
 
     // Phase 10: Advanced Customization & Biometric states
     private val _biometricLockEnabled = MutableStateFlow(prefs.getBoolean("biometric_lock_enabled", false))
@@ -1110,6 +1127,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _webBridgeRunning.value = RabitNetworkServer.isRunning
             _webBridgePin.value = pin
             _webBridgeSelfTestStatus.value = "Not tested"
+        }
+    }
+
+    fun ensurePhoneHelperReceiverRunning() {
+        if (RabitNetworkServer.isRunning) {
+            _webBridgeRunning.value = true
+            return
+        }
+
+        val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
+            action = HidService.ACTION_START_WEB_BRIDGE
+        }
+        getApplication<Application>().startService(intent)
+        _webBridgeEnabled.value = true
+        prefs.edit().putBoolean("web_bridge_enabled", true).apply()
+        viewModelScope.launch {
+            delay(600)
+            _webBridgeRunning.value = RabitNetworkServer.isRunning
+            if (_webBridgeRunning.value) {
+                appendTransferEvent("Phone helper receiver started on port 8080")
+            }
         }
     }
 
@@ -2788,6 +2826,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         RabitNetworkServer.audioStreamStartReceiver = null
         RabitNetworkServer.audioStreamChunkReceiver = null
         RabitNetworkServer.audioStreamStopReceiver = null
+        helperHealthPollJob?.cancel()
+        clipboardSyncJob?.cancel()
+        runCatching {
+            clipboardManager.removePrimaryClipChangedListener(clipboardListener)
+        }
         proximityTelemetryJob?.cancel()
         wifiAudioSink.release()
         disconnectSsh()
@@ -2840,18 +2883,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isHelperConnected = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isHelperConnected: kotlinx.coroutines.flow.StateFlow<Boolean> = _isHelperConnected
 
+    private val _helperConnectionStatus = kotlinx.coroutines.flow.MutableStateFlow("Disconnected")
+    val helperConnectionStatus: kotlinx.coroutines.flow.StateFlow<String> = _helperConnectionStatus
+
     private val _terminalOutput = kotlinx.coroutines.flow.MutableStateFlow("")
     val terminalOutput: kotlinx.coroutines.flow.StateFlow<String> = _terminalOutput
+
+    private val _helperTransferEvents = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+    val helperTransferEvents: kotlinx.coroutines.flow.StateFlow<List<String>> = _helperTransferEvents
+
+    private val _helperAutoConnectStatus = kotlinx.coroutines.flow.MutableStateFlow("Auto-connect enabled")
+    val helperAutoConnectStatus: kotlinx.coroutines.flow.StateFlow<String> = _helperAutoConnectStatus
+
+    private val _helperLastAutoDiscoverAt = kotlinx.coroutines.flow.MutableStateFlow("Never")
+    val helperLastAutoDiscoverAt: kotlinx.coroutines.flow.StateFlow<String> = _helperLastAutoDiscoverAt
+
+    private var helperHealthPollJob: Job? = null
+    private var helperAutoDiscoverJob: Job? = null
+    private var helperDiscoveryMulticastLock: WifiManager.MulticastLock? = null
 
     init {
         // Initial fetch of helper details
         fetchHelperDeviceDetails()
+        startHelperHealthPolling()
+        startHelperAutoDiscoveryLoop()
+        if (clipboardSyncEnabled) {
+            startClipboardSyncLoop()
+        }
+    }
+
+    private fun startHelperHealthPolling() {
+        helperHealthPollJob?.cancel()
+        helperHealthPollJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                fetchHelperDeviceDetails()
+                delay(5000)
+            }
+        }
+    }
+
+    private fun startHelperAutoDiscoveryLoop() {
+        helperAutoDiscoverJob?.cancel()
+        helperAutoDiscoverJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(1500)
+            while (isActive) {
+                val baseMissing = _helperBaseUrl.value.isBlank()
+                val disconnected = !_isHelperConnected.value
+                if (baseMissing || disconnected) {
+                    _helperLastAutoDiscoverAt.value = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date())
+                    _helperAutoConnectStatus.value = "Auto-discovery: checking LAN beacon"
+                    discoverHelperOnLocalWifi(fullScan = false, userInitiated = false)
+                }
+                delay(12000)
+            }
+        }
     }
 
     private fun normalizeHelperUrl(url: String): String {
         val trimmed = url.trim().removeSuffix("/")
         if (trimmed.isBlank()) return ""
         return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "http://$trimmed"
+    }
+
+    private fun appendTransferEvent(message: String) {
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date())
+        _helperTransferEvents.value = (_helperTransferEvents.value + "[$timestamp] $message").takeLast(40)
     }
 
     private fun postHelperCommand(command: String, payload: JSONObject = JSONObject()): JSONObject? {
@@ -2885,6 +2981,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = normalizeHelperUrl(url)
         _helperBaseUrl.value = normalized
         prefs.edit().putString("helper_base_url", normalized).apply()
+        _helperConnectionStatus.value = if (normalized.isBlank()) "Disconnected" else "Endpoint saved"
+    }
+
+    fun resetHelperConnectionAndRescan() {
+        _helperBaseUrl.value = ""
+        prefs.edit().remove("helper_base_url").apply()
+        _isHelperConnected.value = false
+        _helperDeviceName.value = "Unknown"
+        _helperDeviceIp.value = "Unknown"
+        _helperDeviceMac.value = "Unknown"
+        _helperConnectionStatus.value = "Reset complete, rescanning..."
+        _helperAutoConnectStatus.value = "Manual reset: full LAN scan started"
+        _helperLastAutoDiscoverAt.value = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date())
+        discoverHelperOnLocalWifi(fullScan = true, userInitiated = true)
     }
 
     fun fetchHelperDeviceDetails() {
@@ -2895,6 +3005,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _helperDeviceName.value = "Unknown"
                 _helperDeviceIp.value = "Unknown"
                 _helperDeviceMac.value = "Unknown"
+                _helperConnectionStatus.value = "No endpoint configured"
                 return@launch
             }
 
@@ -2910,49 +3021,85 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _helperDeviceIp.value = json.optString("ipAddress", "Unknown")
                 _helperDeviceMac.value = json.optString("macAddress", "Unknown")
                 _isHelperConnected.value = json.optString("status", "").equals("online", ignoreCase = true)
+                _helperConnectionStatus.value = if (_isHelperConnected.value) "Connected" else "Endpoint reachable, helper offline"
             } catch (_: Exception) {
                 _isHelperConnected.value = false
                 _helperDeviceName.value = "Unknown"
                 _helperDeviceIp.value = "Unknown"
                 _helperDeviceMac.value = "Unknown"
+                _helperConnectionStatus.value = "Connection failed"
             }
         }
     }
 
-    fun discoverHelperOnLocalWifi() {
+    fun discoverHelperOnLocalWifi(fullScan: Boolean = true, userInitiated: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
+            val wifiManager = getApplication<Application>().applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             val local = _localIp.value
             if (local == "0.0.0.0" || !local.contains(".")) {
                 refreshLocalIp()
             }
 
-            // Fast path: listen for helper UDP beacon first.
+            helperDiscoveryMulticastLock?.let {
+                if (it.isHeld) it.release()
+            }
+            helperDiscoveryMulticastLock = wifiManager.createMulticastLock("rabit_helper_discovery").apply {
+                setReferenceCounted(false)
+            }
+
             try {
-                DatagramSocket(8766).use { socket ->
-                    socket.soTimeout = 1200
-                    val buf = ByteArray(2048)
-                    val packet = DatagramPacket(buf, buf.size)
-                    socket.receive(packet)
-                    val jsonText = String(packet.data, 0, packet.length)
-                    val payload = JSONObject(jsonText)
-                    if (payload.optString("type") == "hackie_helper_beacon") {
-                        val ip = payload.optString("ipAddress", packet.address.hostAddress ?: "")
-                        val port = payload.optInt("port", 8765)
-                        if (ip.isNotBlank()) {
-                            val url = "http://$ip:$port"
-                            setHelperBaseUrl(url)
-                            fetchHelperDeviceDetails()
-                            _terminalOutput.value = "Helper found via beacon: $url"
-                            return@launch
+                helperDiscoveryMulticastLock?.acquire()
+
+                // Fast path: listen for helper UDP beacon first.
+                try {
+                    DatagramSocket(8766).use { socket ->
+                        socket.soTimeout = 1200
+                        socket.reuseAddress = true
+                        val buf = ByteArray(2048)
+                        val packet = DatagramPacket(buf, buf.size)
+                        socket.receive(packet)
+                        val jsonText = String(packet.data, 0, packet.length)
+                        val payload = JSONObject(jsonText)
+                        if (payload.optString("type") == "hackie_helper_beacon") {
+                            val ip = payload.optString("ipAddress", packet.address.hostAddress ?: "")
+                            val port = payload.optInt("port", 8765)
+                            if (ip.isNotBlank()) {
+                                val url = "http://$ip:$port"
+                                setHelperBaseUrl(url)
+                                fetchHelperDeviceDetails()
+                                if (!userInitiated) {
+                                    _helperAutoConnectStatus.value = "Auto-discovery: helper found via beacon"
+                                }
+                                if (userInitiated) {
+                                    _terminalOutput.value = "Helper found via beacon: $url"
+                                }
+                                return@launch
+                            }
                         }
                     }
+                } catch (_: Exception) {}
+            } finally {
+                try {
+                    helperDiscoveryMulticastLock?.release()
+                } catch (_: Exception) {}
+            }
+
+            if (!fullScan) {
+                if (!userInitiated) {
+                    _helperAutoConnectStatus.value = "Auto-discovery: beacon not found"
                 }
-            } catch (_: Exception) {}
+                if (userInitiated) {
+                    _terminalOutput.value = "No beacon detected. Try full LAN scan."
+                }
+                return@launch
+            }
 
             val baseIp = _localIp.value.substringBeforeLast('.', "")
             if (baseIp.isBlank()) return@launch
 
-            _terminalOutput.value = "Scanning local network for Helper..."
+            if (userInitiated) {
+                _terminalOutput.value = "Scanning local network for Helper..."
+            }
             var foundUrl: String? = null
 
             for (i in 1..254) {
@@ -2976,24 +3123,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (foundUrl != null) {
                 setHelperBaseUrl(foundUrl)
                 fetchHelperDeviceDetails()
-                _terminalOutput.value = "Helper found on local Wi-Fi: $foundUrl"
+                if (!userInitiated) {
+                    _helperAutoConnectStatus.value = "Auto-discovery: helper found by scan"
+                }
+                if (userInitiated) {
+                    _terminalOutput.value = "Helper found on local Wi-Fi: $foundUrl"
+                }
+                appendTransferEvent("Helper discovered on LAN: $foundUrl")
             } else {
-                _terminalOutput.value = "No local helper found. Use internet URL manually (public IP/DDNS)."
+                if (!userInitiated) {
+                    _helperAutoConnectStatus.value = "Auto-discovery: no helper found"
+                }
+                if (userInitiated) {
+                    _terminalOutput.value = "No local helper found. Use internet URL manually (public IP/DDNS)."
+                }
+                _helperConnectionStatus.value = "LAN scan failed"
             }
         }
     }
 
     fun runRemoteShellCommand(cmd: String) {
+        if (cmd.isBlank()) return
         _terminalOutput.value = "Running command..."
-        val response = postHelperCommand("run_shell", JSONObject().put("cmd", cmd)) ?: return
-        val stdout = response.optString("stdout", "")
-        val stderr = response.optString("stderr", "")
-        _terminalOutput.value = buildString {
-            if (stdout.isNotBlank()) append(stdout)
-            if (stderr.isNotBlank()) {
-                if (isNotEmpty()) append("\n")
-                append("[Error] $stderr")
+        viewModelScope.launch(Dispatchers.IO) {
+            val response = postHelperCommand("run_shell", JSONObject().put("cmd", cmd)) ?: return@launch
+            val stdout = response.optString("stdout", "")
+            val stderr = response.optString("stderr", "")
+            _terminalOutput.value = buildString {
+                if (stdout.isNotBlank()) append(stdout)
+                if (stderr.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append("[Error] $stderr")
+                }
             }
+            appendTransferEvent("Shell command executed")
         }
     }
 
@@ -3002,30 +3165,82 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openUrlOnRemote(url: String) {
+        if (url.isBlank()) return
         val normalizedUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
-        postHelperCommand("open_url", JSONObject().put("url", normalizedUrl))
+        viewModelScope.launch(Dispatchers.IO) {
+            val response = postHelperCommand("open_url", JSONObject().put("url", normalizedUrl))
+            if (response != null && response.optBoolean("success", false)) {
+                _terminalOutput.value = "Browser handoff sent: $normalizedUrl"
+                appendTransferEvent("Browser handoff sent")
+            }
+        }
     }
 
     fun lockRemoteScreen() {
-        postHelperCommand("lock_screen")
+        viewModelScope.launch(Dispatchers.IO) {
+            val response = postHelperCommand("lock_screen")
+            if (response != null && response.optBoolean("success", false)) {
+                _terminalOutput.value = "Lock command sent"
+                appendTransferEvent("Remote lock command sent")
+            }
+        }
     }
 
-    fun listRemoteFiles() {
+    fun listRemoteFiles(path: String = _currentRemotePath.value) {
         val base = _helperBaseUrl.value
         if (base.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val conn = (URL("$base/files?path=/").openConnection() as HttpURLConnection).apply {
+                val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+                val conn = (URL("$base/files?path=$encodedPath").openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 2500
                     readTimeout = 5000
                 }
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
-                _terminalOutput.value = body
+                val json = JSONObject(body)
+                _currentRemotePath.value = json.optString("path", path)
+                val items = json.optJSONArray("items") ?: JSONArray()
+                val files = mutableListOf<HelperRemoteFile>()
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+                    files += HelperRemoteFile(
+                        name = item.optString("name", "Unknown"),
+                        path = item.optString("path", "/"),
+                        isDirectory = item.optBoolean("isDir", false)
+                    )
+                }
+                _helperRemoteFiles.value = files.sortedWith(
+                    compareByDescending<HelperRemoteFile> { it.isDirectory }.thenBy { it.name.lowercase(Locale.getDefault()) }
+                )
+                _terminalOutput.value = "Loaded ${files.size} remote items"
+                appendTransferEvent("Remote file list fetched")
             } catch (e: Exception) {
                 _terminalOutput.value = "[Error] ${e.message ?: "File listing failed"}"
+                _helperRemoteFiles.value = emptyList()
+                appendTransferEvent("Remote file list failed")
             }
         }
+    }
+
+    fun listParentRemoteFiles() {
+        val current = _currentRemotePath.value
+        val normalized = current.trimEnd('/', '\\')
+        if (normalized.isBlank() || normalized == "/") {
+            listRemoteFiles("/")
+            return
+        }
+        // Keep Windows roots such as C:\ stable.
+        if (normalized.length <= 2 && normalized.endsWith(":")) {
+            listRemoteFiles("$normalized\\")
+            return
+        }
+        val slashIndex = maxOf(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'))
+        if (slashIndex <= 0) {
+            listRemoteFiles("/")
+            return
+        }
+        listRemoteFiles(normalized.substring(0, slashIndex + 1))
     }
 
     fun sendFileToHelper(uri: Uri) {
@@ -3051,34 +3266,115 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val response = conn.inputStream.bufferedReader().use { it.readText() }
                 _terminalOutput.value = "Upload complete: $response"
+                appendTransferEvent("Upload complete: $name")
             } catch (e: Exception) {
                 _terminalOutput.value = "[Error] ${e.message ?: "Upload failed"}"
+                appendTransferEvent("Upload failed")
             }
         }
     }
 
     fun setClipboardSyncState(sync: Boolean) {
+        clipboardSyncEnabled = sync
+        prefs.edit().putBoolean("clipboard_sync_enabled", sync).apply()
+
+        if (sync) {
+            startClipboardSyncLoop()
+        } else {
+            stopClipboardSyncLoop()
+        }
+
         if (sync) {
             val clipboardContent = ClipboardHelper.getFromClipboard(getApplication())
             if (clipboardContent.isNotEmpty()) {
-                val payload = JSONObject().put("content", clipboardContent)
-                val base = _helperBaseUrl.value
-                if (base.isBlank()) return
-                try {
-                    val conn = (URL("$base/clipboard").openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        connectTimeout = 2500
-                        readTimeout = 4000
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json")
-                    }
-                    conn.outputStream.use { out ->
-                        out.write(payload.toString().toByteArray())
-                        out.flush()
-                    }
-                    conn.inputStream.close()
-                } catch (_: Exception) {}
+                lastSentClipboardText = clipboardContent
+                viewModelScope.launch(Dispatchers.IO) {
+                    pushClipboardToHelper(clipboardContent)
+                }
             }
+        }
+    }
+
+    private fun startClipboardSyncLoop() {
+        clipboardSyncJob?.cancel()
+        runCatching {
+            clipboardManager.addPrimaryClipChangedListener(clipboardListener)
+        }
+
+        clipboardSyncJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                syncLocalClipboardToHelper()
+                pullClipboardFromHelper()
+                delay(4000)
+            }
+        }
+    }
+
+    private fun stopClipboardSyncLoop() {
+        clipboardSyncJob?.cancel()
+        clipboardSyncJob = null
+        runCatching {
+            clipboardManager.removePrimaryClipChangedListener(clipboardListener)
+        }
+    }
+
+    private fun pushClipboardToHelper(text: String) {
+        val base = _helperBaseUrl.value
+        if (base.isBlank() || text.isBlank()) return
+
+        try {
+            val payload = JSONObject().put("content", text)
+            val conn = (URL("$base/clipboard").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 2500
+                readTimeout = 4000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray())
+                out.flush()
+            }
+            conn.inputStream.bufferedReader().use { it.readText() }
+            appendTransferEvent("Clipboard synced to helper")
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun syncLocalClipboardToHelper(force: Boolean = false) {
+        if (!clipboardSyncEnabled) return
+
+        val clipboardText = ClipboardHelper.getFromClipboard(getApplication())
+        if (clipboardText.isBlank()) return
+        if (!force && clipboardText == lastSentClipboardText) return
+
+        lastSentClipboardText = clipboardText
+        pushClipboardToHelper(clipboardText)
+    }
+
+    private fun pullClipboardFromHelper() {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return
+
+        try {
+            val conn = (URL("$base/clipboard").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 2500
+                readTimeout = 4000
+            }
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(body)
+            val helperClipboard = json.optString("text", json.optString("content", ""))
+            if (helperClipboard.isBlank() || helperClipboard == lastAppliedHelperClipboardText) return
+
+            lastAppliedHelperClipboardText = helperClipboard
+            suppressClipboardEcho = true
+            ClipboardHelper.copyToClipboard(getApplication(), helperClipboard)
+            suppressClipboardEcho = false
+            lastSentClipboardText = helperClipboard
+            appendTransferEvent("Clipboard synced from helper")
+        } catch (_: Exception) {
+            suppressClipboardEcho = false
         }
     }
 
@@ -3102,6 +3398,7 @@ data class CustomMacro(
     val onlyWhenApp: String? = null
 )
 data class SavedDevice(val name: String, val address: String, val lastConnected: Long)
+data class HelperRemoteFile(val name: String, val path: String, val isDirectory: Boolean)
 data class VaultEntry(
     val id: String,
     val appName: String,

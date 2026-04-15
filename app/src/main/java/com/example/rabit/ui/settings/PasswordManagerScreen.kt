@@ -35,10 +35,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +66,7 @@ import com.example.rabit.ui.theme.Obsidian
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
 import com.example.rabit.ui.theme.SuccessGreen
+import kotlinx.coroutines.delay
 
 @Composable
 fun PasswordManagerScreen(
@@ -84,6 +87,22 @@ fun PasswordManagerScreen(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showVaultEntryDialog by remember { mutableStateOf(false) }
+    var biometricSessionExpiryMs by rememberSaveable { mutableStateOf(0L) }
+    var biometricNowMs by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+
+    val biometricSessionDurationMs = 45_000L
+    val isBiometricSessionActive = biometricMacAutofillEnabled && biometricNowMs < biometricSessionExpiryMs
+    val remainingBiometricSeconds = ((biometricSessionExpiryMs - biometricNowMs).coerceAtLeast(0L) + 999L) / 1000L
+
+    LaunchedEffect(biometricMacAutofillEnabled, biometricSessionExpiryMs) {
+        biometricNowMs = System.currentTimeMillis()
+        if (!biometricMacAutofillEnabled || biometricSessionExpiryMs <= 0L) return@LaunchedEffect
+
+        while (biometricNowMs < biometricSessionExpiryMs) {
+            delay(1000)
+            biometricNowMs = System.currentTimeMillis()
+        }
+    }
 
     Scaffold(containerColor = Obsidian) { padding ->
         Column(
@@ -109,12 +128,33 @@ fun PasswordManagerScreen(
                 )
 
                 SettingsToggleItem(
-                    title = "Biometric Gate",
-                    subtitle = "Require fingerprint/face before autofill",
+                    title = "Biometric Session Cache",
+                    subtitle = "Keep unlock active for 45 seconds after success",
                     icon = Icons.Default.Fingerprint,
                     iconColor = SuccessGreen,
                     checked = biometricMacAutofillEnabled,
-                    onCheckedChange = { viewModel.setBiometricMacAutofillEnabled(it) }
+                    onCheckedChange = {
+                        viewModel.setBiometricMacAutofillEnabled(it)
+                        if (!it) {
+                            biometricSessionExpiryMs = 0L
+                            biometricNowMs = System.currentTimeMillis()
+                        }
+                    }
+                )
+
+                Text(
+                    text = if (biometricMacAutofillEnabled) {
+                        if (isBiometricSessionActive) {
+                            "Biometric session: Active (${remainingBiometricSeconds}s left)"
+                        } else {
+                            "Biometric session: Locked"
+                        }
+                    } else {
+                        "Session cache disabled. Biometric required for every push."
+                    },
+                    color = Silver,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
                 HorizontalDivider(
@@ -173,24 +213,29 @@ fun PasswordManagerScreen(
 
                 Button(
                     onClick = {
-                        val autofillNow = {
+                        val pushAfterBiometric = {
                             val error = viewModel.sendStoredMacPasswordToHost()
                             Toast.makeText(context, error ?: "Password sent securely.", Toast.LENGTH_SHORT).show()
                         }
 
-                        if (biometricMacAutofillEnabled) {
-                            if (biometricAuthenticator?.isBiometricAvailable() == true) {
-                                biometricAuthenticator.authenticate(
-                                    title = "Hackie Password Manager",
-                                    subtitle = "Authenticate to inject password",
-                                    onSuccess = autofillNow,
-                                    onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                                )
-                            } else {
-                                Toast.makeText(context, "Biometric auth is unavailable on this device.", Toast.LENGTH_SHORT).show()
-                            }
+                        if (isBiometricSessionActive) {
+                            pushAfterBiometric()
+                        } else if (biometricAuthenticator?.isBiometricAvailable() == true) {
+                            biometricAuthenticator.authenticate(
+                                title = "Hackie Password Manager",
+                                subtitle = "Authenticate to push password",
+                                onSuccess = {
+                                    biometricSessionExpiryMs = if (biometricMacAutofillEnabled) {
+                                        System.currentTimeMillis() + biometricSessionDurationMs
+                                    } else {
+                                        0L
+                                    }
+                                    pushAfterBiometric()
+                                },
+                                onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                            )
                         } else {
-                            autofillNow()
+                            Toast.makeText(context, "Biometric auth is unavailable on this device.", Toast.LENGTH_SHORT).show()
                         }
                     },
                     enabled = connectionState is HidDeviceManager.ConnectionState.Connected,
@@ -200,7 +245,7 @@ fun PasswordManagerScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
                 ) {
                     Icon(Icons.Default.Security, contentDescription = null)
-                    Text("Authenticate & Push to Mac")
+                    Text("Biometric Push to Mac")
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -262,19 +307,24 @@ fun PasswordManagerScreen(
                                                 Toast.makeText(context, error ?: "Password pushed for ${entry.appName}", Toast.LENGTH_SHORT).show()
                                             }
 
-                                            if (biometricMacAutofillEnabled) {
-                                                if (biometricAuthenticator?.isBiometricAvailable() == true) {
-                                                    biometricAuthenticator.authenticate(
-                                                        title = "Unlock ${entry.appName}",
-                                                        subtitle = "Authenticate to push password",
-                                                        onSuccess = pushAction,
-                                                        onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                                                    )
-                                                } else {
-                                                    Toast.makeText(context, "Biometric auth is unavailable on this device.", Toast.LENGTH_SHORT).show()
-                                                }
-                                            } else {
+                                            if (isBiometricSessionActive) {
                                                 pushAction()
+                                            } else if (biometricAuthenticator?.isBiometricAvailable() == true) {
+                                                biometricAuthenticator.authenticate(
+                                                    title = "Unlock ${entry.appName}",
+                                                    subtitle = "Authenticate to push password",
+                                                    onSuccess = {
+                                                        biometricSessionExpiryMs = if (biometricMacAutofillEnabled) {
+                                                            System.currentTimeMillis() + biometricSessionDurationMs
+                                                        } else {
+                                                            0L
+                                                        }
+                                                        pushAction()
+                                                    },
+                                                    onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                                )
+                                            } else {
+                                                Toast.makeText(context, "Biometric auth is unavailable on this device.", Toast.LENGTH_SHORT).show()
                                             }
                                         },
                                         enabled = connectionState is HidDeviceManager.ConnectionState.Connected,
@@ -283,7 +333,7 @@ fun PasswordManagerScreen(
                                     ) {
                                         Icon(Icons.Default.Fingerprint, contentDescription = null)
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Push")
+                                        Text("Biometric Push")
                                     }
 
                                     OutlinedButton(

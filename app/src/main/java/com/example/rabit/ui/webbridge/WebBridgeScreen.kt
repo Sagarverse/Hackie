@@ -59,7 +59,7 @@ fun WebBridgeScreen(
     val cloudUnavailable = p2pStatus.contains("Safe Mode") || p2pStatus.contains("Offline")
     val localUrl = if (localIp.isNotEmpty() && localIp != "0.0.0.0")
         "http://$localIp:${RabitNetworkServer.PORT}" else "Identifying network..."
-    val gatewayBaseUrl = "https://hackie-260414-01.web.app"
+    val gatewayBaseUrl = "https://hackie-sagar.web.app"
     val p2pUrl = if (!peerId.isNullOrEmpty() && !cloudUnavailable) "$gatewayBaseUrl/?peer=$peerId" else gatewayBaseUrl
 
     // ActivityResultLauncher for picking files to share
@@ -379,7 +379,7 @@ fun WebBridgeScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Hackie Global Bridge", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                                Text("Secure access via hackie-260414-01.web.app", color = Silver, fontSize = 11.sp)
+                                Text("Secure access via hackie-sagar.web.app", color = Silver, fontSize = 11.sp)
                             }
                             Switch(
                                 checked = p2pEnabled,
