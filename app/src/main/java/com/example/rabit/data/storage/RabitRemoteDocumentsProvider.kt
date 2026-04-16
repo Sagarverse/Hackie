@@ -76,7 +76,7 @@ class RabitRemoteDocumentsProvider : DocumentsProvider() {
                 Root.FLAG_SUPPORTS_SEARCH or
                 Root.FLAG_SUPPORTS_IS_CHILD
         )
-        row.add(Root.COLUMN_ICON, com.example.rabit.R.mipmap.ic_launcher)
+        row.add(Root.COLUMN_ICON, com.sagar.rabit.R.mipmap.ic_launcher)
         row.add(Root.COLUMN_TITLE, "Hackie Remote")
 
         val summary = when {

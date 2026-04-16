@@ -18,10 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-<<<<<<< HEAD
-=======
 import com.example.rabit.domain.model.RemoteFile
->>>>>>> be726e4 (Before helper app)
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 

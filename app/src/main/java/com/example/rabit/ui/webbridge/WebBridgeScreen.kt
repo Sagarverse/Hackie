@@ -21,10 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
-<<<<<<< HEAD
-=======
 import androidx.compose.ui.graphics.vector.ImageVector
->>>>>>> be726e4 (Before helper app)
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -47,13 +44,10 @@ import com.example.rabit.data.network.RabitNetworkServer
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.components.QrCodeGenerator
 import com.example.rabit.ui.theme.*
-<<<<<<< HEAD
-=======
 import java.io.File
 import android.net.Uri
 import android.content.Context
 import android.database.Cursor
->>>>>>> be726e4 (Before helper app)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,8 +70,6 @@ fun WebBridgeScreen(
     val p2pUrl = if (!p2pPeerId.isNullOrEmpty()) "$gatewayBaseUrl/bridge?id=$p2pPeerId" else gatewayBaseUrl
 
     var qrMode by remember { mutableStateOf("LAN") }
-<<<<<<< HEAD
-=======
     val receivedFiles by viewModel.receivedFiles.collectAsState()
     val activeSessions by viewModel.activeSessions.collectAsState()
 
@@ -86,7 +78,6 @@ fun WebBridgeScreen(
             viewModel.refreshWebBridgeData()
         }
     }
->>>>>>> be726e4 (Before helper app)
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -362,9 +353,6 @@ fun WebBridgeScreen(
                         }
                     }
                     
-<<<<<<< HEAD
-                    Spacer(modifier = Modifier.height(40.dp))
-=======
                     Spacer(modifier = Modifier.height(32.dp))
 
                     // ─── CONNECTED DEVICES ───
@@ -458,7 +446,6 @@ fun WebBridgeScreen(
                     }
                     
                     Spacer(modifier = Modifier.height(60.dp))
->>>>>>> be726e4 (Before helper app)
                 }
             }
         }
@@ -466,8 +453,6 @@ fun WebBridgeScreen(
 }
 
 @Composable
-<<<<<<< HEAD
-=======
 private fun SectionHeader(title: String, icon: ImageVector) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
@@ -614,7 +599,6 @@ private fun formatFileSize(size: Long): String {
 }
 
 @Composable
->>>>>>> be726e4 (Before helper app)
 private fun PremiumMeshBackground() {
     val infiniteTransition = rememberInfiniteTransition()
     val dx1 by infiniteTransition.animateFloat(

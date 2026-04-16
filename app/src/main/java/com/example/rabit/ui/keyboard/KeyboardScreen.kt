@@ -85,7 +85,6 @@ fun KeyboardScreen(
             .padding(horizontal = 20.dp)
     ) {
         // Compact connection status (global top bar is provided by RabitAppScaffold)
-<<<<<<< HEAD
         val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
         Row(
             modifier = Modifier
@@ -111,14 +110,12 @@ fun KeyboardScreen(
                 letterSpacing = 2.sp
             )
         }
-=======
         // Unified Premium Header with Disconnect and Settings access
         PremiumHeader(
             connectionState = connectionState,
             onNavigateToSettings = onNavigateToSettings,
             onDisconnect = onDisconnect
         )
->>>>>>> be726e4 (Before helper app)
 
         // Module Switcher (TabRow alternative for extreme responsiveness)
         Row(

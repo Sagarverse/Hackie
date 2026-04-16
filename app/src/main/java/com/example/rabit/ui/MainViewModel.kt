@@ -91,7 +91,6 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 import android.content.ComponentName
-import android.content.pm.PackageManager
 import android.provider.DocumentsContract
 import com.example.rabit.data.storage.RemoteStorageManager
 
@@ -158,11 +157,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _proximityMacLockStateGuess = MutableStateFlow(prefs.getString("proximity_mac_lock_state_guess", "UNKNOWN") ?: "UNKNOWN")
     val proximityMacLockStateGuess = _proximityMacLockStateGuess.asStateFlow()
 
-<<<<<<< HEAD
-    private val _typingSpeed = MutableStateFlow(prefs.getString("typing_speed", "Normal") ?: "Normal")
-    val typingSpeed = _typingSpeed.asStateFlow()
 
-=======
+
     // --- AUTOMATION STATE FLOWS ---
     
     // Auto Clicker
@@ -194,6 +190,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Remote Explorer & File Hub Unified State
     private val _isRemoteMounted = MutableStateFlow(false)
     val isRemoteMounted = _isRemoteMounted.asStateFlow()
+    private val _remoteMountStatus = MutableStateFlow("")
+    val remoteMountStatus = _remoteMountStatus.asStateFlow()
 
     // Reverse Shell
     private val _isReverseShellListening = MutableStateFlow(false)
@@ -214,7 +212,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var autoClickJob: Job? = null
 
->>>>>>> be726e4 (Before helper app)
     private val _activeModifiers = MutableStateFlow<Byte>(0)
     val activeModifiers = _activeModifiers.asStateFlow()
 
@@ -443,12 +440,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentRemotePath = MutableStateFlow("/")
     val currentRemotePath = _currentRemotePath.asStateFlow()
-<<<<<<< HEAD
-=======
     
     private val _remoteError = MutableStateFlow<String?>(null)
     val remoteError = _remoteError.asStateFlow()
->>>>>>> be726e4 (Before helper app)
 
     private val clipboardManager = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private var clipboardSyncJob: Job? = null
@@ -721,8 +715,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val sharedFiles = _sharedFiles.asStateFlow()
     private val _sharedTransferQueue = MutableStateFlow<List<SharedTransferItem>>(emptyList())
     val sharedTransferQueue = _sharedTransferQueue.asStateFlow()
-<<<<<<< HEAD
-=======
     
     // Received Files (Mac -> Phone)
     private val _receivedFiles = MutableStateFlow<List<File>>(emptyList())
@@ -731,7 +723,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Active Sessions (Web Bridge)
     private val _activeSessions = MutableStateFlow<List<RabitNetworkServer.TrustedSession>>(emptyList())
     val activeSessions = _activeSessions.asStateFlow()
->>>>>>> be726e4 (Before helper app)
 
     // Onboarding completed
     val onboardingCompleted: Boolean
@@ -805,8 +796,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _sharedTransferQueue.value = emptyList()
     }
 
-<<<<<<< HEAD
-=======
     fun refreshWebBridgeData() {
         refreshActiveSessions()
         refreshReceivedFiles()
@@ -849,7 +838,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
->>>>>>> be726e4 (Before helper app)
     private val _deviceIp = MutableStateFlow("0.0.0.0")
     val deviceIp = _deviceIp.asStateFlow()
 
@@ -1095,8 +1083,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-<<<<<<< HEAD
-=======
     // --- AUTO CLICKER ---
 
     fun setAutoClickInterval(ms: Long) {
@@ -1307,12 +1293,106 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun downloadRemoteFile(file: RemoteFile, context: Context) {
-        // Implementation for downloading would ideally use SCP or cat to local file
-        // For now, let's just log or try to copy it if context is provided
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val localFile = RemoteStorageManager.readFile(file.path)
+                if (localFile != null && localFile.exists()) {
+                    // Copy to Downloads via MediaStore
+                    val resolver = context.contentResolver
+                    val values = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Downloads.DISPLAY_NAME, file.name)
+                        put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                        put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Hackie")
+                    }
+                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            java.io.FileInputStream(localFile).use { fis -> fis.copyTo(out) }
+                        }
+                        appendTerminalLine("Downloaded: ${file.name} → Downloads/Hackie/")
+                    }
+                } else {
+                    appendTerminalLine("Download failed: Could not fetch ${file.name}")
+                }
+            } catch (e: Exception) {
+                appendTerminalLine("Download error: ${e.message}")
+            }
+        }
     }
 
     fun toggleRemoteMount() {
-        _isRemoteMounted.value = !_isRemoteMounted.value
+        if (_isRemoteMounted.value) {
+            unmountRemoteStorage()
+        } else {
+            mountRemoteStorage()
+        }
+    }
+
+    fun mountRemoteStorage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _remoteMountStatus.value = "Mounting..."
+                val app = getApplication<Application>()
+
+                // Sync SSH/Helper credentials to prefs for RemoteStorageManager to read
+                val prefs = app.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putString("helper_base_url", _helperBaseUrl.value)
+                    .apply()
+
+                // Initialize the storage manager
+                RemoteStorageManager.mount(app)
+
+                // Enable the DocumentsProvider component
+                val componentName = ComponentName(app, com.example.rabit.data.storage.RabitRemoteDocumentsProvider::class.java)
+                app.packageManager.setComponentEnabledSetting(
+                    componentName,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+
+                // Notify the system that our roots changed
+                val rootsUri = DocumentsContract.buildRootsUri("${app.packageName}.remote.documents")
+                app.contentResolver.notifyChange(rootsUri, null)
+
+                _isRemoteMounted.value = true
+                _remoteMountStatus.value = "Mounted — visible in Files app"
+                appendTerminalLine("Remote storage mounted. Open Files app → Hackie Remote to browse.")
+            } catch (e: Exception) {
+                _remoteMountStatus.value = "Mount failed: ${e.message}"
+                _isRemoteMounted.value = false
+                appendTerminalLine("Mount failed: ${e.message}")
+            }
+        }
+    }
+
+    fun unmountRemoteStorage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+
+                // Unmount the storage manager
+                RemoteStorageManager.unmount()
+
+                // Disable the DocumentsProvider component
+                val componentName = ComponentName(app, com.example.rabit.data.storage.RabitRemoteDocumentsProvider::class.java)
+                app.packageManager.setComponentEnabledSetting(
+                    componentName,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+
+                // Notify the system
+                val rootsUri = DocumentsContract.buildRootsUri("${app.packageName}.remote.documents")
+                app.contentResolver.notifyChange(rootsUri, null)
+
+                _isRemoteMounted.value = false
+                _remoteMountStatus.value = ""
+                appendTerminalLine("Remote storage unmounted.")
+            } catch (e: Exception) {
+                _remoteMountStatus.value = "Unmount error: ${e.message}"
+            }
+        }
     }
 
     // --- HELPER ---
@@ -1415,7 +1495,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
->>>>>>> be726e4 (Before helper app)
     fun disconnectSsh() {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -2428,8 +2507,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-<<<<<<< HEAD
-=======
     fun unlockMacSshViaHid() {
         viewModelScope.launch {
             _emergencyStatus.value = "Executing HID Unlock..."
@@ -2461,7 +2538,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
->>>>>>> be726e4 (Before helper app)
     // ── Custom Macros ──
 
     fun addCustomMacro(name: String, command: String) {
@@ -3537,11 +3613,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _activeProfile = MutableStateFlow(MacroProfile.GENERAL)
     val activeProfile = _activeProfile.asStateFlow()
-<<<<<<< HEAD
-    private val _emergencyStatus = MutableStateFlow("Idle")
-=======
     private val _emergencyStatus = MutableStateFlow("Ready")
->>>>>>> be726e4 (Before helper app)
     val emergencyStatus = _emergencyStatus.asStateFlow()
 
     fun setMacroProfile(profile: MacroProfile) {
