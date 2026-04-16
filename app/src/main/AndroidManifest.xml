@@ -143,6 +143,19 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Feature 7: Remote Storage SAF DocumentsProvider -->
+        <provider
+            android:name=".data.storage.RabitRemoteDocumentsProvider"
+            android:authorities="${applicationId}.remote.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:enabled="false">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <!-- Activity to handle clipboard sync from notification (bypasses background limitations) -->
         <activity
             android:name="com.example.rabit.ui.components.ClipboardSyncActivity"

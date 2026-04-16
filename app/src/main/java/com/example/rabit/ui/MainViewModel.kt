@@ -79,6 +79,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Properties
@@ -89,7 +90,17 @@ import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sign
 
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.provider.DocumentsContract
+import com.example.rabit.data.storage.RemoteStorageManager
+
+enum class SystemShortcut { MUTE, PLAY_PAUSE, NEXT, PREV, VOL_UP, VOL_DOWN }
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    data class TerminalDevice(val ip: String, val port: Int, val protocol: String)
+    data class RemoteProcess(val pid: Int, val command: String, val cpu: Double, val mem: Double, val user: String)
+    data class SystemStats(val cpuLoad: Float, val memUsage: Float, val diskUsage: Float, val uptime: String)
     private val repository: KeyboardRepository = KeyboardRepositoryImpl(application)
     private val localLlmManager = LocalLlmManager(application)
     private val spatialPointerManager = SpatialPointerManager(application)
@@ -147,9 +158,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _proximityMacLockStateGuess = MutableStateFlow(prefs.getString("proximity_mac_lock_state_guess", "UNKNOWN") ?: "UNKNOWN")
     val proximityMacLockStateGuess = _proximityMacLockStateGuess.asStateFlow()
 
+<<<<<<< HEAD
     private val _typingSpeed = MutableStateFlow(prefs.getString("typing_speed", "Normal") ?: "Normal")
     val typingSpeed = _typingSpeed.asStateFlow()
 
+=======
+    // --- AUTOMATION STATE FLOWS ---
+    
+    // Auto Clicker
+    private val _isAutoClicking = MutableStateFlow(false)
+    val isAutoClicking = _isAutoClicking.asStateFlow()
+    private val _autoClickInterval = MutableStateFlow(1000L)
+    val autoClickInterval = _autoClickInterval.asStateFlow()
+    private val _autoClickLoops = MutableStateFlow(0)
+    val autoClickLoops = _autoClickLoops.asStateFlow()
+    private val _currentClickCount = MutableStateFlow(0)
+    val currentClickCount = _currentClickCount.asStateFlow()
+
+    // Terminal Scanner
+    private val _scannedTerminals = MutableStateFlow<List<TerminalDevice>>(emptyList())
+    val scannedTerminals = _scannedTerminals.asStateFlow()
+    private val _isTerminalScanning = MutableStateFlow(false)
+    val isTerminalScanning = _isTerminalScanning.asStateFlow()
+    private val _terminalScanProgress = MutableStateFlow(0f)
+    val terminalScanProgress = _terminalScanProgress.asStateFlow()
+
+    // Process Manager & Stats
+    private val _remoteProcesses = MutableStateFlow<List<RemoteProcess>>(emptyList())
+    val remoteProcesses = _remoteProcesses.asStateFlow()
+    private val _isRefreshingProcesses = MutableStateFlow(false)
+    val isRefreshingProcesses = _isRefreshingProcesses.asStateFlow()
+    private val _systemStats = MutableStateFlow(SystemStats(0f, 0f, 0f, "Unknown"))
+    val systemStats = _systemStats.asStateFlow()
+
+    // Remote Explorer & File Hub Unified State
+    private val _isRemoteMounted = MutableStateFlow(false)
+    val isRemoteMounted = _isRemoteMounted.asStateFlow()
+
+    // Reverse Shell
+    private val _isReverseShellListening = MutableStateFlow(false)
+    val isReverseShellListening = _isReverseShellListening.asStateFlow()
+    private val _reverseShellConnected = MutableStateFlow(false)
+    val reverseShellConnected = _reverseShellConnected.asStateFlow()
+    private val _reverseShellStatus = MutableStateFlow("Idle")
+    val reverseShellStatus = _reverseShellStatus.asStateFlow()
+    private val _reverseShellLines = MutableStateFlow<List<String>>(emptyList())
+    val reverseShellLines = _reverseShellLines.asStateFlow()
+
+    // Macros & Misc
+    private val _macUnlocked = MutableStateFlow(false)
+    val macUnlocked = _macUnlocked.asStateFlow()
+
+    private val _typingSpeed = MutableStateFlow(prefs.getString("typing_speed", "Normal") ?: "Normal")
+    val typingSpeed = _typingSpeed.asStateFlow()
+
+    private var autoClickJob: Job? = null
+
+>>>>>>> be726e4 (Before helper app)
     private val _activeModifiers = MutableStateFlow<Byte>(0)
     val activeModifiers = _activeModifiers.asStateFlow()
 
@@ -378,6 +443,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentRemotePath = MutableStateFlow("/")
     val currentRemotePath = _currentRemotePath.asStateFlow()
+<<<<<<< HEAD
+=======
+    
+    private val _remoteError = MutableStateFlow<String?>(null)
+    val remoteError = _remoteError.asStateFlow()
+>>>>>>> be726e4 (Before helper app)
 
     private val clipboardManager = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private var clipboardSyncJob: Job? = null
@@ -650,6 +721,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val sharedFiles = _sharedFiles.asStateFlow()
     private val _sharedTransferQueue = MutableStateFlow<List<SharedTransferItem>>(emptyList())
     val sharedTransferQueue = _sharedTransferQueue.asStateFlow()
+<<<<<<< HEAD
+=======
+    
+    // Received Files (Mac -> Phone)
+    private val _receivedFiles = MutableStateFlow<List<File>>(emptyList())
+    val receivedFiles = _receivedFiles.asStateFlow()
+
+    // Active Sessions (Web Bridge)
+    private val _activeSessions = MutableStateFlow<List<RabitNetworkServer.TrustedSession>>(emptyList())
+    val activeSessions = _activeSessions.asStateFlow()
+>>>>>>> be726e4 (Before helper app)
 
     // Onboarding completed
     val onboardingCompleted: Boolean
@@ -723,6 +805,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _sharedTransferQueue.value = emptyList()
     }
 
+<<<<<<< HEAD
+=======
+    fun refreshWebBridgeData() {
+        refreshActiveSessions()
+        refreshReceivedFiles()
+    }
+
+    fun refreshActiveSessions() {
+        _activeSessions.value = RabitNetworkServer.getActiveSessions()
+    }
+
+    fun revokeActiveSession(token: String) {
+        RabitNetworkServer.revokeSession(token)
+        refreshActiveSessions()
+    }
+
+    fun refreshReceivedFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val hackieDir = File(downloadsDir, "Hackie")
+            
+            val files = mutableListOf<File>()
+            
+            // Scan downloads root for Hackie_ prefixed files
+            downloadsDir.listFiles()?.filter { it.isFile && it.name.startsWith("Hackie_") }?.let { files.addAll(it) }
+            
+            // Scan Hackie subdirectory
+            if (hackieDir.exists() && hackieDir.isDirectory) {
+                hackieDir.listFiles()?.filter { it.isFile }?.let { files.addAll(it) }
+            }
+            
+            _receivedFiles.value = files.sortedByDescending { it.lastModified() }
+        }
+    }
+
+    fun deleteReceivedFile(file: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (file.exists()) {
+                file.delete()
+                refreshReceivedFiles()
+            }
+        }
+    }
+
+>>>>>>> be726e4 (Before helper app)
     private val _deviceIp = MutableStateFlow("0.0.0.0")
     val deviceIp = _deviceIp.asStateFlow()
 
@@ -968,6 +1095,327 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+<<<<<<< HEAD
+=======
+    // --- AUTO CLICKER ---
+
+    fun setAutoClickInterval(ms: Long) {
+        _autoClickInterval.value = ms.coerceAtLeast(10L)
+    }
+
+    fun setAutoClickLoops(count: Int) {
+        _autoClickLoops.value = count.coerceAtLeast(0)
+    }
+
+    fun startAutoClicker() {
+        if (_isAutoClicking.value) return
+        _isAutoClicking.value = true
+        _currentClickCount.value = 0
+        autoClickJob?.cancel()
+        autoClickJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val maxLoops = _autoClickLoops.value
+                while (isActive && (maxLoops == 0 || _currentClickCount.value < maxLoops)) {
+                    repository.sendMouseMove(0f, 0f, 1, 0)
+                    delay(20)
+                    repository.sendMouseMove(0f, 0f, 0, 0)
+                    _currentClickCount.value++
+                    delay(_autoClickInterval.value)
+                }
+            } finally {
+                _isAutoClicking.value = false
+            }
+        }
+    }
+
+    fun stopAutoClicker() {
+        autoClickJob?.cancel()
+        _isAutoClicking.value = false
+    }
+
+    // --- TERMINAL SCANNER ---
+
+    fun scanTerminalDevices() {
+        if (_isTerminalScanning.value) return
+        _isTerminalScanning.value = true
+        _terminalScanProgress.value = 0f
+        _scannedTerminals.value = emptyList()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val subnet = getDeviceSubnet()
+                if (subnet == null) {
+                    _isTerminalScanning.value = false
+                    return@launch
+                }
+
+                val foundDevices = mutableListOf<TerminalDevice>()
+                val jobs = mutableListOf<Job>()
+                val totalIps = 254
+
+                for (i in 1..totalIps) {
+                    val targetIp = "$subnet.$i"
+                    jobs.add(launch {
+                        val ports = listOf(22, 5555)
+                        for (port in ports) {
+                            if (probePort(targetIp, port)) {
+                                val proto = if (port == 22) "SSH" else "ADB"
+                                synchronized(foundDevices) {
+                                    foundDevices.add(TerminalDevice(targetIp, port, proto))
+                                    _scannedTerminals.value = foundDevices.toList()
+                                }
+                                break
+                            }
+                        }
+                    })
+                    if (i % 10 == 0) {
+                        _terminalScanProgress.value = i / totalIps.toFloat()
+                    }
+                }
+                jobs.forEach { it.join() }
+            } catch (e: Exception) {
+                Log.e("Scanner", "Scan failed", e)
+            } finally {
+                _terminalScanProgress.value = 1f
+                _isTerminalScanning.value = false
+            }
+        }
+    }
+
+    private suspend fun probePort(ip: String, port: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(ip, port), 60)
+            socket.close()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun getDeviceSubnet(): String? {
+        val ip = _deviceIp.value
+        if (ip == "0.0.0.0" || !ip.contains(".")) return null
+        return ip.substringBeforeLast(".")
+    }
+
+    fun connectRemoteStorage(protocol: String, ip: String, port: Int) {
+        if (protocol == "SSH") {
+            setSshHost(ip)
+            setSshPort(port)
+            _sshStatus.value = "Target: $ip"
+        }
+    }
+
+    // --- PROCESS MANAGER & SYSTEM STATS ---
+
+    fun fetchRemoteProcesses() {
+        if (!_sshConnected.value) return
+        _isRefreshingProcesses.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // macOS/Linux compatible process list
+                val output = executeSshCommandSilent("ps -eo pid,pcpu,pmem,user,comm -r | head -n 100")
+                val lines = output.lines()
+                val list = mutableListOf<RemoteProcess>()
+                
+                // Skip header
+                lines.drop(1).forEach { line ->
+                    if (line.isBlank()) return@forEach
+                    val parts = line.trim().split(Regex("\\s+"))
+                    if (parts.size >= 5) {
+                        runCatching {
+                            list.add(RemoteProcess(
+                                pid = parts[0].toInt(),
+                                cpu = parts[1].toDouble(),
+                                mem = parts[2].toDouble(),
+                                user = parts[3],
+                                command = parts.drop(4).joinToString(" ")
+                            ))
+                        }
+                    }
+                }
+                _remoteProcesses.value = list
+            } finally {
+                _isRefreshingProcesses.value = false
+            }
+        }
+    }
+
+    fun killRemoteProcess(pid: Int) {
+        viewModelScope.launch {
+            executeSshCommandSilent("kill -9 $pid")
+            delay(500)
+            fetchRemoteProcesses()
+        }
+    }
+
+    fun fetchSystemStats() {
+        if (!_sshConnected.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Simplified stat fetching for macOS
+                val cpu = executeSshCommandSilent("top -l 1 | grep 'CPU usage' | awk '{print $3}' | tr -d '%'").toDoubleOrNull() ?: 0.0
+                val mem = executeSshCommandSilent("top -l 1 | grep 'PhysMem' | awk '{print $2}' | tr -d 'G'").toDoubleOrNull() ?: 0.0 // Simplified
+                val disk = executeSshCommandSilent("df -h / | tail -1 | awk '{print $5}' | tr -d '%'").toDoubleOrNull() ?: 0.0
+                val uptime = executeSshCommandSilent("uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}'").trim()
+                
+                _systemStats.value = SystemStats(cpu.toFloat(), mem.toFloat(), disk.toFloat(), uptime)
+            } catch (e: Exception) {
+                Log.e("Stats", "Failed to fetch stats", e)
+            }
+        }
+    }
+
+    // --- REMOTE EXPLORER ---
+
+    fun navigateRemote(path: String) {
+        _currentRemotePath.value = path
+        refreshRemoteFiles()
+    }
+
+    fun refreshRemoteFiles() {
+        if (!_sshConnected.value) return
+        _isRemoteLoading.value = true
+        _remoteError.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val path = _currentRemotePath.value
+                val output = executeSshCommandSilent("ls -FA1 \"$path\"")
+                val lines = output.lines().filter { it.isNotBlank() }
+                
+                val files = lines.map { line ->
+                    val isDir = line.endsWith("/")
+                    val name = line.removeSuffix("/")
+                    RemoteFile(
+                        name = name,
+                        path = if (path.endsWith("/")) "$path$name" else "$path/$name",
+                        isFolder = isDir,
+                        extension = name.substringAfterLast(".", ""),
+                        size = 0L,
+                        modifiedTime = System.currentTimeMillis()
+                    )
+                }.sortedWith(compareBy({ !it.isFolder }, { it.name.lowercase() }))
+                
+                _remoteFiles.value = files
+            } catch (e: Exception) {
+                _remoteError.value = e.message
+            } finally {
+                _isRemoteLoading.value = false
+            }
+        }
+    }
+
+    fun downloadRemoteFile(file: RemoteFile, context: Context) {
+        // Implementation for downloading would ideally use SCP or cat to local file
+        // For now, let's just log or try to copy it if context is provided
+    }
+
+    fun toggleRemoteMount() {
+        _isRemoteMounted.value = !_isRemoteMounted.value
+    }
+
+    // --- HELPER ---
+
+    private suspend fun executeSshCommandSilent(command: String): String = withContext(Dispatchers.IO) {
+        val session = sshSession ?: throw Exception("Not connected")
+        if (!session.isConnected) throw Exception("Session disconnected")
+        
+        val channel = session.openChannel("exec") as ChannelExec
+        channel.setCommand(command)
+        val input = channel.inputStream
+        channel.connect(5000)
+        
+        val result = input.bufferedReader().readText()
+        channel.disconnect()
+        result
+    }
+
+    // --- REVERSE SHELL ---
+    private var reverseShellSocket: java.net.ServerSocket? = null
+    private var reverseShellClient: java.net.Socket? = null
+    private var reverseShellJob: Job? = null
+
+    fun startReverseShellListener(port: Int) {
+        if (_isReverseShellListening.value) return
+        _isReverseShellListening.value = true
+        _reverseShellStatus.value = "Listening on port $port..."
+        _reverseShellLines.value = listOf("STAGED: Waiting for incoming connection...")
+
+        reverseShellJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                java.net.ServerSocket(port).use { server ->
+                    reverseShellSocket = server
+                    val client = server.accept()
+                    reverseShellClient = client
+                    _reverseShellConnected.value = true
+                    _reverseShellStatus.value = "Connected from ${client.inetAddress.hostAddress}"
+                    
+                    val input = client.inputStream.bufferedReader()
+                    while (isActive && !client.isClosed) {
+                        val line = input.readLine() ?: break
+                        _reverseShellLines.value = (_reverseShellLines.value + line).takeLast(200)
+                    }
+                }
+            } catch (e: Exception) {
+                _reverseShellStatus.value = "Error: ${e.message}"
+            } finally {
+                stopReverseShellListener()
+            }
+        }
+    }
+
+    fun stopReverseShellListener() {
+        _isReverseShellListening.value = false
+        _reverseShellConnected.value = false
+        _reverseShellStatus.value = "Idle"
+        runCatching { reverseShellSocket?.close() }
+        runCatching { reverseShellClient?.close() }
+        reverseShellJob?.cancel()
+    }
+
+    fun sendReverseShellCommand(command: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val output = reverseShellClient?.outputStream ?: return@launch
+                output.write((command + "\n").toByteArray())
+                output.flush()
+                _reverseShellLines.value = (_reverseShellLines.value + "> $command").takeLast(200)
+            } catch (e: Exception) {
+                _reverseShellLines.value = (_reverseShellLines.value + "FAIL: ${e.message}").takeLast(200)
+            }
+        }
+    }
+
+    // --- MACROS & PAYLOADS ---
+
+
+
+
+
+    fun runEmergencyAction(actionName: String) {
+        val action = try {
+            EmergencyAction.valueOf(actionName.uppercase().replace(" ", "_"))
+        } catch (e: Exception) {
+            null
+        }
+        
+        if (action != null) {
+            runEmergencyAction(action)
+        } else {
+            _emergencyStatus.value = "Executing $actionName..."
+            viewModelScope.launch {
+                when (actionName.uppercase()) {
+                    "WIPE_CLIPBOARD" -> repository.sendText("")
+                    "QUIT_APPS" -> sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_ALT, HidKeyCodes.KEY_ESC))
+                }
+                delay(1000)
+                _emergencyStatus.value = "Ready"
+            }
+        }
+    }
+
+>>>>>>> be726e4 (Before helper app)
     fun disconnectSsh() {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -1980,6 +2428,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+<<<<<<< HEAD
+=======
+    fun unlockMacSshViaHid() {
+        viewModelScope.launch {
+            _emergencyStatus.value = "Executing HID Unlock..."
+            // 1. Open Spotlight
+            sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_SPACE))
+            delay(400)
+            
+            // 2. Clear Spotlight if something was there
+            repeat(15) { 
+                repository.sendKey(HidKeyCodes.KEY_BACKSPACE, 0)
+                delay(20)
+            }
+            
+            // 3. Type Terminal
+            repository.sendText("terminal")
+            delay(500)
+            repository.sendKey(HidKeyCodes.KEY_ENTER, 0)
+            delay(1500) // Wait for terminal to open
+            
+            // 4. Sequence to enable Remote Login (SSH)
+            // This is a common automation sequence for demos/setup
+            repository.sendText("sudo systemsetup -setremotelogin on")
+            delay(100)
+            repository.sendKey(HidKeyCodes.KEY_ENTER, 0)
+            
+            _emergencyStatus.value = "Unlock sequence sent."
+            delay(2000)
+            _emergencyStatus.value = "Ready"
+        }
+    }
+
+>>>>>>> be726e4 (Before helper app)
     // ── Custom Macros ──
 
     fun addCustomMacro(name: String, command: String) {
@@ -3055,7 +3537,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _activeProfile = MutableStateFlow(MacroProfile.GENERAL)
     val activeProfile = _activeProfile.asStateFlow()
+<<<<<<< HEAD
     private val _emergencyStatus = MutableStateFlow("Idle")
+=======
+    private val _emergencyStatus = MutableStateFlow("Ready")
+>>>>>>> be726e4 (Before helper app)
     val emergencyStatus = _emergencyStatus.asStateFlow()
 
     fun setMacroProfile(profile: MacroProfile) {

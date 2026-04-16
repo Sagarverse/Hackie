@@ -22,7 +22,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+<<<<<<< HEAD
 import com.example.rabit.domain.model.HidKeyCodes
+=======
+import com.example.rabit.data.bluetooth.HidDeviceManager
+import com.example.rabit.domain.model.HidKeyCodes
+import com.example.rabit.ui.CustomMacro
+>>>>>>> be726e4 (Before helper app)
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 
@@ -32,6 +38,7 @@ fun AutomationDashboardScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
     onNavigateToWakeOnLan: () -> Unit = {},
+<<<<<<< HEAD
     onNavigateToSshTerminal: () -> Unit = {}
 ) {
     val customMacros by viewModel.customMacros.collectAsState()
@@ -40,6 +47,25 @@ fun AutomationDashboardScreen(
     val isConnected = connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
+=======
+    onNavigateToSshTerminal: () -> Unit = {},
+    onNavigateToProcessManager: () -> Unit = {},
+    onNavigateToSystemStats: () -> Unit = {},
+    onNavigateTo: (String) -> Unit = {}
+) {
+    val customMacros by viewModel.customMacros.collectAsState()
+    val emergencyStatus by viewModel.emergencyStatus.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState<HidDeviceManager.ConnectionState>()
+    val isConnected = connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected
+    val macUnlocked by viewModel.macUnlocked.collectAsState()
+    val isScanning by viewModel.isTerminalScanning.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val scope = rememberCoroutineScope()
+    var searchQuery by remember { mutableStateOf("") }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showTerminalLab by remember { mutableStateOf(false) }
+>>>>>>> be726e4 (Before helper app)
     var contentVisible by remember { mutableStateOf(false) }
 
     val systemMacros = remember {
@@ -48,8 +74,13 @@ fun AutomationDashboardScreen(
             MacroDefinition("Lock Mac", Icons.Default.Lock, AccentBlue, "LOCK_CMD"),
             MacroDefinition("Spotlight", Icons.Default.Search, AccentBlue, "SPOT_CMD"),
             MacroDefinition("Screen Cap", Icons.Default.Screenshot, AccentTeal, "SHOT_CMD"),
+<<<<<<< HEAD
             MacroDefinition("Mute Mic", Icons.Default.MicOff, AccentBlue, "MUTE_CMD"),
             MacroDefinition("Sleep Mac", Icons.Default.NightsStay, Silver, "SLEEP_CMD"),
+=======
+            MacroDefinition("Say Hello", Icons.Default.RecordVoiceOver, Platinum, "SAY_HELLO_CMD"),
+            MacroDefinition("Dark Mode", Icons.Default.DarkMode, AccentBlue, "TOGGLE_DARK_MODE_CMD"),
+>>>>>>> be726e4 (Before helper app)
             MacroDefinition("Sys Info", Icons.Default.Info, AccentBlue, "INFO_CMD"),
             MacroDefinition("Force Quit", Icons.Default.Cancel, AccentBlue, "FORCE_QUIT_CMD")
         )
@@ -96,6 +127,7 @@ fun AutomationDashboardScreen(
         contentVisible = true
     }
 
+<<<<<<< HEAD
     AnimatedVisibility(
         visible = contentVisible,
         enter = fadeIn(animationSpec = tween(320)) + slideInVertically(initialOffsetY = { it / 14 }, animationSpec = tween(320))
@@ -280,6 +312,213 @@ fun AutomationDashboardScreen(
                             fontSize = 13.sp,
                             modifier = Modifier.padding(14.dp)
                         )
+=======
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.Transparent
+    ) { padding ->
+        AnimatedVisibility(
+            visible = contentVisible,
+            enter = fadeIn(animationSpec = tween(320)) + slideInVertically(initialOffsetY = { it / 14 }, animationSpec = tween(320))
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("Custom: ${customMacros.size}") },
+                            leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                disabledContainerColor = AccentBlue.copy(alpha = 0.16f),
+                                disabledLabelColor = Platinum,
+                                disabledLeadingIconContentColor = AccentBlue
+                            )
+                        )
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("Ready") },
+                            leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                disabledContainerColor = AccentBlue.copy(alpha = 0.16f),
+                                disabledLabelColor = Platinum,
+                                disabledLeadingIconContentColor = AccentBlue
+                            )
+                        )
+                    }
+                }
+                item {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        label = { Text("Search macros, commands, categories") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentBlue,
+                            unfocusedBorderColor = BorderColor,
+                            focusedTextColor = Platinum,
+                            unfocusedTextColor = Platinum
+                        )
+                    )
+                }
+                if (searchQuery.isNotBlank()) {
+                    item {
+                        Text(
+                            text = "$totalMatches result(s) for '$searchQuery'",
+                            color = Silver,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Graphite.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = Silver)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("How to use Automation", color = Platinum, fontWeight = FontWeight.Bold)
+                            }
+                            Text("• Tap any macro to send keyboard shortcuts directly to your connected Mac.", color = Silver, fontSize = 12.sp)
+                            Text("• Requires an active Bluetooth HID connection.", color = Silver, fontSize = 12.sp)
+                            Text("• Add custom commands using keys like CMD, ALT, SHIFT.", color = Silver, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                if (searchQuery.isBlank()) {
+                    item {
+                        QuickToolPanel(
+                            onSystemStats = { onNavigateTo("system_stats") },
+                            onProcessManager = { onNavigateTo("process_manager") },
+                            onSshTerminal = { onNavigateTo("ssh_terminal") },
+                            onRemoteExplorer = { onNavigateTo("remote_explorer") },
+                            onAutoClicker = { onNavigateTo("auto_clicker") }
+                        )
+                        
+                        if (showTerminalLab) {
+                            TerminalLabSection(
+                                onScan = { onNavigateTo("terminal_scanner") },
+                                onUnlockSsh = {
+                                    viewModel.unlockMacSshViaHid()
+                                    showTerminalLab = false
+                                }
+                            )
+                        }
+                    }
+
+                    item {
+                        EmergencyControlPanel(
+                            status = emergencyStatus,
+                            onAction = { viewModel.runEmergencyAction(it) }
+                        )
+                    }
+                }
+
+                item {
+                    IntegratedShortcutPanel(viewModel = viewModel, query = searchQuery)
+                }
+
+                // ─── SYSTEM CORE ───
+                if (filteredSystem.isNotEmpty()) item {
+                    MacroCategory(
+                        title = "SYSTEM CONTROL",
+                        icon = Icons.Default.Terminal,
+                        macros = filteredSystem,
+                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        enabled = isConnected
+                    )
+                }
+
+                // ─── WEB & BROWSER ───
+                if (filteredWeb.isNotEmpty()) item {
+                    MacroCategory(
+                        title = "WEB & BROWSER",
+                        icon = Icons.Default.Language,
+                        macros = filteredWeb,
+                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        enabled = isConnected
+                    )
+                }
+
+                // ─── PRODUCTIVITY ───
+                if (filteredProductivity.isNotEmpty()) item {
+                    MacroCategory(
+                        title = "PRODUCTIVITY",
+                        icon = Icons.Default.AutoMode,
+                        macros = filteredProductivity,
+                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        enabled = isConnected
+                    )
+                }
+
+                // ─── CREATIVE STUDIO ───
+                if (filteredCreative.isNotEmpty()) item {
+                    MacroCategory(
+                        title = "CREATIVE STUDIO",
+                        icon = Icons.Default.Palette,
+                        macros = filteredCreative,
+                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        enabled = isConnected
+                    )
+                }
+
+                // ─── USER MACROS ───
+                if (filteredCustom.isNotEmpty() || searchQuery.isBlank()) item {
+                    MacroCategory(
+                        title = "USER CUSTOM",
+                        icon = Icons.Default.SettingsSuggest,
+                        macros = filteredCustom,
+                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onDeleteClick = { macroItem -> 
+                            customMacros.find { it: CustomMacro -> it.name == macroItem.name && it.command == macroItem.command }?.let {
+                                viewModel.deleteCustomMacro(it)
+                            }
+                        },
+                        onAddClick = { showAddDialog = true },
+                        enabled = isConnected
+                    )
+                }
+                if (searchQuery.isNotBlank() && totalMatches == 0) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Graphite.copy(alpha = 0.45f),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                "No macros found for '$searchQuery'",
+                                color = Silver,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(14.dp)
+                            )
+                        }
+>>>>>>> be726e4 (Before helper app)
                     }
                 }
             }
@@ -482,6 +721,7 @@ private fun EmergencyButton(
 
 @Composable
 private fun QuickToolPanel(
+<<<<<<< HEAD
     onWakeOnLan: () -> Unit,
     onSshTerminal: () -> Unit
 ) {
@@ -527,6 +767,93 @@ private fun QuickToolPanel(
                         Text("Run shell commands", color = Silver, fontSize = 11.sp)
                     }
                 }
+=======
+    onSystemStats: () -> Unit,
+    onProcessManager: () -> Unit,
+    onSshTerminal: () -> Unit,
+    onRemoteExplorer: () -> Unit,
+    onAutoClicker: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            ToolCard(
+                title = "Remote Explorer",
+                desc = "ADB File Provider",
+                icon = Icons.Default.FolderOpen,
+                color = AccentBlue,
+                onClick = onRemoteExplorer,
+                modifier = Modifier.weight(1f)
+            )
+
+            ToolCard(
+                title = "SSH Terminal",
+                desc = "Raw remote command",
+                icon = Icons.Default.Terminal,
+                color = Color.White,
+                onClick = onSshTerminal,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            ToolCard(
+                title = "Process Manager",
+                desc = "Force quit apps",
+                icon = Icons.Default.Cancel,
+                color = Color.Red,
+                onClick = onProcessManager,
+                modifier = Modifier.weight(1f)
+            )
+
+            ToolCard(
+                title = "Live Monitor",
+                desc = "Real-time health",
+                icon = Icons.Default.Speed,
+                color = AccentTeal,
+                onClick = onSystemStats,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            ToolCard(
+                title = "Auto Clicker",
+                desc = "Automated Clicks",
+                icon = Icons.Default.AdsClick,
+                color = WarningYellow,
+                onClick = onAutoClicker,
+                modifier = Modifier.weight(1f)
+            )
+            
+            // Placeholder for future expansion or dual-card row
+            Box(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ToolCard(
+    title: String,
+    desc: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        color = SoftGrey.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
+        modifier = modifier.height(72.dp)
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = color)
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(title, color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(desc, color = Silver, fontSize = 11.sp)
+>>>>>>> be726e4 (Before helper app)
             }
         }
     }
@@ -790,6 +1117,11 @@ private fun handleMacro(command: String, viewModel: MainViewModel) {
         "EXPORT_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_E))
         "LAUNCH_SAFARI" -> viewModel.launchMacApp("Safari")
         "LAUNCH_SPOTIFY" -> viewModel.launchMacApp("Spotify")
+<<<<<<< HEAD
+=======
+        "SAY_HELLO_CMD" -> viewModel.sendSshCommand("say 'Hackie has taken control'")
+        "TOGGLE_DARK_MODE_CMD" -> viewModel.sendSshCommand("osascript -e 'tell application \"System Events\" to tell appearance preferences to set dark mode to not dark mode'")
+>>>>>>> be726e4 (Before helper app)
         else -> {
             if (command.contains("&&")) {
                 viewModel.sendMacro(command)
@@ -802,6 +1134,68 @@ private fun handleMacro(command: String, viewModel: MainViewModel) {
 
 data class MacroDefinition(val name: String, val icon: ImageVector, val color: Color, val command: String)
 
+<<<<<<< HEAD
+=======
+@Composable
+fun TerminalLabSection(
+    onScan: () -> Unit,
+    onUnlockSsh: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Platinum.copy(alpha = 0.1f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = AccentTeal.copy(alpha = 0.2f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Science, null, tint = AccentTeal, modifier = Modifier.size(16.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("TERMINAL LAB", color = Platinum, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, letterSpacing = 1.sp)
+                    Text("Bridge & Node Management", color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onScan,
+                    modifier = Modifier.weight(1f).height(45.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Platinum.copy(alpha = 0.05f))
+                ) {
+                    Icon(Icons.Default.Radar, null, tint = Platinum, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("SCAN", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                
+                Button(
+                    onClick = onUnlockSsh,
+                    modifier = Modifier.weight(1f).height(45.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal.copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Usb, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("HID UNLOCK", color = AccentTeal, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+>>>>>>> be726e4 (Before helper app)
 private fun filterMacros(list: List<MacroDefinition>, query: String): List<MacroDefinition> {
     val q = query.trim().lowercase()
     if (q.isBlank()) return list

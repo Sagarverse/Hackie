@@ -165,6 +165,15 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
             "snippets" -> featureSnippetsVisible
             "wake_on_lan" -> featureWakeOnLanVisible
             "ssh_terminal" -> featureSshTerminalVisible
+<<<<<<< HEAD
+=======
+            "auto_clicker" -> featureAutomationVisible
+            "process_manager" -> featureAutomationVisible
+            "system_stats" -> featureAutomationVisible
+            "remote_explorer" -> featureAutomationVisible
+            "reverse_shell" -> featureAutomationVisible
+            "terminal_scanner" -> featureAutomationVisible
+>>>>>>> be726e4 (Before helper app)
             "global_search" -> true
             else -> true
         }
@@ -302,6 +311,46 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         onBack = { navController.popBackStack() }
                     )
                 }
+<<<<<<< HEAD
+=======
+                composable("auto_clicker") {
+                    com.example.rabit.ui.automation.AutoClickerScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("process_manager") {
+                    com.example.rabit.ui.automation.ProcessManagerScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("system_stats") {
+                    com.example.rabit.ui.automation.SystemStatsScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("remote_explorer") {
+                    com.example.rabit.ui.automation.RemoteExplorerScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("reverse_shell") {
+                    com.example.rabit.ui.automation.ReverseShellScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("terminal_scanner") {
+                    com.example.rabit.ui.automation.TerminalScannerScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                        onConnect = { _, _, _ -> navController.popBackStack() }
+                    )
+                }
+>>>>>>> be726e4 (Before helper app)
                 composable("settings") {
                     SettingsScreen(
                         viewModel,

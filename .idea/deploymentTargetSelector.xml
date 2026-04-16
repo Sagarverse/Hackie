@@ -13,9 +13,12 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
+<<<<<<< HEAD
       <SelectionState runConfigName="New Run Config">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+=======
+>>>>>>> be726e4 (Before helper app)
     </selectionStates>
   </component>
 </project>

@@ -84,7 +84,12 @@ object RabitNetworkServer {
     )
 
     var currentPin: String = "0000"
+<<<<<<< HEAD
     private data class TrustedSession(
+=======
+    @Serializable
+    data class TrustedSession(
+>>>>>>> be726e4 (Before helper app)
         val token: String,
         val deviceId: String,
         val userAgent: String,
@@ -167,6 +172,20 @@ object RabitNetworkServer {
     private val transferJobs = ConcurrentHashMap<String, TransferJob>()
     private const val PORTAL_INDEX_ASSET = "webportal/index.html"
 
+<<<<<<< HEAD
+=======
+    fun getActiveSessions(): List<TrustedSession> {
+        return sessionTokens.values.filter { !it.revoked && it.expiresAt > System.currentTimeMillis() }
+    }
+
+    fun revokeSession(token: String) {
+        val session = sessionTokens[token]
+        if (session != null) {
+            sessionTokens[token] = session.copy(revoked = true)
+        }
+    }
+
+>>>>>>> be726e4 (Before helper app)
     private val DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">

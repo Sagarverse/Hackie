@@ -68,7 +68,11 @@ fun RabitAppScaffold(
     }
 
     // Main routes accessible from drawer
+<<<<<<< HEAD
     val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
+=======
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
+>>>>>>> be726e4 (Before helper app)
     val isSubPage = currentRoute !in mainRoutes
 
     val screenTitle = when(currentRoute) {
@@ -87,6 +91,15 @@ fun RabitAppScaffold(
         "airplay_receiver" -> "AIRPLAY RX"
         "global_search" -> "GLOBAL SEARCH"
         "helper" -> "HACKIE HELPER"
+<<<<<<< HEAD
+=======
+        "auto_clicker" -> "AUTO CLICKER"
+        "process_manager" -> "PROCESS MANAGER"
+        "system_stats" -> "SYSTEM STATS"
+        "remote_explorer" -> "REMOTE EXPLORER"
+        "reverse_shell" -> "REVERSE SHELL"
+        "terminal_scanner" -> "TERMINAL SCANNER"
+>>>>>>> be726e4 (Before helper app)
         else -> "HACKIE"
     }
 
@@ -198,6 +211,53 @@ fun RabitAppScaffold(
                             scope.launch { drawerState.close() }
                         }
                     )
+<<<<<<< HEAD
+=======
+
+                    DrawerItem(
+                        label = "Remote Explorer",
+                        subLabel = "Browse & manage remote files",
+                        icon = Icons.Default.FolderZip,
+                        isSelected = currentRoute == "remote_explorer",
+                        onClick = {
+                            onNavigate("remote_explorer")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerItem(
+                        label = "Process Manager",
+                        subLabel = "Monitor & kill remote processes",
+                        icon = Icons.Default.Memory,
+                        isSelected = currentRoute == "process_manager",
+                        onClick = {
+                            onNavigate("process_manager")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerItem(
+                        label = "System Stats",
+                        subLabel = "Live hardware monitoring",
+                        icon = Icons.Default.Speed,
+                        isSelected = currentRoute == "system_stats",
+                        onClick = {
+                            onNavigate("system_stats")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerItem(
+                        label = "Auto Clicker",
+                        subLabel = "Automated screen interactions",
+                        icon = Icons.Default.AdsClick,
+                        isSelected = currentRoute == "auto_clicker",
+                        onClick = {
+                            onNavigate("auto_clicker")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+>>>>>>> be726e4 (Before helper app)
                 }
 
                 DrawerItem(

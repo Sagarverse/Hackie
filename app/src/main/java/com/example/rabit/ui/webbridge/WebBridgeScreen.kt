@@ -21,6 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
+<<<<<<< HEAD
+=======
+import androidx.compose.ui.graphics.vector.ImageVector
+>>>>>>> be726e4 (Before helper app)
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -43,6 +47,13 @@ import com.example.rabit.data.network.RabitNetworkServer
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.components.QrCodeGenerator
 import com.example.rabit.ui.theme.*
+<<<<<<< HEAD
+=======
+import java.io.File
+import android.net.Uri
+import android.content.Context
+import android.database.Cursor
+>>>>>>> be726e4 (Before helper app)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +76,17 @@ fun WebBridgeScreen(
     val p2pUrl = if (!p2pPeerId.isNullOrEmpty()) "$gatewayBaseUrl/bridge?id=$p2pPeerId" else gatewayBaseUrl
 
     var qrMode by remember { mutableStateOf("LAN") }
+<<<<<<< HEAD
+=======
+    val receivedFiles by viewModel.receivedFiles.collectAsState()
+    val activeSessions by viewModel.activeSessions.collectAsState()
+
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            viewModel.refreshWebBridgeData()
+        }
+    }
+>>>>>>> be726e4 (Before helper app)
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -340,7 +362,103 @@ fun WebBridgeScreen(
                         }
                     }
                     
+<<<<<<< HEAD
                     Spacer(modifier = Modifier.height(40.dp))
+=======
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // ─── CONNECTED DEVICES ───
+                    if (activeSessions.isNotEmpty()) {
+                        SectionHeader("ACTIVE SESSIONS", Icons.Default.Devices)
+                        activeSessions.forEach { session ->
+                            DeviceSessionItem(
+                                session = session,
+                                onRevoke = { viewModel.revokeActiveSession(session.token) }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // ─── ASSET HUB ───
+                    SectionHeader("ASSET MANAGEMENT", Icons.Default.FolderOpen)
+                    
+                    var assetTab by remember { mutableStateOf(0) } // 0: Shared (Outgoing), 1: Received (Incoming)
+                    
+                    Surface(
+                        color = Color.White.withAlpha(0.05f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(4.dp)) {
+                            listOf("SHARED" to sharedFiles.size, "RECEIVED" to receivedFiles.size).forEachIndexed { index, (label, count) ->
+                                val selected = assetTab == index
+                                Surface(
+                                    onClick = { assetTab = index },
+                                    color = if (selected) AccentBlue.withAlpha(0.2f) else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            label,
+                                            color = if (selected) AccentBlue else Silver,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        if (count > 0) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = if (selected) AccentBlue else Silver.copy(alpha = 0.2f),
+                                                shape = CircleShape
+                                            ) {
+                                                Text(
+                                                    count.toString(),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    fontSize = 10.sp,
+                                                    color = if (selected) Platinum else Silver,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (assetTab == 0) {
+                        if (sharedFiles.isEmpty()) {
+                            EmptyStateCard("No files shared", "Add files to make them available on the web hub")
+                        } else {
+                            sharedFiles.forEach { uri ->
+                                SharedAssetItem(
+                                    uri = uri,
+                                    context = context,
+                                    onDelete = { viewModel.removeSharedFile(uri) }
+                                )
+                            }
+                        }
+                    } else {
+                        if (receivedFiles.isEmpty()) {
+                            EmptyStateCard("No files received", "Files uploaded from other devices will appear here")
+                        } else {
+                            receivedFiles.forEach { file ->
+                                ReceivedAssetItem(
+                                    file = file,
+                                    onDelete = { viewModel.deleteReceivedFile(file) }
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(60.dp))
+>>>>>>> be726e4 (Before helper app)
                 }
             }
         }
@@ -348,6 +466,155 @@ fun WebBridgeScreen(
 }
 
 @Composable
+<<<<<<< HEAD
+=======
+private fun SectionHeader(title: String, icon: ImageVector) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = Platinum.copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                color = Platinum.copy(alpha = 0.4f)
+            )
+        )
+    }
+}
+
+@Composable
+private fun EmptyStateCard(title: String, sub: String) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Default.CloudQueue, null, tint = Silver.copy(alpha = 0.2f), modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(title, color = Silver, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(sub, color = Silver.copy(alpha = 0.5f), fontSize = 12.sp, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun DeviceSessionItem(session: RabitNetworkServer.TrustedSession, onRevoke: () -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = AccentBlue.withAlpha(0.1f),
+                shape = CircleShape,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (session.userAgent.contains("Mobi", true)) Icons.Default.Smartphone else Icons.Default.Laptop,
+                        null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    parseUserAgent(session.userAgent), 
+                    color = Platinum, 
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 14.sp
+                )
+                Text(
+                    "ID: ${session.deviceId.takeLast(8)} • Active", 
+                    color = SuccessGreen, 
+                    fontSize = 11.sp
+                )
+            }
+            IconButton(onClick = onRevoke) {
+                Icon(Icons.Default.LinkOff, null, tint = Color(0xFFFF453A), modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SharedAssetItem(uri: Uri, context: Context, onDelete: () -> Unit) {
+    var name by remember { mutableStateOf("Loading...") }
+    var size by remember { mutableStateOf("") }
+    
+    LaunchedEffect(uri) {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val sIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (cursor.moveToFirst()) {
+                if (nIdx != -1) name = cursor.getString(nIdx)
+                if (sIdx != -1) size = formatFileSize(cursor.getLong(sIdx))
+            }
+        }
+    }
+
+    GlassCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.CloudUpload, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(size, color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, null, tint = Silver, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReceivedAssetItem(file: File, onDelete: () -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.FileDownload, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(file.name.removePrefix("Hackie_"), color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(formatFileSize(file.length()), color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, null, tint = Silver, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+private fun parseUserAgent(ua: String): String {
+    return when {
+        ua.contains("Chrome") -> "Chrome on " + (if(ua.contains("Mac")) "Mac" else "Windows")
+        ua.contains("Safari") && !ua.contains("Chrome") -> "Safari on Mac"
+        ua.contains("Firefox") -> "Firefox Browser"
+        ua.contains("HackieHelper") -> "Helper Desktop App"
+        else -> "Web Client"
+    }
+}
+
+private fun formatFileSize(size: Long): String {
+    val kb = size / 1024.0
+    val mb = kb / 1024.0
+    return if (mb > 1) String.format("%.1f MB", mb) else String.format("%.1f KB", kb)
+}
+
+@Composable
+>>>>>>> be726e4 (Before helper app)
 private fun PremiumMeshBackground() {
     val infiniteTransition = rememberInfiniteTransition()
     val dx1 by infiniteTransition.animateFloat(
