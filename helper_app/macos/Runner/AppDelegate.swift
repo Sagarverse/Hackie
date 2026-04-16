@@ -10,7 +10,7 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     super.applicationDidFinishLaunching(notification)
-    NSApp.setActivationPolicy(.regular)
+    NSApp.setActivationPolicy(.accessory)
 
     if let flutterViewController = mainFlutterWindow?.contentViewController as? FlutterViewController {
       let channel = FlutterMethodChannel(

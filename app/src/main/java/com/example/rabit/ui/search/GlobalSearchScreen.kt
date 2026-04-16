@@ -83,10 +83,10 @@ fun GlobalSearchScreen(
         listOf(
             SearchCommand("action_unlock_mac", "Unlock Mac", "automation", listOf("unlock", "mac", "login", "password")),
             SearchCommand("action_lock_screen", "Lock Screen", "automation", listOf("lock", "screen", "security")),
-            SearchCommand("action_media_play_pause", "Play / Pause", "media_deck", listOf("media", "music", "play", "pause")),
-            SearchCommand("action_media_vol_up", "Volume Up", "media_deck", listOf("media", "volume", "up", "sound")),
-            SearchCommand("action_media_vol_down", "Volume Down", "media_deck", listOf("media", "volume", "down", "sound")),
-            SearchCommand("action_now_playing", "Refresh Now Playing", "media_deck", listOf("now", "playing", "song", "metadata")),
+            SearchCommand("action_media_play_pause", "Play / Pause", "home", listOf("media", "music", "play", "pause")),
+            SearchCommand("action_media_vol_up", "Volume Up", "home", listOf("media", "volume", "up", "sound")),
+            SearchCommand("action_media_vol_down", "Volume Down", "home", listOf("media", "volume", "down", "sound")),
+            SearchCommand("action_now_playing", "Refresh Now Playing", "home", listOf("now", "playing", "song", "metadata")),
             SearchCommand("action_wol_send", "Wake Mac", "wake_on_lan", listOf("wake", "wol", "mac", "power")),
             SearchCommand("action_disconnect_keyboard", "Disconnect Keyboard", "keyboard", listOf("disconnect", "keyboard", "hid")),
             SearchCommand("action_web_bridge_toggle", "Toggle Web Bridge", "web_bridge", listOf("web", "bridge", "portal", "toggle"))
@@ -101,7 +101,6 @@ fun GlobalSearchScreen(
             SearchFeature("password_manager", "Password Manager", listOf("password", "vault", "biometric")),
             SearchFeature("wake_on_lan", "Wake-on-LAN", listOf("wake", "wol", "magic")),
             SearchFeature("ssh_terminal", "SSH Terminal", listOf("ssh", "terminal", "shell")),
-            SearchFeature("media_deck", "Media Deck", listOf("media", "music", "volume")),
             SearchFeature("web_bridge", "Web Bridge", listOf("web", "bridge", "file", "transfer")),
             SearchFeature("assistant", "AI Assistant", listOf("assistant", "ai", "chat")),
             SearchFeature("snippets", "Snippets", listOf("snippet", "text", "template")),

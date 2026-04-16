@@ -42,6 +42,8 @@ import com.example.rabit.data.bluetooth.HidService
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.assistant.AssistantScreen
 import com.example.rabit.ui.assistant.AssistantViewModel
+import com.example.rabit.ui.components.BridgeBiometricAuth
+import kotlinx.coroutines.flow.collectLatest
 import com.example.rabit.ui.keyboard.KeyboardScreen
 import com.example.rabit.ui.home.HomeScreen
 import com.example.rabit.ui.onboarding.OnboardingScreen
@@ -66,11 +68,22 @@ class MainActivity : FragmentActivity() {
             RabitTheme {
                 BluetoothPermissions {
                     LaunchedEffect(Unit) {
-                        val intent = Intent(this@MainActivity, HidService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             startForegroundService(intent)
                         } else {
                             startService(intent)
+                        }
+                    }
+
+                    LaunchedEffect(Unit) {
+                        viewModel.biometricRequests.collectLatest { deferred ->
+                            BridgeBiometricAuth.authenticate(
+                                activity = this@MainActivity,
+                                title = "Authorize Hackie Bridge",
+                                subtitle = "A new device is trying to connect with your PIN",
+                                onSuccess = { deferred.complete(true) },
+                                onError = { deferred.complete(false) }
+                            )
                         }
                     }
                     
@@ -140,7 +153,7 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
     val isBluetoothConnected = bluetoothState is HidDeviceManager.ConnectionState.Connected
 
     // Routes that should NOT show the professional drawer (Onboarding & Initial Pairing)
-    val noDrawerRoutes = listOf("onboarding", "pairing", "onboarding_splash", "assistant")
+    val noDrawerRoutes = listOf("onboarding", "onboarding_splash", "assistant")
     val showDrawer = currentRoute.split("?").first() !in noDrawerRoutes
 
     fun routeAllowed(route: String): Boolean {
@@ -207,7 +220,6 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         onNavigateToAssistant = { if (featureAssistantVisible) navController.navigate("assistant") },
                         onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") },
                         onNavigateToInjector = { navController.navigate("injector") },
-                        onNavigateToMediaDeck = { navController.navigate("media_deck") },
                         onNavigateToAirPlayReceiver = { navController.navigate("airplay_receiver") },
                         onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
                         onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") },
@@ -246,12 +258,6 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         onBack = { navController.popBackStack() },
                         onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
                         onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") }
-                    )
-                }
-                composable("media_deck") {
-                    com.example.rabit.ui.media.MediaControlDeckScreen(
-                        viewModel = viewModel,
-                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("airplay_receiver") {
@@ -339,9 +345,9 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("global_search") {
                     val available = buildSet {
+                        add("home")
                         add("keyboard")
                         add("injector")
-                        add("media_deck")
                         add("airplay_receiver")
                         add("settings")
                         add("customization")

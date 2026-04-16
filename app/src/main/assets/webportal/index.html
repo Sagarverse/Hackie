@@ -305,11 +305,21 @@
 
   <main class="container">
     <section class="card" style="grid-column: 1 / -1;">
-      <div class="body" style="padding:12px 16px;">
-        <div class="quick-actions">
-          <div class="brand"><span class="dot"></span> Hackie Browser Portal</div>
-          <button id="refresh-btn" class="chip">Refresh</button>
-          <button id="revoke-btn" class="chip">Disconnect</button>
+      <div class="card-head">
+        <h3 class="title">Shared Notes and Universal Clipboard</h3>
+        <p class="subtitle">Notes added in Hackie show here and on P2P web. Clipboard sync runs both directions.</p>
+      </div>
+      <div class="body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <textarea id="note-input" placeholder="Type a note and click Add Note" style="width:100%;min-height:96px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.06);color:var(--txt);padding:10px;"></textarea>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+              <button id="add-note-btn" class="chip">Add Note</button>
+              <button id="refresh-notes-btn" class="chip">Refresh Notes</button>
+            </div>
+            <div id="clipboard-status" class="muted" style="font-size:12px;margin-top:8px;">Clipboard sync idle.</div>
+          </div>
+          <div id="notes-list" class="list" style="max-height:220px;"></div>
         </div>
       </div>
     </section>
@@ -334,16 +344,10 @@
 
     <section class="card">
       <div class="card-head">
-        <h3 class="title">Browse Phone Library</h3>
-        <p class="subtitle">Photos, videos, and files from your Android device.</p>
+        <h3 class="title">Shared Hub</h3>
+        <p class="subtitle">Files currently shared from your phone.</p>
       </div>
       <div class="body">
-        <div class="tabs">
-          <button class="tab active" data-tab="photos">Photos</button>
-          <button class="tab" data-tab="videos">Videos</button>
-          <button class="tab" data-tab="files">Files</button>
-          <button class="tab" data-tab="shared">Shared</button>
-        </div>
         <div id="list" class="list">
           <div class="muted">Sign in with PIN to load your files.</div>
         </div>
@@ -369,9 +373,8 @@
     const state = {
       token: localStorage.getItem("hackie_session_token") || "",
       deviceId: getOrCreateDeviceId(),
-      tab: "photos",
-      library: { photos: [], videos: [], files: [] },
-      shared: []
+      shared: [],
+      notes: []
     };
     localStorage.setItem("hackie_device_id", state.deviceId);
 
@@ -382,10 +385,61 @@
     const list = document.getElementById("list");
     const refreshBtn = document.getElementById("refresh-btn");
     const revokeBtn = document.getElementById("revoke-btn");
+    const noteInput = document.getElementById("note-input");
+    const addNoteBtn = document.getElementById("add-note-btn");
+    const refreshNotesBtn = document.getElementById("refresh-notes-btn");
+    const notesList = document.getElementById("notes-list");
+    const clipboardStatus = document.getElementById("clipboard-status");
     const dropZone = document.getElementById("drop-zone");
     const pick = document.getElementById("pick");
     const progress = document.getElementById("progress");
     const bar = document.getElementById("bar");
+    let lastWebClipboard = "";
+    let lastPhoneClipboard = "";
+
+    const CryptoHelper = {
+      async deriveKey(pin, salt) {
+        const encoder = new TextEncoder();
+        const baseKey = await crypto.subtle.importKey(
+          "raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]
+        );
+        return await crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt, iterations: 10000, hash: "SHA-256" },
+          baseKey,
+          { name: "AES-GCM", length: 256 },
+          false, ["encrypt", "decrypt"]
+        );
+      },
+      async encrypt(text, pin) {
+        const encoder = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await this.deriveKey(pin, salt);
+        const ciphertext = await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv }, key, encoder.encode(text)
+        );
+        const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+        combined.set(salt, 0);
+        combined.set(iv, 16);
+        combined.set(new Uint8Array(ciphertext), 28);
+        return btoa(String.fromCharCode(...combined));
+      },
+      async decrypt(base64, pin) {
+        try {
+          const combined = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+          const salt = combined.slice(0, 16);
+          const iv = combined.slice(16, 28);
+          const ciphertext = combined.slice(28);
+          const key = await this.deriveKey(pin, salt);
+          const decrypted = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv }, key, ciphertext
+          );
+          return new TextDecoder().decode(decrypted);
+        } catch (e) { return null; }
+      }
+    };
+
+    function getPin() { return pinInput.value || localStorage.getItem("hackie_pin") || "0000"; }
 
     function fmtSize(bytes) {
       if (!bytes || bytes < 0) return "Unknown";
@@ -403,6 +457,131 @@
 
     function setAuthenticated(ok) {
       authOverlay.style.display = ok ? "none" : "grid";
+    }
+
+    function escapeHtml(raw) {
+      return (raw || "").toString()
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function renderNotes() {
+      const notes = Array.isArray(state.notes) ? state.notes : [];
+      if (!notes.length) {
+        notesList.innerHTML = '<div class="muted">No notes yet. Add one from Hackie or this browser.</div>';
+        return;
+      }
+      notesList.innerHTML = notes.map((note) => {
+        const safeText = escapeHtml(note.text || "");
+        const safeSource = escapeHtml(note.source || "Hackie");
+        const noteJson = JSON.stringify(note.text || "");
+        return `
+          <article class="item" style="grid-template-columns:1fr auto;">
+            <div>
+              <div id="note-display-${note.id}" class="name" style="white-space:normal;">${safeText}</div>
+              <div class="meta">${fmtDate(Number(note.createdAtMs || 0))} • ${safeSource}</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn" onclick="copyNoteText(${noteJson})">Copy</button>
+              <button class="btn" style="background:rgba(31, 182, 255, 0.1);" onclick="editNote('${note.id}')">Edit</button>
+              <button class="btn" style="background:rgba(251, 113, 133, 0.2); border-color:var(--danger);" onclick="deleteNote('${note.id}')">Del</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    window.copyNoteText = async function(text) {
+      try { await navigator.clipboard.writeText((text || "").toString()); } catch (_) {}
+    }
+
+    window.editNote = async function(id) {
+        const el = document.getElementById('note-display-' + id);
+        const oldText = el ? el.innerText : "";
+        const newText = prompt("Edit note:", oldText);
+        if (newText === null || newText.trim() === "" || newText === oldText) return;
+        try {
+            const res = await safeFetch("/notes/" + id, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: newText.trim() })
+            });
+            state.notes = await res.json();
+            renderNotes();
+        } catch (e) { alert("Failed to update note"); }
+    }
+
+    window.deleteNote = async function(id) {
+        if (!confirm("Delete this note?")) return;
+        try {
+            const res = await safeFetch("/notes/" + id, { method: "DELETE" });
+            state.notes = await res.json();
+            renderNotes();
+        } catch (e) { alert("Failed to delete note"); }
+    }
+
+    async function refreshNotes() {
+      const res = await safeFetch("/notes");
+      const data = await res.json();
+      const pin = getPin();
+      state.notes = await Promise.all(data.map(async n => ({
+        ...n,
+        text: await CryptoHelper.decrypt(n.text, pin) || n.text
+      })));
+      renderNotes();
+    }
+
+    async function addNote() {
+      const text = (noteInput.value || "").trim();
+      if (!text) return;
+      const pin = getPin();
+      const encrypted = await CryptoHelper.encrypt(text, pin);
+      const res = await safeFetch("/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: encrypted })
+      });
+      state.notes = await res.json();
+      noteInput.value = "";
+      await refreshNotes();
+    }
+
+    async function syncUniversalClipboard() {
+      if (!state.token) return;
+      const pin = getPin();
+      try {
+        const pullRes = await safeFetch("/clipboard");
+        const pullData = await pullRes.json();
+        const encrypted = (pullData.text || "").trim();
+        const phoneText = encrypted ? await CryptoHelper.decrypt(encrypted, pin) : "";
+        
+        if (phoneText && phoneText !== lastPhoneClipboard && phoneText !== lastWebClipboard && document.hasFocus()) {
+          await navigator.clipboard.writeText(phoneText);
+          lastPhoneClipboard = phoneText;
+          lastWebClipboard = phoneText;
+          clipboardStatus.textContent = "Clipboard pulled (Encrypted).";
+        }
+      } catch (_) {}
+
+      if (document.hasFocus()) {
+        try {
+          const local = (await navigator.clipboard.readText()).trim();
+          if (local && local !== lastWebClipboard && local !== lastPhoneClipboard) {
+            const encrypted = await CryptoHelper.encrypt(local, pin);
+            await safeFetch("/clipboard", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: encrypted })
+            });
+            lastWebClipboard = local;
+            lastPhoneClipboard = local;
+            clipboardStatus.textContent = "Clipboard pushed (Encrypted).";
+          }
+        } catch (_) {}
+      }
     }
 
     async function auth() {
@@ -432,6 +611,7 @@
         }
         state.token = data.message;
         localStorage.setItem("hackie_session_token", state.token);
+        localStorage.setItem("hackie_pin", pin);
         authError.textContent = "PIN verified. Connecting...";
         authError.style.color = "var(--ok)";
         authError.style.display = "block";
@@ -463,14 +643,14 @@
       return res;
     }
 
-    function renderItems(items, kind) {
+    function renderItems(items) {
       if (!items.length) {
-        list.innerHTML = '<div class="muted">No items found. Grant media/storage permissions in Hackie if needed.</div>';
+        list.innerHTML = '<div class="muted">No files shared yet. Share a file from your phone to see it here.</div>';
         return;
       }
       list.innerHTML = items.map((it) => {
-        const meta = `${fmtSize(it.size)} • ${fmtDate(it.modifiedAt)} • ${it.mimeType || "unknown"}`;
-        const href = kind === "shared" ? `/download/${encodeURIComponent(it.id)}?token=${encodeURIComponent(state.token)}` : `/library/download/${encodeURIComponent(it.kind)}/${encodeURIComponent(it.id)}`;
+        const meta = `${fmtSize(it.size)} • ${fmtDate(it.modifiedAt)} • ${it.type || "unknown"}`;
+        const href = `/download/${encodeURIComponent(it.id)}?token=${encodeURIComponent(state.token)}`;
         return `
           <article class="item">
             <div>
@@ -484,22 +664,14 @@
     }
 
     async function refreshAll() {
-      const [libraryRes, sharedRes] = await Promise.all([
-        safeFetch("/library"),
-        safeFetch("/shared-files")
-      ]);
-      state.library = await libraryRes.json();
+      const sharedRes = await safeFetch("/shared-files");
       state.shared = await sharedRes.json();
+      await refreshNotes();
       renderActiveTab();
     }
 
     function renderActiveTab() {
-      if (state.tab === "shared") {
-        renderItems(state.shared, "shared");
-        return;
-      }
-      const entries = state.library[state.tab] || [];
-      renderItems(entries, state.tab);
+      renderItems(state.shared);
     }
 
     async function uploadFiles(files) {
@@ -558,8 +730,26 @@
         });
       } catch (e) {}
       state.token = "";
-      localStorage.removeItem("rabit_session_token");
+      localStorage.removeItem("hackie_session_token");
       setAuthenticated(false);
+    });
+
+    addNoteBtn.addEventListener("click", async () => {
+      if (!state.token) return;
+      try { await addNote(); } catch (_) {}
+    });
+
+    refreshNotesBtn.addEventListener("click", async () => {
+      if (!state.token) return;
+      try { await refreshNotes(); } catch (_) {}
+    });
+
+    noteInput.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (!state.token) return;
+        try { await addNote(); } catch (_) {}
+      }
     });
 
     document.querySelectorAll(".tab").forEach((tab) => {
@@ -598,6 +788,11 @@
       setAuthenticated(true);
       try {
         await refreshAll();
+        setInterval(syncUniversalClipboard, 4000);
+        window.addEventListener("focus", () => {
+          syncUniversalClipboard();
+          refreshNotes();
+        });
       } catch (e) {
         setAuthenticated(false);
       }

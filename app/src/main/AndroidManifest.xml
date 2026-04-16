@@ -85,15 +85,6 @@
             </intent-filter>
         </service>
 
-        <!-- Feature 2: Handles media notification button taps -->
-        <receiver
-            android:name="com.example.rabit.data.network.MediaActionReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.example.rabit.MEDIA_ACTION" />
-            </intent-filter>
-        </receiver>
-
         <!-- Feature 3: Share target to hand off URLs from phone to Mac -->
         <activity
             android:name="com.example.rabit.data.network.HandoffActivity"
@@ -152,6 +143,26 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Activity to handle clipboard sync from notification (bypasses background limitations) -->
+        <activity
+            android:name="com.example.rabit.ui.components.ClipboardSyncActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance" />
+
+        <!-- Hub Quick Action Widget -->
+        <receiver
+            android:name=".ui.widgets.QuickActionWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_action_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

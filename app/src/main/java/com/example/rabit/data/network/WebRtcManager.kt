@@ -41,18 +41,23 @@ class WebRtcManager(private val context: Context) {
         private var signalingDocId: String? = null
         private var signalingReconnectJob: Job? = null
 
-    fun start() {
+    fun start(roomKey: String? = null) {
             if (_peerId.value != null || peerConnection != null || signalingListener != null) {
                 stop()
             }
-        
-        val uniqueId = UUID.randomUUID().toString().take(6).uppercase()
-        _peerId.value = uniqueId
-            signalingDocId = uniqueId
+
+        val resolvedRoom = roomKey
+            ?.trim()
+            ?.uppercase(Locale.getDefault())
+            ?.takeIf { it.isNotEmpty() }
+            ?: UUID.randomUUID().toString().take(6).uppercase(Locale.getDefault())
+
+        _peerId.value = resolvedRoom
+            signalingDocId = resolvedRoom
             _connectionStatus.value = "Initializing signaling"
 
         initializeWebRtc()
-        setupFirestoreSignaling(uniqueId)
+        setupFirestoreSignaling(resolvedRoom)
             _connectionStatus.value = "Waiting for web offer"
     }
 
@@ -160,12 +165,10 @@ class WebRtcManager(private val context: Context) {
     private fun setupFirestoreSignaling(id: String) {
         val signalRef = firestore.collection("signals").document(id)
 
-        // Reset stale signaling data for this short-lived peer id.
+        // Clear previous session data for this ID to ensure a fresh handshake, but only for Android's side.
+        // If web_offer is already there, we want to see it.
         signalRef.set(
             mapOf(
-                "web_offer" to null,
-                "web_answer" to null,
-                "web_candidates" to emptyList<String>(),
                 "android_answer" to null,
                 "android_candidates" to emptyList<String>(),
                 "updatedAt" to System.currentTimeMillis()

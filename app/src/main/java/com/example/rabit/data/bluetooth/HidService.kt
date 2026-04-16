@@ -5,9 +5,11 @@ import android.bluetooth.BluetoothDevice
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -27,6 +29,8 @@ class HidService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val channelId = "hid_service_channel"
     private val clipboardChannelId = "clipboard_channel"
+    private val mediaChannelId = "media_playback_channel"
+    private val mediaNotificationId = 3
     private lateinit var encryptionManager: com.example.rabit.data.secure.EncryptionManager
     private lateinit var proximitySmartLockManager: ProximitySmartLockManager
     
@@ -34,11 +38,19 @@ class HidService : Service() {
         const val ACTION_START_WEB_BRIDGE = "com.example.rabit.ACTION_START_WEB_BRIDGE"
         const val ACTION_STOP_WEB_BRIDGE = "com.example.rabit.ACTION_STOP_WEB_BRIDGE"
         const val ACTION_UPDATE_PROXIMITY_SMART_LOCK = "com.example.rabit.ACTION_UPDATE_PROXIMITY_SMART_LOCK"
+        const val ACTION_UPDATE_NOW_PLAYING = "com.example.rabit.ACTION_UPDATE_NOW_PLAYING"
     }
 
     private lateinit var clipboard: ClipboardManager
     private var lastClipboardText: String? = null
     private var clipboardJob: Job? = null
+    private var notificationStateTitle: String = "Disconnected"
+    private var notificationStateText: String = "Bluetooth HID connection is inactive."
+    private var nowPlayingTitle: String = "No track"
+    private var nowPlayingArtist: String = "Connect companion for metadata"
+    private var nowPlayingAlbum: String = ""
+    private var nowPlayingArtworkBase64: String? = null
+    private var playbackState: String = "paused"
 
     inner class LocalBinder : Binder() {
         fun getService(): HidService = this@HidService
@@ -48,6 +60,18 @@ class HidService : Service() {
         super.onCreate()
         hidDeviceManager = HidDeviceManager.getInstance(this)
         clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+        // Keep now-playing ingestion owned by the service so metadata continues
+        // to update even when no UI ViewModel is active.
+        RabitNetworkServer.nowPlayingReceiver = { payload ->
+            updateNowPlayingState(
+                title = payload.title,
+                artist = payload.artist,
+                album = payload.album,
+                artworkBase64 = payload.artworkBase64,
+                state = payload.playbackState
+            )
+        }
 
         encryptionManager = com.example.rabit.data.secure.EncryptionManager(this)
         proximitySmartLockManager = ProximitySmartLockManager(
@@ -60,6 +84,7 @@ class HidService : Service() {
         // Legacy network listeners removed for File Hub focus
 
         createNotificationChannels()
+        loadNowPlayingFromPrefs()
         startForeground(1, buildNotification("Disconnected", "Bluetooth HID connection is inactive."))
         observeConnectionState()
         startClipboardObserver()
@@ -130,6 +155,14 @@ class HidService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_UPDATE_NOW_PLAYING -> {
+                val title = intent.getStringExtra("title") ?: nowPlayingTitle
+                val artist = intent.getStringExtra("artist") ?: nowPlayingArtist
+                val album = intent.getStringExtra("album") ?: nowPlayingAlbum
+                val artworkBase64 = intent.getStringExtra("artworkBase64")
+                val state = intent.getStringExtra("state") ?: playbackState
+                updateNowPlayingState(title, artist, album, artworkBase64, state)
+            }
             ACTION_UPDATE_PROXIMITY_SMART_LOCK -> {
                 val enabled = intent.getBooleanExtra("enabled", false)
                 if (enabled) proximitySmartLockManager.start() else proximitySmartLockManager.stop()
@@ -179,6 +212,27 @@ class HidService : Service() {
                 val modifier = (HidKeyCodes.MODIFIER_LEFT_CTRL.toInt() or HidKeyCodes.MODIFIER_LEFT_GUI.toInt()).toByte()
                 sendKey(HidKeyCodes.KEY_Q, modifier)
             }
+            "SYNC_CLIPBOARD" -> {
+                try {
+                    val text = intent.getStringExtra("text")
+                    if (!text.isNullOrBlank()) {
+                        sendText(text)
+                        Toast.makeText(this, "Phone clipboard synced to Mac", Toast.LENGTH_SHORT).show()
+                    } else {
+                        // Fallback pull (might work if service was recently foregrounded)
+                        val clip = clipboard.primaryClip
+                        if (clip != null && clip.itemCount > 0) {
+                            val clipText = clip.getItemAt(0).text?.toString()
+                            if (!clipText.isNullOrBlank()) {
+                                sendText(clipText)
+                                Toast.makeText(this, "Syncing current clipboard...", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("HidService", "Manual sync failed", e)
+                }
+            }
             "UNLOCK_MAC" -> {
                 val macPass = SecureStorage(applicationContext).getMacPassword() ?: ""
                 if (macPass.isNotEmpty()) {
@@ -187,6 +241,11 @@ class HidService : Service() {
                     Toast.makeText(this, "Set Mac Password in Settings first", Toast.LENGTH_SHORT).show()
                 }
             }
+            "MEDIA_PREV" -> sendConsumerKey(HidKeyCodes.MEDIA_PREVIOUS)
+            "MEDIA_PLAY_PAUSE" -> sendConsumerKey(HidKeyCodes.MEDIA_PLAY_PAUSE)
+            "MEDIA_NEXT" -> sendConsumerKey(HidKeyCodes.MEDIA_NEXT)
+            "MEDIA_VOL_UP" -> sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
+            "MEDIA_VOL_DOWN" -> sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
             "STOP_APP" -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -259,41 +318,148 @@ class HidService : Service() {
                 description = "Notifications for clipboard sync features."
             }
             manager.createNotificationChannel(clipboardChannel)
+
+            val mediaChannel = NotificationChannel(
+                mediaChannelId, "Now Playing Controls", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Media controls shown only while a song is playing."
+            }
+            manager.createNotificationChannel(mediaChannel)
         }
     }
 
     private fun buildNotification(title: String, text: String): Notification {
+        notificationStateTitle = title
+        notificationStateText = text
+
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Remote Management Actions
-        val lockIntent = Intent(this, HidService::class.java).apply { action = "LOCK_MAC" }
-        val lockPending = PendingIntent.getService(this, 10, lockIntent, PendingIntent.FLAG_IMMUTABLE)
-
         val unlockIntent = Intent(this, HidService::class.java).apply { action = "UNLOCK_MAC" }
-        val unlockPending = PendingIntent.getService(this, 11, unlockIntent, PendingIntent.FLAG_IMMUTABLE)
+        val unlockPending = PendingIntent.getService(this, 20, unlockIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val syncIntent = Intent(this, com.example.rabit.ui.components.ClipboardSyncActivity::class.java)
+        val syncPending = PendingIntent.getActivity(this, 22, syncIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val stopIntent = Intent(this, HidService::class.java).apply { action = "STOP_APP" }
         val stopPending = PendingIntent.getService(this, 12, stopIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Hackie: $title")
+        val lockIntent = Intent(this, HidService::class.java).apply { action = "LOCK_MAC" }
+        val lockPending = PendingIntent.getService(this, 10, lockIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Hackie Pro Hub: $title")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_lock_lock, "Lock", lockPending)
+            .addAction(android.R.drawable.ic_lock_lock, "Lock Mac", lockPending)
+            .addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
             .addAction(android.R.drawable.ic_lock_idle_lock, "Unlock", unlockPending)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopPending)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
+            
+        return builder.build()
+    }
+
+    private fun isSongPlaying(): Boolean {
+        val title = nowPlayingTitle.trim()
+        val isPaused = playbackState.equals("paused", ignoreCase = true) || playbackState.equals("stopped", ignoreCase = true)
+        return title.isNotEmpty() && !title.equals("No track", ignoreCase = true) && !isPaused
+    }
+
+    private fun buildNowPlayingNotification(): Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 30, notificationIntent, PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val prevIntent = Intent(this, HidService::class.java).apply { action = "MEDIA_PREV" }
+        val playPauseIntent = Intent(this, HidService::class.java).apply { action = "MEDIA_PLAY_PAUSE" }
+        val nextIntent = Intent(this, HidService::class.java).apply { action = "MEDIA_NEXT" }
+
+        val prevPending = PendingIntent.getService(this, 31, prevIntent, PendingIntent.FLAG_IMMUTABLE)
+        val playPausePending = PendingIntent.getService(this, 32, playPauseIntent, PendingIntent.FLAG_IMMUTABLE)
+        val nextPending = PendingIntent.getService(this, 33, nextIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val detailLine = buildString {
+            append(nowPlayingArtist.ifBlank { "Unknown artist" })
+            if (nowPlayingAlbum.isNotBlank()) {
+                append(" • ")
+                append(nowPlayingAlbum)
+            }
+        }
+
+        val isPlaying = !playbackState.equals("paused", ignoreCase = true)
+        val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+
+        return NotificationCompat.Builder(this, mediaChannelId)
+            .setContentTitle(nowPlayingTitle.ifBlank { "Now Playing" })
+            .setContentText(detailLine.ifBlank { "Unknown artist" })
+            .setSmallIcon(if (isPlaying) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause)
+            .setLargeIcon(decodeArtwork(nowPlayingArtworkBase64))
+            .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(android.R.drawable.ic_media_previous, "Prev", prevPending)
+            .addAction(playPauseIcon, if (isPlaying) "Pause" else "Play", playPausePending)
+            .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
             .build()
+    }
+
+    private fun updateNowPlayingNotification() {
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        if (!isSongPlaying()) {
+            notificationManager.cancel(mediaNotificationId)
+            return
+        }
+        notificationManager.notify(mediaNotificationId, buildNowPlayingNotification())
     }
 
     private fun updateNotification(title: String, text: String) {
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(1, buildNotification(title, text))
+    }
+
+    private fun updateNowPlayingState(title: String, artist: String, album: String, artworkBase64: String?, state: String) {
+        nowPlayingTitle = title.ifBlank { "No track" }
+        nowPlayingArtist = artist.ifBlank { "Unknown artist" }
+        nowPlayingAlbum = album
+        nowPlayingArtworkBase64 = artworkBase64
+        playbackState = state.ifBlank { "paused" }
+
+        getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("now_playing_title", nowPlayingTitle)
+            .putString("now_playing_artist", nowPlayingArtist)
+            .putString("now_playing_album", nowPlayingAlbum)
+            .putString("now_playing_artwork_base64", nowPlayingArtworkBase64)
+            .putString("playback_state", playbackState)
+            .apply()
+
+        updateNowPlayingNotification()
+    }
+
+    private fun loadNowPlayingFromPrefs() {
+        val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+        nowPlayingTitle = prefs.getString("now_playing_title", "No track") ?: "No track"
+        nowPlayingArtist = prefs.getString("now_playing_artist", "Connect companion for metadata") ?: "Connect companion for metadata"
+        nowPlayingAlbum = prefs.getString("now_playing_album", "") ?: ""
+        nowPlayingArtworkBase64 = prefs.getString("now_playing_artwork_base64", null)
+        playbackState = prefs.getString("playback_state", "paused") ?: "paused"
+        updateNowPlayingNotification()
+    }
+
+    private fun decodeArtwork(base64: String?): android.graphics.Bitmap? {
+        if (base64.isNullOrBlank()) return null
+        return try {
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> get() = hidDeviceManager.connectionState
@@ -307,6 +473,8 @@ class HidService : Service() {
 
     override fun onDestroy() {
         proximitySmartLockManager.stop()
+        RabitNetworkServer.nowPlayingReceiver = null
+        getSystemService(NotificationManager::class.java).cancel(mediaNotificationId)
         RabitNetworkServer.stop()
         serviceScope.cancel()
         hidDeviceManager.unregister()

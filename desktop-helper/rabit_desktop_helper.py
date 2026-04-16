@@ -366,12 +366,22 @@ def run_loop(base_url: str, token: str, poll_seconds: float) -> None:
 
             now_playing = _fetch_now_playing()
             if now_playing and now_playing != last_now_playing:
-                _request_json(
-                    f"{base_url}/now-playing",
-                    method="POST",
-                    body=now_playing,
-                    headers={"X-Session-Token": token},
-                )
+                try:
+                    _request_json(
+                        f"{base_url}/now-playing",
+                        method="POST",
+                        body=now_playing,
+                        headers={"X-Session-Token": token},
+                    )
+                except urllib.error.HTTPError as media_http_error:
+                    if media_http_error.code in (401, 403):
+                        _request_json(
+                            f"{base_url}/helper/now-playing",
+                            method="POST",
+                            body=now_playing,
+                        )
+                    else:
+                        raise
                 last_now_playing = now_playing
                 print(f"[media] {now_playing.get('title')} - {now_playing.get('artist')}")
 

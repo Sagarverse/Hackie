@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -32,17 +34,29 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -54,25 +68,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.AccentBlue
-import com.example.rabit.ui.theme.AccentPurple
-import com.example.rabit.ui.theme.Graphite
-import com.example.rabit.ui.theme.Obsidian
-import com.example.rabit.ui.theme.Platinum
-import com.example.rabit.ui.theme.Silver
-import com.example.rabit.ui.theme.SoftGrey
-import com.example.rabit.ui.theme.SuccessGreen
-import com.example.rabit.ui.theme.WarningYellow
+import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -109,324 +125,357 @@ fun HelperScreen(
         viewModel.setClipboardSyncState(clipboardSyncEnabled)
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Obsidian
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        listOf(Color(0xFF0B0F14), Color(0xFF0F1520), Color(0xFF0B0F14))
+    Box(modifier = Modifier.fillMaxSize().background(DeepObsidian)) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().alpha(0.05f).background(
+                Brush.verticalGradient(listOf(MintTeal, Color.Transparent))
+            ))
+        }
+
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            "DESKTOP HELPER",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 2.sp
+                            ),
+                            color = Platinum
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ConnectionIndicator(isConnected)
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        Text(
+                            text = if (isConnected) helperName.ifBlank { "Hackie System Linked" } else "System Standby",
+                            color = Platinum,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = (-0.5).sp
+                        )
+                        
+                        Text(
+                            text = if (isConnected) "Active Connection: $helperIp" else "Awaiting Peer Connection",
+                            color = if (isConnected) MintTeal else Silver.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Spacer(modifier = Modifier.height(26.dp))
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            InfoChip(label = "IP", value = helperIp.ifBlank { "???" })
+                            InfoChip(label = "PORT", value = "8765")
+                        }
+                    }
+                }
+
+                Text(
+                    "REMOTE FILE SYSTEM",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = Silver.copy(alpha = 0.6f)
                     )
                 )
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Graphite)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF1C5CFF), Color(0xFF1037A8))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (isConnected) Icons.Filled.Devices else Icons.Filled.Lan,
-                                contentDescription = null,
-                                tint = Platinum
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+
+                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = if (isConnected) "Connected to ${helperName.ifBlank { "Desktop Helper" }}" else "Waiting for helper connection",
+                                "Path: ${currentRemotePath.ifBlank { "/" }}",
                                 color = Platinum,
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = helperConnectionStatus,
-                                color = Silver,
-                                fontSize = 12.sp
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                    }
 
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InfoChip(label = "Target", value = helperName.ifBlank { "Unknown" })
-                        InfoChip(label = "IP", value = helperIp)
-                        InfoChip(label = "MAC", value = helperMac)
-                        InfoChip(label = "Last check", value = helperLastAutoDiscoverAt)
-                    }
-
-                    Text(
-                        text = helperAutoConnectStatus,
-                        color = Silver,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Graphite)
-            ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionTitle(icon = Icons.Filled.Folder, title = "Remote Files")
-                    Text("Path: $currentRemotePath", color = Silver, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { viewModel.listParentRemoteFiles() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Up")
-                        }
-                        FilledTonalButton(
-                            onClick = { viewModel.listRemoteFiles(currentRemotePath) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Refresh")
-                        }
-                    }
-                    Button(
-                        onClick = { filePickerLauncher.launch("*/*") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
-                    ) {
-                        Text("Send File to Helper", color = Platinum, fontWeight = FontWeight.Bold)
-                    }
-                    if (helperRemoteFiles.isEmpty()) {
-                        Text("No files loaded yet. Tap Refresh to load remote files.", color = Silver, fontSize = 12.sp)
-                    } else {
-                        helperRemoteFiles.take(20).forEach { file ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
-                                onClick = {
-                                    if (file.isDirectory) {
-                                        viewModel.listRemoteFiles(file.path)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                                onClick = { viewModel.listParentRemoteFiles() },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Silver.copy(alpha = 0.15f))
                             ) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("LEVEL UP", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = { viewModel.listRemoteFiles(currentRemotePath) },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Graphite)
+                            ) {
+                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("REFRESH", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Button(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MintTeal, contentColor = DeepObsidian)
+                        ) {
+                            Icon(Icons.Default.Upload, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("PUSH FILE TO HELPER", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                        }
+
+                        HorizontalDivider(color = Silver.copy(alpha = 0.05f))
+
+                        if (helperRemoteFiles.isEmpty()) {
+                            Text(
+                                "No remote files visible. Connect and refresh to browse.",
+                                color = Silver.copy(alpha = 0.5f),
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                helperRemoteFiles.take(8).forEach { file ->
+                                    RemoteFileItem(file) {
+                                        if (file.isDirectory) viewModel.listRemoteFiles(file.path)
+                                    }
+                                }
+                                if (helperRemoteFiles.size > 8) {
                                     Text(
-                                        text = if (file.isDirectory) "📁 ${file.name}" else "📄 ${file.name}",
-                                        color = Platinum,
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        text = if (file.isDirectory) "Open" else "File",
-                                        color = Silver,
-                                        fontSize = 11.sp
+                                        "View more in file manager...",
+                                        color = AccentBlue,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
                                     )
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Graphite)
-            ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle(icon = Icons.Filled.Terminal, title = "Terminal")
-                    Text(
-                        text = "Run a shell command on the connected helper device.",
-                        color = Silver,
-                        fontSize = 12.sp
+                Text(
+                    "REMOTE SHELL CONSOLE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = Silver.copy(alpha = 0.6f)
                     )
-                    OutlinedTextField(
-                        value = terminalCommand,
-                        onValueChange = { terminalCommand = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text("logcat -d", color = Silver) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Obsidian,
-                            unfocusedContainerColor = Obsidian,
-                            focusedTextColor = Platinum,
-                            unfocusedTextColor = Platinum,
-                            focusedBorderColor = AccentPurple,
-                            unfocusedBorderColor = SoftGrey
-                        )
-                    )
-                    Button(
-                        onClick = {
-                            if (terminalCommand.isNotBlank()) {
-                                viewModel.runRemoteShellCommand(terminalCommand)
-                                terminalCommand = ""
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-                    ) {
-                        Icon(Icons.Filled.Terminal, contentDescription = null, tint = Platinum)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Run Command", color = Platinum, fontWeight = FontWeight.Bold)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 90.dp, max = 220.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Obsidian)
-                            .padding(14.dp)
-                    ) {
-                        Text(
-                            text = if (terminalOutput.isBlank()) "Waiting for terminal output..." else terminalOutput,
-                            color = SuccessGreen,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
+                )
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Graphite)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    SectionTitle(icon = Icons.Filled.Lan, title = "Connection")
-                    Text(
-                        text = "Local Wi-Fi is preferred. Use a public IP or DDNS URL only when you need internet-direct mode.",
-                        color = Silver,
-                        fontSize = 12.sp
-                    )
-                    OutlinedTextField(
-                        value = helperUrlInput,
-                        onValueChange = { helperUrlInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text("http://192.168.1.10:8765") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Obsidian,
-                            unfocusedContainerColor = Obsidian,
-                            focusedTextColor = Platinum,
-                            unfocusedTextColor = Platinum,
-                            focusedBorderColor = AccentBlue,
-                            unfocusedBorderColor = SoftGrey
-                        )
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        FilledTonalButton(
-                            onClick = { viewModel.discoverHelperOnLocalWifi() },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = Color(0xFF17263F),
-                                contentColor = Platinum
-                            )
-                        ) {
-                            Icon(Icons.Filled.Search, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Scan LAN", fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = {
-                                viewModel.setHelperBaseUrl(helperUrlInput)
-                                viewModel.fetchHelperDeviceDetails()
+                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        OutlinedTextField(
+                            value = terminalCommand,
+                            onValueChange = { terminalCommand = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Enter shell command...", color = Silver.copy(alpha = 0.4f)) },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    if (terminalCommand.isNotBlank()) {
+                                        viewModel.runRemoteShellCommand(terminalCommand)
+                                        terminalCommand = ""
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Terminal, null, tint = AccentPurple)
+                                }
                             },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
-                        ) {
-                            Icon(Icons.Filled.Link, contentDescription = null, tint = Obsidian)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Connect", color = Obsidian, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            helperUrlInput = ""
-                            viewModel.resetHelperConnectionAndRescan()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningYellow)
-                    ) {
-                        Icon(Icons.Filled.RestartAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reset + Rescan", fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = { viewModel.fetchHelperDeviceDetails() }) {
-                        Text("Refresh health", color = AccentBlue)
-                    }
-                    if (helperBaseUrl.isNotBlank()) {
-                        Text(
-                            text = "Active endpoint: $helperBaseUrl",
-                            color = Silver,
-                            fontSize = 12.sp
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = AccentPurple,
+                                unfocusedBorderColor = Silver.copy(alpha = 0.1f),
+                                focusedContainerColor = Obsidian,
+                                unfocusedContainerColor = Obsidian
+                            ),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
                         )
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().height(180.dp),
+                            color = Color.Black.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Silver.copy(alpha = 0.05f))
+                        ) {
+                            Box(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = terminalOutput.ifBlank { "> Ready for command input..." },
+                                    color = Color(0xFF32D74B),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                    modifier = Modifier.verticalScroll(rememberScrollState())
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
+                Text(
+                    "PAIRING & DISCOVERY",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = Silver.copy(alpha = 0.6f)
+                    )
+                )
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Graphite)
-            ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle(icon = Icons.Filled.ContentPaste, title = "Clipboard")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Clipboard sync", color = Platinum, fontWeight = FontWeight.SemiBold)
-                            Text("Send and receive clipboard between phone and helper", color = Silver, fontSize = 12.sp)
+                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lan, null, tint = WarningYellow, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Manual Discovery", color = Platinum, fontWeight = FontWeight.Bold)
+                                Text("Search for active helper on Wi-Fi", color = Silver, style = MaterialTheme.typography.labelSmall)
+                            }
+                            FilledTonalButton(
+                                onClick = { viewModel.discoverHelperOnLocalWifi() },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("SCAN", fontWeight = FontWeight.Black)
+                            }
                         }
-                        Switch(
+
+                        HorizontalDivider(color = Silver.copy(alpha = 0.05f))
+
+                        SettingToggle(
+                            icon = Icons.Default.ContentPaste,
+                            title = "Sync Clipboard",
+                            subtitle = "Auto-share copy buffers",
                             checked = clipboardSyncEnabled,
                             onCheckedChange = {
                                 clipboardSyncEnabled = it
                                 viewModel.setClipboardSyncState(it)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Obsidian,
-                                checkedTrackColor = SuccessGreen,
-                                uncheckedThumbColor = Platinum,
-                                uncheckedTrackColor = SoftGrey
-                            )
+                            }
                         )
                     }
                 }
-            }
 
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun SectionTitle(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String) {
+private fun DarkSkeuoCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        modifier = modifier,
+        color = CardBackground,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ConnectionIndicator(active: Boolean) {
+    Box(contentAlignment = Alignment.Center) {
+        if (active) {
+            val infiniteTransition = rememberInfiniteTransition(label = "glow")
+            val glowAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.1f,
+                targetValue = 0.4f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000),
+                    repeatMode = RepeatMode.Reverse
+                ), label = "glowAlpha"
+            )
+            Surface(
+                modifier = Modifier.size(80.dp),
+                color = SuccessGreen.copy(alpha = glowAlpha),
+                shape = CircleShape
+            ) {}
+        }
+        
+        Surface(
+            modifier = Modifier.size(64.dp),
+            color = if (active) MintTeal.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, if (active) MintTeal else Color.White.copy(alpha = 0.1f))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    if (active) Icons.Default.Devices else Icons.Default.CloudOff,
+                    null,
+                    tint = if (active) MintTeal else Silver,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoteFileItem(file: com.example.rabit.ui.HelperRemoteFile, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Transparent,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description,
+                null,
+                tint = if (file.isDirectory) AccentBlue else Silver,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                file.name,
+                color = Platinum,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingToggle(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = AccentBlue)
         Spacer(modifier = Modifier.width(10.dp))
         Text(title, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     }

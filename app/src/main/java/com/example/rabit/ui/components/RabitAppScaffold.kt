@@ -68,7 +68,7 @@ fun RabitAppScaffold(
     }
 
     // Main routes accessible from drawer
-    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "media_deck", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper")
     val isSubPage = currentRoute !in mainRoutes
 
     val screenTitle = when(currentRoute) {
@@ -84,7 +84,6 @@ fun RabitAppScaffold(
         "shortcuts" -> "AUTOMATION"
         "wake_on_lan" -> "WAKE ON LAN"
         "ssh_terminal" -> "SSH TERMINAL"
-        "media_deck" -> "MEDIA DECK"
         "airplay_receiver" -> "AIRPLAY RX"
         "global_search" -> "GLOBAL SEARCH"
         "helper" -> "HACKIE HELPER"
@@ -200,17 +199,6 @@ fun RabitAppScaffold(
                         }
                     )
                 }
-
-                DrawerItem(
-                    label = "Media Control Deck",
-                    subLabel = "Now Playing & Transport",
-                    icon = Icons.Default.MusicNote,
-                    isSelected = currentRoute == "media_deck",
-                    onClick = {
-                        onNavigate("media_deck")
-                        scope.launch { drawerState.close() }
-                    }
-                )
 
                 DrawerItem(
                     label = "AirPlay Receiver",

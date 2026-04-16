@@ -10,6 +10,7 @@
 #include <desktop_drop/desktop_drop_plugin.h>
 #include <file_selector_windows/file_selector_windows.h>
 #include <get_mac_address/get_mac_address_plugin_c_api.h>
+#include <nsd_windows/nsd_windows_plugin_c_api.h>
 #include <permission_handler_windows/permission_handler_windows_plugin.h>
 #include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
 #include <tray_manager/tray_manager_plugin.h>
@@ -25,6 +26,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FileSelectorWindows"));
   GetMacAddressPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("GetMacAddressPluginCApi"));
+  NsdWindowsPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("NsdWindowsPluginCApi"));
   PermissionHandlerWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("PermissionHandlerWindowsPlugin"));
   ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(

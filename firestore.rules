@@ -3,8 +3,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Signaling mailbox for WebRTC Handshake
     match /signals/{peerId} {
-      // Allow creation/updates for the 4-6 char peer IDs
-      allow read, write: if peerId.size() >= 4 && peerId.size() <= 6;
+      // Allow signaling room IDs used by app/web (for example: PIN_1234)
+      // while keeping scope limited to sane identifier characters and length.
+      allow read, write: if peerId.matches('^[A-Za-z0-9_-]{4,64}$');
       
       // Potential improvement: Anonymous Auth check
       // allow read, write: if request.auth != null;

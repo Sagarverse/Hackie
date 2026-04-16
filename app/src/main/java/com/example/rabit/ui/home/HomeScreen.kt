@@ -1,5 +1,9 @@
 package com.example.rabit.ui.home
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,10 +22,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NetworkPing
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,12 +44,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
@@ -68,6 +82,21 @@ fun HomeScreen(
     val p2pStatus by viewModel.p2pStatus.collectAsState()
     val helperConnectionStatus by viewModel.helperConnectionStatus.collectAsState()
     val transfers by viewModel.helperTransferEvents.collectAsState()
+    val nowPlayingTitle by viewModel.nowPlayingTitle.collectAsState()
+    val nowPlayingArtist by viewModel.nowPlayingArtist.collectAsState()
+    val nowPlayingAlbum by viewModel.nowPlayingAlbum.collectAsState()
+    val nowPlayingArtworkBase64 by viewModel.nowPlayingArtworkBase64.collectAsState()
+
+    val artwork = remember(nowPlayingArtworkBase64) {
+        try {
+            nowPlayingArtworkBase64?.let {
+                val bytes = Base64.decode(it, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     val bluetoothConnectedName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName
     val bluetoothConnectedMac = if (bluetoothConnectedName != null) {
@@ -75,6 +104,14 @@ fun HomeScreen(
             ?: knownWorkstations.firstOrNull()?.address
     } else {
         null
+    }
+
+    val resolvedHelperHost = remember(helperBaseUrl, helperIp) {
+        val fromEndpoint = runCatching {
+            val host = Uri.parse(helperBaseUrl).host.orEmpty()
+            host.ifBlank { null }
+        }.getOrNull()
+        fromEndpoint ?: helperIp.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
     }
 
     val online = bluetoothConnectedName != null || isHelperConnected
@@ -93,7 +130,7 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
+                .height(140.dp)
                 .background(
                     brush = Brush.verticalGradient(
                         listOf(Color(0xFF1A56D6), Color(0xFF102B63))
@@ -103,18 +140,84 @@ fun HomeScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color.White.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Home, contentDescription = null, tint = Platinum, modifier = Modifier.size(30.dp))
+                Text("Hackie Bridge", color = Platinum, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
+                Text("Secure Link Established", color = Silver, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Graphite)
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.MusicNote, contentDescription = null, tint = AccentBlue)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Now Playing", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Welcome to Hackie", color = Platinum, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
-                Text("A calm control center for phone, helper, and remote actions", color = Silver, fontSize = 14.sp)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (artwork != null) {
+                        Image(
+                            bitmap = artwork,
+                            contentDescription = "Album art",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF101723)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.MusicNote, contentDescription = null, tint = Silver)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(nowPlayingTitle, color = Platinum, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(nowPlayingArtist, color = Silver, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (nowPlayingAlbum.isNotBlank()) {
+                            Text(nowPlayingAlbum, color = Silver.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { viewModel.sendMediaVolumeDown() }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Remove, contentDescription = null)
+                    }
+                    OutlinedButton(onClick = { viewModel.sendMediaPreviousTrack() }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.FastRewind, contentDescription = null)
+                    }
+                    Button(
+                        onClick = { viewModel.sendMediaPlayPause() },
+                        modifier = Modifier.weight(1.25f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Obsidian)
+                    }
+                    OutlinedButton(onClick = { viewModel.sendMediaNextTrack() }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.FastForward, contentDescription = null)
+                    }
+                    OutlinedButton(onClick = { viewModel.sendMediaVolumeUp() }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    }
+                }
+
+                OutlinedButton(onClick = { viewModel.requestNowPlayingFromHost() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Refresh song metadata")
+                }
             }
         }
 
@@ -146,7 +249,15 @@ fun HomeScreen(
                 }
 
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MetricChip(label = "IP", value = if (bluetoothConnectedName != null) "Bluetooth" else helperIp)
+                    MetricChip(
+                        label = "IP",
+                        value = when {
+                            isHelperConnected && !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
+                            bluetoothConnectedName != null -> "N/A (Bluetooth)"
+                            !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
+                            else -> "Unknown"
+                        }
+                    )
                     MetricChip(label = "MAC", value = bluetoothConnectedMac ?: helperMac)
                     MetricChip(label = "Endpoint", value = helperBaseUrl.ifBlank { "Not set" })
                     MetricChip(label = "P2P", value = p2pStatus)
@@ -199,52 +310,6 @@ fun HomeScreen(
         }
 
         Spacer(modifier = Modifier.height(18.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Graphite)
-        ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.NetworkPing, contentDescription = null, tint = AccentBlue)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Recent Transfers", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-                if (transfers.isEmpty()) {
-                    Text("No transfer activity yet", color = Silver, fontSize = 13.sp)
-                } else {
-                    transfers.takeLast(6).forEach { line ->
-                        Text("• $line", color = Silver, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Graphite)
-        ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Tip", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(
-                    "Use the Helper Control screen when you want direct device actions. Home stays focused on status and fast entry points.",
-                    color = Silver,
-                    fontSize = 13.sp
-                )
-                OutlinedButton(onClick = { viewModel.fetchHelperDeviceDetails() }) {
-                    Text("Refresh status")
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(24.dp))
     }
 }

@@ -403,6 +403,7 @@ class HidDeviceManager private constructor(private val context: Context) {
         _isPushPaused.value = false
         _isTextPushing.value = true
         textPushJob = scope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
             try {
                 text.forEach { char ->
                     while (_isPushPaused.value) {
@@ -415,6 +416,10 @@ class HidDeviceManager private constructor(private val context: Context) {
                     }
                 }
             } finally {
+                val elapsedMs = SystemClock.elapsedRealtime() - startedAt
+                if (elapsedMs < 600L) {
+                    delay(600L - elapsedMs)
+                }
                 _isTextPushing.value = false
             }
         }

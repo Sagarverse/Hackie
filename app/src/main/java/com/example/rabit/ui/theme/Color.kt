@@ -20,6 +20,9 @@ val AccentPurple = Color(0xFF3A7BFF)
 val AccentTeal = Color(0xFF2A8DFF)
 val AccentOrange = Color(0xFF9EB2D4)
 val AccentPink = Color(0xFF4A8BFF)
+val MintTeal = Color(0xFF32D7B9)
+val DeepObsidian = Color(0xFF070B10)
+val CardBackground = Color(0xFF141A22)
 
 val PremiumBlueGradient = Brush.verticalGradient(
     listOf(Color(0xFF2A79FF), Color(0xFF1654C6))

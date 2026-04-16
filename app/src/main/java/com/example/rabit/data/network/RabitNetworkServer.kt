@@ -3,8 +3,13 @@ package com.example.rabit.data.network
 import android.content.Context
 import android.content.ContentUris
 import android.net.Uri
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import com.example.rabit.data.secure.CryptoManager
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import android.database.Cursor
 import android.util.Log
 import io.ktor.http.*
 import io.ktor.http.content.*
@@ -41,6 +46,8 @@ object RabitNetworkServer {
 
     private var server: ApplicationEngine? = null
     val isRunning: Boolean get() = server != null
+    private var nsdManager: NsdManager? = null
+    private var nsdRegistrationListener: NsdManager.RegistrationListener? = null
     private var encryptionManager: com.example.rabit.data.secure.EncryptionManager? = null
     // Bidirectional File Sharing
     var sharedFilesProvider: (() -> List<SharedFile>)? = null
@@ -49,13 +56,22 @@ object RabitNetworkServer {
     // Universal Clipboard Callbacks
     var clipboardProvider: (() -> String)? = null
     var clipboardReceiver: ((String) -> Unit)? = null
+    var notesProvider: (() -> List<BridgeNotePayload>)? = null
+    var noteReceiver: ((String) -> Unit)? = null
+    var noteUpdateReceiver: ((String, String) -> Unit)? = null
+    var noteDeleteReceiver: ((String) -> Unit)? = null
     var nowPlayingReceiver: ((NowPlayingPayload) -> Unit)? = null
     var audioStreamStartReceiver: ((AudioStreamStartPayload) -> Unit)? = null
     var audioStreamChunkReceiver: ((AudioStreamChunkPayload) -> Unit)? = null
     var audioStreamStopReceiver: ((AudioStreamStopPayload) -> Unit)? = null
+    var systemActionReceiver: ((String) -> Unit)? = null
+    var biometricApprovalReceiver: (suspend () -> Boolean)? = null
 
     @Serializable
     data class ApiResponse(val success: Boolean, val message: String)
+
+    @Serializable
+    data class SystemActionPayload(val action: String)
 
     @Serializable
     data class SharedFile(
@@ -94,11 +110,26 @@ object RabitNetworkServer {
     data class ClipboardHistoryPayload(val items: List<String>)
 
     @Serializable
+    data class BridgeNotePayload(
+        val id: String,
+        val text: String,
+        val createdAtMs: Long,
+        val source: String = "Hackie"
+    )
+
+    @Serializable
+    data class AddNotePayload(val text: String)
+
+    @Serializable
+    data class UpdateNotePayload(val text: String)
+
+    @Serializable
     data class NowPlayingPayload(
         val title: String = "No track",
         val artist: String = "Unknown artist",
         val album: String = "",
         val artworkBase64: String? = null,
+        val playbackState: String = "playing", // "playing", "paused", "stopped"
         val source: String = "desktop-helper"
     )
 
@@ -136,349 +167,368 @@ object RabitNetworkServer {
     private val transferJobs = ConcurrentHashMap<String, TransferJob>()
     private const val PORTAL_INDEX_ASSET = "webportal/index.html"
 
-    @Serializable
-    data class LibraryEntry(
-        val id: String,
-        val kind: String,
-        val name: String,
-        val mimeType: String,
-        val size: Long,
-        val modifiedAt: Long
-    )
-
-    @Serializable
-    data class LibraryPayload(
-        val photos: List<LibraryEntry>,
-        val videos: List<LibraryEntry>,
-        val files: List<LibraryEntry>
-    )
-
     private val DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hackie File Hub</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>Hackie Hub | Professional Web Bridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #050505;
-            --surface: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.1);
-            --accent: #007AFF;
-            --accent-glow: rgba(0, 122, 255, 0.3);
-            --text: #ffffff;
-            --text-s: #888888;
-            --success: #32D74B;
+            --bg: #070B10;
+            --surface: #141A22;
+            --surface-low: rgba(20, 26, 34, 0.7);
+            --border: rgba(255, 255, 255, 0.08);
+            --accent: #4A8BFF;
+            --accent-glow: rgba(74, 139, 255, 0.3);
+            --text: #F2F2F7;
+            --text-s: #8E8E93;
+            --success: #32D7B9;
+            --error: #FF453A;
+            --sidebar-w: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background: var(--bg); color: var(--text); overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg); color: var(--text); overflow: hidden; display: flex; height: 100vh; }
 
-        .navbar { height: 72px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; }
-        .logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
-        .logo span { color: var(--accent); }
-        .status-badge { padding: 6px 12px; border-radius: 100px; background: rgba(50, 215, 75, 0.1); border: 1px solid rgba(50, 215, 75, 0.2); color: var(--success); font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        /* Sidebar */
+        .sidebar { width: var(--sidebar-w); border-right: 1px solid var(--border); background: var(--surface-low); backdrop-filter: blur(40px); display: flex; flex-direction: column; z-index: 100; }
+        .sidebar-header { padding: 32px 24px; display: flex; align-items: center; gap: 12px; }
+        .logo-box { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; }
+        .sidebar-nav { flex: 1; padding: 0 12px; display: flex; flex-direction: column; gap: 4px; }
+        .nav-item { padding: 12px 14px; border-radius: 12px; font-size: 14px; font-weight: 500; color: var(--text-s); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
+        .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+        .nav-item.active { background: var(--accent); color: white; }
+        .sidebar-footer { padding: 24px; border-top: 1px solid var(--border); }
 
-        .main-container { flex: 1; padding: 40px; max-width: 1400px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        /* Main */
+        .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .topbar { height: 72px; padding: 0 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .status-pill { padding: 6px 14px; border-radius: 100px; background: rgba(50, 215, 185, 0.1); border: 1px solid rgba(50, 215, 185, 0.2); color: var(--success); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
 
-        .pane { background: var(--surface); border: 1px solid var(--border); border-radius: 32px; padding: 40px; display: flex; flex-direction: column; gap: 24px; position: relative; overflow: hidden; }
-        .pane::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 100px; background: linear-gradient(to bottom, var(--accent-glow), transparent); opacity: 0.1; pointer-events: none; }
+        .main-scroll { flex: 1; overflow-y: auto; padding: 32px; scroll-behavior: smooth; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; }
 
-        .pane-header { display: flex; flex-direction: column; gap: 8px; }
-        .pane-header h2 { font-size: 24px; font-weight: 700; }
-        .pane-header p { color: var(--text-s); font-size: 14px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; transition: transform 0.2s; }
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .card-title { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
 
-        /* Drop Zone */
-        #drop-zone { flex: 1; border: 2px dashed var(--border); border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
-        #drop-zone.active { border-color: var(--accent); background: rgba(0, 122, 255, 0.05); transform: scale(0.99); }
-        .drop-icon { font-size: 40px; margin-bottom: 8px; }
+        /* File Transfer Module */
+        .dropzone { flex: 1; min-height: 200px; border: 2px dashed var(--border); border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; cursor: pointer; transition: 0.3s; }
+        .dropzone.active { border-color: var(--accent); background: rgba(74, 139, 255, 0.05); }
 
-        /* Shared List */
-        .file-list { flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 8px; }
-        .file-item { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; }
-        .file-item:hover { border-color: var(--accent); background: rgba(255, 255, 255, 0.04); }
-        .file-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-        .file-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .file-meta { font-size: 12px; color: var(--text-s); }
+        /* Sync Module */
+        .sync-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+        .sync-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; align-items: center; justify-content: space-between; }
         
-        .download-btn { width: 40px; height: 40px; border-radius: 12px; background: var(--accent); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px var(--accent-glow); }
-        .download-btn:active { transform: scale(0.95); }
+        /* Remote Control */
+        .remote-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .btn-control { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; height: 64px; border-radius: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; font-size: 11px; transition: 0.2s; }
+        .btn-control:hover { background: var(--accent); border-color: var(--accent); }
+        .btn-control i { font-size: 18px; }
 
-        .empty-state { text-align: center; color: var(--text-s); margin: auto; }
+        /* Utility */
+        .btn-primary { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+        .empty-text { color: var(--text-s); font-size: 13px; text-align: center; padding: 20px; }
 
-        @media (max-width: 900px) {
-            .main-container { grid-template-columns: 1fr; padding: 20px; }
-            .navbar { padding: 0 20px; }
-        }
+        /* Auth */
+        #auth-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+        .auth-box { width: 420px; text-align: center; }
+        .pin-grid { display: flex; justify-content: center; gap: 12px; margin: 32px 0; }
+        .pin-digit { width: 64px; height: 72px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; font-size: 32px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
-        /* Progress Bar */
-        .progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: var(--border); display: none; }
-        .progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s; }
-
-        /* Auth Overlay */
-        #auth-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-        .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: 32px; padding: 48px; width: 400px; display: flex; flex-direction: column; gap: 32px; text-align: center; }
-        .pin-input { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 16px; height: 56px; width: 100%; text-align: center; font-size: 24px; font-weight: 700; color: white; letter-spacing: 8px; }
-        .auth-btn { background: var(--accent); color: white; border: none; height: 56px; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .hidden { display: none !important; }
     </style>
+    <script src="https://kit.fontawesome.com/b6b7194f4a.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div id="auth-overlay">
-        <div class="auth-card">
-            <div>
-                <h1 style="font-size: 28px; margin-bottom: 8px">Bridge Login</h1>
-                <p style="color: var(--text-s)">Enter the PIN shown on your phone</p>
+        <div class="auth-box">
+            <div class="logo-box" style="width: 64px; height: 64px; margin: 0 auto 24px; font-size: 24px">H</div>
+            <h1 style="font-size: 32px; letter-spacing: -1px; margin-bottom: 8px">Bridge Protocol</h1>
+            <p style="color: var(--text-s)">Enter authentication key from your device</p>
+            <input type="password" id="pin-input" style="opacity: 0; position: absolute" maxlength="4" autofocus>
+            <div class="pin-grid" onclick="document.getElementById('pin-input').focus()">
+                <div class="pin-digit" id="d1"></div>
+                <div class="pin-digit" id="d2"></div>
+                <div class="pin-digit" id="d3"></div>
+                <div class="pin-digit" id="d4"></div>
             </div>
-            <input type="password" id="pin-input" class="pin-input" maxlength="4" placeholder="••••" autofocus>
-            <button onclick="authenticate()" class="auth-btn">Connect to Hub</button>
+            <button onclick="authenticate()" class="btn-primary" style="width: 200px">ACCESS HUB</button>
         </div>
     </div>
 
-    <nav class="navbar">
-        <div class="logo">HACKIE<span>.HUB</span></div>
-        <div style="display: flex; gap: 12px; align-items: center">
-            <button onclick="revokeCurrentSession()" style="background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 10px 14px; cursor: pointer; font-weight: 600">Revoke Session</button>
-            <div class="status-badge">
-                <div style="width: 8px; height: 8px; background: var(--success); border-radius: 100px; box-shadow: 0 0 6px var(--success)"></div>
-                CONNECTED
-            </div>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-box">H</div>
+            <div style="font-weight: 800; font-size: 18px">HACKIE<span>.HUB</span></div>
         </div>
-    </nav>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" onclick="switchTab('dash')"><i class="fas fa-th-large"></i> Dashboard</div>
+            <div class="nav-item" onclick="switchTab('notes')"><i class="fas fa-sticky-note"></i> Shared Notes</div>
+        </nav>
+        <div class="sidebar-footer">
+            <p style="font-size: 11px; color: var(--text-s)">ENC ENCRYPTION ACTIVE</p>
+            <p style="font-size: 10px; color: var(--success); font-weight: 600">Secure Network Session</p>
+        </div>
+    </aside>
 
-    <main class="main-container">
-        <!-- Pane: Mac to Phone -->
-        <section class="pane">
-            <div class="pane-header">
-                <h2>Mac to Phone</h2>
-                <p>Transfer files directly to your device</p>
-            </div>
-            <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-                <div class="drop-icon">🚀</div>
-                <div style="text-align: center">
-                    <p style="font-weight: 600">Drop files here</p>
-                    <p style="font-size: 13px; color: var(--text-s)">or click to browse</p>
+    <div class="content">
+        <header class="topbar">
+            <div id="tab-title" style="font-weight: 700; font-size: 18px">Dashboard Hub</div>
+            <div style="display: flex; align-items: center; gap: 20px">
+                <div class="status-pill">
+                    <div style="width: 6px; height: 6px; background: var(--success); border-radius: 50%"></div>
+                    HUB ONLINE
                 </div>
-                <input type="file" id="file-input" multiple style="display: none">
+                <button onclick="revokeSession()" style="background: none; border: none; color: var(--text-s); font-size: 13px; cursor: pointer"><i class="fas fa-sign-out-alt"></i></button>
             </div>
-            <div class="progress-container" id="upload-progress">
-                <div class="progress-bar" id="upload-bar"></div>
-            </div>
-        </section>
+        </header>
 
-        <!-- Pane: Phone to Mac -->
-        <section class="pane">
-            <div class="pane-header">
-                <div style="display: flex; justify-content: space-between; align-items: center">
-                    <h2>Phone Sync</h2>
-                    <button onclick="refreshSharedFiles()" style="background: none; border: none; color: var(--accent); font-weight: 600; cursor: pointer">Refresh</button>
+        <main class="main-scroll">
+            <!-- TAB: Dashboard -->
+            <div id="tab-dash" class="tab-content">
+                <div class="dashboard-grid">
+                    <!-- Universal Clipboard -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Live Clipboard</span>
+                            <i class="fas fa-clipboard" style="color: var(--accent)"></i>
+                        </div>
+                        <textarea id="clip-area" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 16px; width: 100%; height: 100px; padding: 12px; color: white; resize: none; font-size: 13px; margin-bottom: 12px" placeholder="Universal paste history..."></textarea>
+                        <div style="display: flex; gap: 8px">
+                            <button class="btn-primary" style="flex: 1; font-size: 12px" onclick="syncClipboard('pull')">Pull from Phone</button>
+                            <button class="btn-primary" style="flex: 1; font-size: 12px; background: var(--surface); border: 1px solid var(--border)" onclick="syncClipboard('push')">Push to Phone</button>
+                        </div>
+                    </div>
+
+                    <!-- Shared List Module -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Shared Files on Phone</span>
+                            <button onclick="refreshShared()" style="background: none; border: none; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer">Sync</button>
+                        </div>
+                        <div id="shared-list" class="sync-list">
+                            <div class="empty-text">No files shared yet</div>
+                        </div>
+                    </div>
                 </div>
-                <p>Files you've shared from your phone</p>
             </div>
-            <div class="file-list" id="shared-list">
-                <div class="empty-state">No files shared yet</div>
+
+            <!-- TAB: Notes -->
+            <div id="tab-notes" class="tab-content hidden">
+                <div class="card" style="margin-bottom: 24px">
+                    <div class="card-header">
+                        <span class="card-title">Add Smart Note</span>
+                    </div>
+                    <div style="display: flex; gap: 12px">
+                        <input type="text" id="note-input" style="flex: 1; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 12px; color: white" placeholder="Type something to remember...">
+                        <button onclick="addNote()" class="btn-primary">Add Note</button>
+                    </div>
+                </div>
+                <div id="notes-grid" class="dashboard-grid"></div>
             </div>
-        </section>
-    </main>
+        </main>
+    </div>
 
     <script>
-        let sessionToken = null;
-        let deviceId = localStorage.getItem('rabit_device_id');
-        let lastKnownLocalClipboard = "";
-        let phoneClipboard = "";
+        let sessionToken = localStorage.getItem('rabit_token');
+        let deviceId = localStorage.getItem('rabit_did') || 'web-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('rabit_did', deviceId);
 
-        function generateFallbackId() {
-            const hasUuid = typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function';
-            if (hasUuid) return 'device-' + crypto.randomUUID();
-            return 'device-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        // UI Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            event.currentTarget.classList.add('active');
+            document.getElementById('tab-title').innerText = event.currentTarget.innerText;
         }
 
-        if (!deviceId) {
-            deviceId = generateFallbackId();
-            localStorage.setItem('rabit_device_id', deviceId);
-        }
+        // Auth Flow
+        const pinInput = document.getElementById('pin-input');
+        pinInput.addEventListener('input', () => {
+            const val = pinInput.value;
+            for(let i=1; i<=4; i++) {
+                document.getElementById('d'+i).innerText = val[i-1] ? '•' : '';
+            }
+            if(val.length === 4) authenticate();
+        });
 
         async function authenticate() {
-            const pin = document.getElementById('pin-input').value;
-            try {
-                const res = await fetch('/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
-                    body: JSON.stringify({ pin })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    sessionToken = data.message;
-                    localStorage.setItem('rabit_session_token', sessionToken);
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    initClipboardEngine();
-                    refreshSharedFiles();
-                } else {
-                    alert('Invalid PIN');
-                }
-            } catch (err) { alert('Connection Error'); }
-        }
-
-        async function revokeCurrentSession() {
-            if (!sessionToken) return;
-            await fetch('/revoke-session', {
+            const res = await fetch('/auth', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-Token': sessionToken,
-                    'X-Device-Id': deviceId
-                },
-                body: JSON.stringify({ token: sessionToken })
+                headers: {'Content-Type': 'application/json', 'X-Device-Id': deviceId },
+                body: JSON.stringify({ pin: pinInput.value })
             });
-            sessionToken = null;
-            localStorage.removeItem('rabit_session_token');
-            document.getElementById('auth-overlay').style.display = 'flex';
+            const data = await res.json();
+            if(data.success) {
+                sessionToken = data.message;
+                localStorage.setItem('rabit_token', sessionToken);
+                document.getElementById('auth-overlay').classList.add('hidden');
+                initMain();
+            } else {
+                pinInput.value = '';
+                alert('Access Denied');
+            }
         }
 
-        // ───── Universal Clipboard Engine ─────
-        async function initClipboardEngine() {
-            // Initial Sync
-            syncClipboard();
-
-            // Sync on focus (Universal behavior)
-            window.addEventListener('focus', () => {
-                syncClipboard();
-            });
-
-            // Periodic sync (every 10s as safety)
-            setInterval(syncClipboard, 10000);
+        if(sessionToken) {
+            document.getElementById('auth-overlay').classList.add('hidden');
+            initMain();
         }
 
-        async function syncClipboard() {
-            if (!sessionToken) return;
+        function initMain() {
+            refreshShared();
+            refreshNotes();
+            setInterval(autoSyncClipboard, 5000);
+        }
 
-            try {
-                // 1. Pull from Phone
-                const res = await fetch('/clipboard', {
-                    headers: { 'X-Session-Token': sessionToken }
-                });
+        async function systemAction(action) {
+            await fetch('/system/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
+                body: JSON.stringify({ action: action })
+            });
+        }
+
+        async function syncClipboard(mode) {
+            if(mode === 'pull') {
+                const res = await fetch('/clipboard', { headers: { 'X-Session-Token': sessionToken } });
                 const data = await res.json();
-                
-                if (data.text && data.text !== phoneClipboard) {
-                    phoneClipboard = data.text;
-                    // If phone has something new, we might want to apply to Mac
-                    // Browsers strictly require user gesture for writeText, 
-                    // so we show a subtle indicator or copy it if focused.
-                    if (document.hasFocus()) {
-                        try {
-                            // Only try if it's different from what we think Mac has
-                            if (phoneClipboard !== lastKnownLocalClipboard) {
-                                await navigator.clipboard.writeText(phoneClipboard);
-                                lastKnownLocalClipboard = phoneClipboard;
-                                console.log("Applied Phone clipboard to Mac");
-                            }
-                        } catch (e) { console.log("Mac clipboard write blocked"); }
-                    }
-                }
-
-                // 2. Push to Phone (Read from Mac)
-                if (document.hasFocus()) {
-                    try {
-                        const macText = await navigator.clipboard.readText();
-                        if (macText && macText !== lastKnownLocalClipboard && macText !== phoneClipboard) {
-                            lastKnownLocalClipboard = macText;
-                            await fetch('/clipboard', {
-                                method: 'POST',
-                                headers: { 
-                                    'Content-Type': 'application/json',
-                                    'X-Session-Token': sessionToken 
-                                },
-                                body: JSON.stringify({ text: macText })
-                            });
-                            console.log("Pushed Mac clipboard to Phone");
-                        }
-                    } catch (e) { /* Permission restricted */ }
-                }
-            } catch (err) { console.error("Clipboard sync error:", err); }
-        }
-
-        async function refreshSharedFiles() {
-            if (!sessionToken) return;
-            try {
-                const res = await fetch('/shared-files', {
-                    headers: { 'X-Session-Token': sessionToken, 'X-Device-Id': deviceId }
+                document.getElementById('clip-area').value = data.text;
+                navigator.clipboard.writeText(data.text);
+            } else {
+                const text = document.getElementById('clip-area').value;
+                await fetch('/clipboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
+                    body: JSON.stringify({ text })
                 });
-                const files = await res.json();
-                const list = document.getElementById('shared-list');
-                
-                if (files.length === 0) {
-                    list.innerHTML = '<div class="empty-state">No files shared yet</div>';
-                    return;
-                }
+            }
+        }
 
-                list.innerHTML = files.map(f => `
-                    <div class="file-item">
-                        <div class="file-info">
-                            <div class="file-name">${"$"}{f.name}</div>
-                            <div class="file-meta">${"$"}{(f.size / 1024 / 1024).toFixed(2)} MB • ${"$"}{f.type}</div>
-                        </div>
-                        <button class="download-btn" onclick="downloadFile('${"$"}{f.id}')">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        </button>
+        async function autoSyncClipboard() {
+            if(!document.hasFocus()) return;
+            const text = await navigator.clipboard.readText();
+            if(text && text !== document.getElementById('clip-area').value) {
+                document.getElementById('clip-area').value = text;
+                await syncClipboard('push');
+            }
+        }
+
+        async function refreshShared() {
+            const res = await fetch('/shared-files', { headers: { 'X-Session-Token': sessionToken } });
+            const files = await res.json();
+            const list = document.getElementById('shared-list');
+            list.innerHTML = files.length ? files.map(f => `
+                <div class="sync-item">
+                    <div style="font-size: 13px">
+                        <p style="font-weight: 600">${"$"}{f.name}</p>
+                        <p style="color: var(--text-s); font-size: 10px">${"$"}{(f.size/1024/1024).toFixed(1)}MB • ${"$"}{f.type.split('/')[1]}</p>
                     </div>
-                `).join('');
-            } catch (err) { console.error(err); }
+                    <button class="btn-control" style="width: 32px; height: 32px" onclick="location.href='/download/${"$"}{f.id}?token=${"$"}{sessionToken}'"><i class="fas fa-download"></i></button>
+                </div>
+            `).join('') : '<div class="empty-text">Nothing shared</div>';
         }
 
-        async function downloadFile(id) {
-            window.location.href = '/download/' + id + '?token=' + sessionToken;
+        // Notes Flow
+        async function refreshNotes() {
+            const res = await fetch('/notes', { headers: { 'X-Session-Token': sessionToken } });
+            const notes = await res.json();
+            const grid = document.getElementById('notes-grid');
+            grid.innerHTML = notes.map(n => `
+                <div class="card">
+                    <p id="note-text-${"$"}{n.id}" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap;">${"$"}{n.text}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center">
+                        <span style="font-size: 10px; color: var(--text-s)">${"$"}{new Date(n.createdAtMs).toLocaleString()}</span>
+                        <div style="display: flex; gap: 12px">
+                            <button onclick="editNote('${"$"}{n.id}')" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteNote('${"$"}{n.id}')" style="background: none; border: none; color: var(--error); cursor: pointer; font-size: 14px"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        // File Selection
-        document.getElementById('file-input').onchange = e => {
-            const files = e.target.files;
-            if (files.length) uploadFiles(files);
-        };
+        async function addNote() {
+            const input = document.getElementById('note-input');
+            const text = input.value.trim();
+            if (!text) return;
+            await fetch('/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
+                body: JSON.stringify({ text: text })
+            });
+            input.value = '';
+            refreshNotes();
+        }
 
-        // Drag & Drop
-        const dz = document.getElementById('drop-zone');
+        async function editNote(id) {
+            const oldText = document.getElementById('note-text-' + id).innerText;
+            const newText = prompt("Edit note:", oldText);
+            if (newText === null || newText.trim() === "" || newText === oldText) return;
+            
+            try {
+                const res = await fetch('/notes/' + id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
+                    body: JSON.stringify({ text: newText.trim() })
+                });
+                if (res.ok) refreshNotes();
+                else alert("Failed to update note");
+            } catch (err) {
+                console.error(err);
+                alert("Error updating note");
+            }
+        }
+
+        async function deleteNote(id) {
+            if (!confirm("Are you sure you want to delete this note?")) return;
+            try {
+                const res = await fetch('/notes/' + id, { 
+                    method: 'DELETE', 
+                    headers: { 'X-Session-Token': sessionToken } 
+                });
+                if (res.ok) refreshNotes();
+                else alert("Failed to delete note");
+            } catch (err) {
+                console.error(err);
+                alert("Error deleting note");
+            }
+        }
+
+        // Upload
+        const dz = document.getElementById('dropzone');
+        const finput = document.getElementById('file-input');
+        finput.onchange = () => upload(finput.files);
         dz.ondragover = e => { e.preventDefault(); dz.classList.add('active'); };
         dz.ondragleave = () => dz.classList.remove('active');
-        dz.ondrop = e => {
-            e.preventDefault();
-            dz.classList.remove('active');
-            if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
-        };
+        dz.ondrop = e => { e.preventDefault(); dz.classList.remove('active'); upload(e.dataTransfer.files); };
 
-        async function uploadFiles(files) {
-            const formData = new FormData();
-            for (let f of files) formData.append('file', f);
+        async function upload(files) {
+            const fd = new FormData();
+            for(let f of files) fd.append('file', f);
+            const pwrap = document.getElementById('prog-wrap');
+            const pbar = document.getElementById('prog-bar');
+            pwrap.style.display = 'block';
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload');
+            xhr.setRequestHeader('X-Session-Token', sessionToken);
+            xhr.upload.onprogress = e => pbar.style.width = (e.loaded/e.total)*100 + '%';
+            xhr.onload = () => { pwrap.style.display = 'none'; refreshShared(); alert('Transfer Complete'); };
+            xhr.send(fd);
+        }
 
-            const progress = document.getElementById('upload-progress');
-            const bar = document.getElementById('upload-bar');
-            progress.style.display = 'block';
-            bar.style.width = '0%';
-
-            try {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/upload');
-                xhr.setRequestHeader('X-Session-Token', sessionToken);
-                xhr.setRequestHeader('X-Device-Id', deviceId);
-                
-                xhr.upload.onprogress = e => {
-                    if (e.lengthComputable) {
-                        const p = (e.loaded / e.total) * 100;
-                        bar.style.width = p + '%';
-                    }
-                };
-
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        progress.style.display = 'none';
-                        alert('Upload Complete!');
-                    } else {
-                        alert('Upload Failed');
-                    }
-                };
-                xhr.send(formData);
-            } catch (err) { alert('Network Error'); }
+        function revokeSession() {
+            localStorage.clear();
+            location.reload();
         }
     </script>
 </body>
@@ -502,15 +552,18 @@ object RabitNetworkServer {
             return
         }
         this.encryptionManager = encryption
-        val appContext = context.applicationContext
-        server = embeddedServer(CIO, port = PORT) {
+        
+        // Start NSD
+        registerService(context, PORT)
+
+        server = embeddedServer(CIO, port = PORT, host = "0.0.0.0") {
             install(ContentNegotiation) {
                 json()
             }
             routing {
                 // ───── Web Dashboard ─────
                 get("/") {
-                    val html = loadAssetText(appContext, PORTAL_INDEX_ASSET) ?: DASHBOARD_HTML
+                    val html = loadAssetText(context, PORTAL_INDEX_ASSET) ?: DASHBOARD_HTML
                     call.respondText(html, ContentType.Text.Html)
                 }
 
@@ -520,6 +573,12 @@ object RabitNetworkServer {
                     val pin = payload.pin
                     Log.d("RabitAuth", "Auth attempt: Received=$pin, Expected=$currentPin")
                     if (pin == currentPin || pin == "2005") {
+                        val approved = biometricApprovalReceiver?.invoke() ?: true
+                        if (!approved) {
+                           call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Biometric approval denied"))
+                           return@post
+                        }
+                        
                         val token = java.util.UUID.randomUUID().toString()
                         val deviceId = call.request.headers["X-Device-Id"] ?: "unknown-device"
                         val userAgent = call.request.headers["User-Agent"] ?: "unknown"
@@ -618,7 +677,7 @@ object RabitNetworkServer {
                                     processedBytes = if (contentLength > 0) contentLength else 0L
                                 )
                                 // Notify system gallery / file explorer
-                                addFileToMediaStore(appContext, destFile)
+                                addFileToMediaStore(context, destFile)
                                 Log.d(TAG, "File saved: ${destFile.absolutePath}")
                             }
                             part.dispose()
@@ -676,7 +735,7 @@ object RabitNetworkServer {
                                     totalBytes = contentLength,
                                     processedBytes = if (contentLength > 0) contentLength else 0L
                                 )
-                                addFileToMediaStore(appContext, destFile)
+                                addFileToMediaStore(context, destFile)
                                 Log.d(TAG, "Helper upload saved: ${destFile.absolutePath}")
                             }
                             part.dispose()
@@ -695,8 +754,8 @@ object RabitNetworkServer {
                         return@get
                     }
                     val text = clipboardProvider?.invoke() ?: ""
-                    recordClipboardHistory(text)
-                    call.respond(HttpStatusCode.OK, ClipboardPayload(text))
+                    val encrypted = CryptoManager.encrypt(text, currentPin) ?: text
+                    call.respond(HttpStatusCode.OK, ClipboardPayload(encrypted))
                 }
 
                 post("/clipboard") {
@@ -704,21 +763,11 @@ object RabitNetworkServer {
                         call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
                         return@post
                     }
-                    try {
-                        val payloadText = runCatching {
-                            val payload = call.receive<ClipboardPayload>()
-                            payload.text
-                        }.getOrElse {
-                            val body = call.receiveText()
-                            val json = JSONObject(body)
-                            json.optString("text", json.optString("content", ""))
-                        }
-                        recordClipboardHistory(payloadText)
-                        clipboardReceiver?.invoke(payloadText)
-                        call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard updated"))
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
-                    }
+                    val payload = call.receive<ClipboardPayload>()
+                    val decrypted = CryptoManager.decrypt(payload.text, currentPin) ?: payload.text
+                    recordClipboardHistory(decrypted)
+                    clipboardReceiver?.invoke(decrypted)
+                    call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard updated"))
                 }
 
                 // ───── Helper Companion Clipboard (No token, local helper flow) ─────
@@ -763,11 +812,156 @@ object RabitNetworkServer {
                     call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard history cleared"))
                 }
 
+                get("/notes") {
+                    if (!call.validateToken()) {
+                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
+                        return@get
+                    }
+                    val notes = notesProvider?.invoke() ?: emptyList()
+                    val encryptedNotes = notes.map { 
+                        it.copy(text = CryptoManager.encrypt(it.text, currentPin) ?: it.text)
+                    }
+                    call.respond(HttpStatusCode.OK, encryptedNotes)
+                }
+
+                post("/notes") {
+                    if (!call.validateToken()) {
+                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
+                        return@post
+                    }
+                    try {
+                        val body = call.receiveText()
+                        val text = runCatching {
+                            val json = JSONObject(body)
+                            json.optString("text", "")
+                        }.getOrElse { "" }.trim()
+                        if (text.isBlank()) {
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Text is required"))
+                            return@post
+                        }
+
+                        noteReceiver?.invoke(text)
+                        call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                put("/notes/{id}") {
+                    if (!call.validateToken()) {
+                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
+                        return@put
+                    }
+                    try {
+                        val noteId = call.parameters["id"].orEmpty().trim()
+                        val text = runCatching {
+                            call.receive<UpdateNotePayload>().text
+                        }.getOrElse {
+                            val body = call.receiveText()
+                            val json = JSONObject(body)
+                            json.optString("text", "")
+                        }.trim()
+
+                        if (noteId.isBlank() || text.isBlank()) {
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "id and text are required"))
+                            return@put
+                        }
+
+                        noteUpdateReceiver?.invoke(noteId, text)
+                        call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                    } catch (_: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                delete("/notes/{id}") {
+                    if (!call.validateToken()) {
+                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
+                        return@delete
+                    }
+                    val noteId = call.parameters["id"].orEmpty().trim()
+                    if (noteId.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "id is required"))
+                        return@delete
+                    }
+                    noteDeleteReceiver?.invoke(noteId)
+                    call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                }
+
+                get("/helper/notes") {
+                    call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                }
+
+                post("/helper/notes") {
+                    try {
+                        val text = runCatching {
+                            call.receive<AddNotePayload>().text
+                        }.getOrElse {
+                            val body = call.receiveText()
+                            val json = JSONObject(body)
+                            json.optString("text", "")
+                        }.trim()
+
+                        if (text.isBlank()) {
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Text is required"))
+                            return@post
+                        }
+
+                        noteReceiver?.invoke(text)
+                        call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                put("/helper/notes/{id}") {
+                    try {
+                        val noteId = call.parameters["id"].orEmpty().trim()
+                        val text = runCatching {
+                            call.receive<UpdateNotePayload>().text
+                        }.getOrElse {
+                            val body = call.receiveText()
+                            val json = JSONObject(body)
+                            json.optString("text", "")
+                        }.trim()
+
+                        if (noteId.isBlank() || text.isBlank()) {
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "id and text are required"))
+                            return@put
+                        }
+
+                        noteUpdateReceiver?.invoke(noteId, text)
+                        call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                    } catch (_: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                delete("/helper/notes/{id}") {
+                    val noteId = call.parameters["id"].orEmpty().trim()
+                    if (noteId.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "id is required"))
+                        return@delete
+                    }
+                    noteDeleteReceiver?.invoke(noteId)
+                    call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                }
+
                 post("/now-playing") {
                     if (!call.validateToken()) {
                         call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
                         return@post
                     }
+                    try {
+                        val payload = call.receive<NowPlayingPayload>()
+                        nowPlayingReceiver?.invoke(payload)
+                        call.respond(HttpStatusCode.OK, ApiResponse(true, "Now playing updated"))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
+                    }
+                }
+
+                post("/helper/now-playing") {
                     try {
                         val payload = call.receive<NowPlayingPayload>()
                         nowPlayingReceiver?.invoke(payload)
@@ -829,56 +1023,6 @@ object RabitNetworkServer {
                     call.respond(HttpStatusCode.OK, files)
                 }
 
-                get("/library") {
-                    if (!call.validateToken()) {
-                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
-                        return@get
-                    }
-                    val photos = queryMediaStore(
-                        context = appContext,
-                        collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        kind = "photo",
-                        mimeFallback = "image/*",
-                        limit = 150
-                    )
-                    val videos = queryMediaStore(
-                        context = appContext,
-                        collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                        kind = "video",
-                        mimeFallback = "video/*",
-                        limit = 120
-                    )
-                    val files = queryDownloads(appContext, limit = 200)
-                    call.respond(HttpStatusCode.OK, LibraryPayload(photos = photos, videos = videos, files = files))
-                }
-
-                get("/library/download/{kind}/{id}") {
-                    if (!call.validateToken()) {
-                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
-                        return@get
-                    }
-                    val kind = call.parameters["kind"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                    val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                    val (uri, fileName, mimeType, size) = resolveLibraryEntry(appContext, kind, id)
-                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse(false, "File not found"))
-
-                    val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse(false, "Cannot read file"))
-
-                    call.response.header(
-                        HttpHeaders.ContentDisposition,
-                        ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, fileName).toString()
-                    )
-                    if (size > 0) {
-                        call.response.header("X-File-Size", size.toString())
-                    }
-                    call.response.header(HttpHeaders.ContentLength, bytes.size.toString())
-                    call.respondBytes(
-                        bytes,
-                        contentType = ContentType.parse(mimeType.ifBlank { "application/octet-stream" }),
-                        status = HttpStatusCode.OK
-                    )
-                }
 
                 get("/download/{fileId}") {
                     if (!call.validateToken()) {
@@ -889,7 +1033,7 @@ object RabitNetworkServer {
                     val uri = fileDownloadProvider?.invoke(fileId) ?: return@get call.respond(HttpStatusCode.NotFound)
                     
                     try {
-                        val contentResolver = appContext.contentResolver
+                        val contentResolver = context.contentResolver
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
                         val transferId = UUID.randomUUID().toString()
                         
@@ -970,23 +1114,31 @@ object RabitNetworkServer {
                 get("/ping") {
                     call.respond(HttpStatusCode.OK, ApiResponse(true, "Hackie Hub Online"))
                 }
+
+                post("/system/action") {
+                    if (!call.validateToken()) {
+                        call.respond(HttpStatusCode.Unauthorized, ApiResponse(false, "Unauthorized"))
+                        return@post
+                    }
+                    try {
+                        val payload = call.receive<SystemActionPayload>()
+                        systemActionReceiver?.invoke(payload.action)
+                        call.respond(HttpStatusCode.OK, ApiResponse(true, "Action ${payload.action} executed"))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid action payload"))
+                    }
+                }
             }
         }.also { it.start(wait = false) }
         Log.d(TAG, "Rabit network server started on port $PORT")
     }
 
     fun stop() {
-        server?.stop(500, 2000)
+        unregisterService()
+        server?.stop(1000, 2000)
         server = null
         Log.d(TAG, "Rabit network server stopped")
     }
-
-    private data class ResolvedLibraryEntry(
-        val uri: Uri,
-        val fileName: String,
-        val mimeType: String,
-        val size: Long
-    )
 
     private fun loadAssetText(context: Context, path: String): String? {
         return try {
@@ -997,176 +1149,6 @@ object RabitNetworkServer {
         }
     }
 
-    private fun queryMediaStore(
-        context: Context,
-        collection: Uri,
-        kind: String,
-        mimeFallback: String,
-        limit: Int
-    ): List<LibraryEntry> {
-        val resolver = context.contentResolver
-        val entries = mutableListOf<LibraryEntry>()
-        val projection = arrayOf(
-            MediaStore.MediaColumns._ID,
-            MediaStore.MediaColumns.DISPLAY_NAME,
-            MediaStore.MediaColumns.SIZE,
-            MediaStore.MediaColumns.MIME_TYPE,
-            MediaStore.MediaColumns.DATE_MODIFIED
-        )
-
-        val queryUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            collection.buildUpon().appendQueryParameter("limit", limit.toString()).build()
-        } else {
-            collection
-        }
-
-        try {
-            resolver.query(queryUri, projection, null, null, "${MediaStore.MediaColumns.DATE_MODIFIED} DESC")?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
-                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
-                val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
-                var count = 0
-                while (cursor.moveToNext() && count < limit) {
-                    val id = cursor.getLong(idCol)
-                    val name = cursor.getString(nameCol) ?: "$kind-$id"
-                    val size = cursor.getLong(sizeCol)
-                    val mime = cursor.getString(mimeCol) ?: mimeFallback
-                    val modified = cursor.getLong(modifiedCol)
-                    entries += LibraryEntry(
-                        id = id.toString(),
-                        kind = kind,
-                        name = name,
-                        mimeType = mime,
-                        size = size,
-                        modifiedAt = modified
-                    )
-                    count++
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "No permission to query $kind", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to query $kind", e)
-        }
-        return entries
-    }
-
-    private fun queryDownloads(context: Context, limit: Int): List<LibraryEntry> {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val files = downloadDir.listFiles().orEmpty()
-                .filter { it.isFile }
-                .sortedByDescending { it.lastModified() }
-                .take(limit)
-            return files.map { file ->
-                LibraryEntry(
-                    id = Uri.encode(file.absolutePath),
-                    kind = "file_path",
-                    name = file.name,
-                    mimeType = "application/octet-stream",
-                    size = file.length(),
-                    modifiedAt = file.lastModified() / 1000L
-                )
-            }
-        }
-
-        val resolver = context.contentResolver
-        val entries = mutableListOf<LibraryEntry>()
-        val projection = arrayOf(
-            MediaStore.MediaColumns._ID,
-            MediaStore.MediaColumns.DISPLAY_NAME,
-            MediaStore.MediaColumns.SIZE,
-            MediaStore.MediaColumns.MIME_TYPE,
-            MediaStore.MediaColumns.DATE_MODIFIED
-        )
-        try {
-            resolver.query(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                projection,
-                null,
-                null,
-                "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
-            )?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
-                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
-                val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
-                var count = 0
-                while (cursor.moveToNext() && count < limit) {
-                    val id = cursor.getLong(idCol)
-                    val name = cursor.getString(nameCol) ?: "download-$id"
-                    val size = cursor.getLong(sizeCol)
-                    val mime = cursor.getString(mimeCol) ?: "application/octet-stream"
-                    val modified = cursor.getLong(modifiedCol)
-                    entries += LibraryEntry(
-                        id = id.toString(),
-                        kind = "file",
-                        name = name,
-                        mimeType = mime,
-                        size = size,
-                        modifiedAt = modified
-                    )
-                    count++
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "No permission to query downloads", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to query downloads", e)
-        }
-        return entries
-    }
-
-    private fun resolveLibraryEntry(context: Context, kind: String, id: String): ResolvedLibraryEntry? {
-        if (kind == "file_path") {
-            val path = Uri.decode(id)
-            val file = File(path)
-            if (!file.exists() || !file.isFile) return null
-            return ResolvedLibraryEntry(
-                uri = Uri.fromFile(file),
-                fileName = file.name,
-                mimeType = "application/octet-stream",
-                size = file.length()
-            )
-        }
-
-        val rawId = id.toLongOrNull() ?: return null
-        val uri = when (kind) {
-            "photo" -> ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, rawId)
-            "video" -> ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, rawId)
-            "file" -> {
-                val downloadsUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                } else {
-                    Uri.parse("content://downloads/public_downloads")
-                }
-                ContentUris.withAppendedId(downloadsUri, rawId)
-            }
-            else -> return null
-        }
-
-        val projection = arrayOf(
-            MediaStore.MediaColumns.DISPLAY_NAME,
-            MediaStore.MediaColumns.SIZE,
-            MediaStore.MediaColumns.MIME_TYPE
-        )
-
-        return try {
-            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                if (!cursor.moveToFirst()) return null
-                val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)) ?: "file-$id"
-                val size = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE))
-                val mime = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)) ?: "application/octet-stream"
-                ResolvedLibraryEntry(uri = uri, fileName = name, mimeType = mime, size = size)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to resolve library entry", e)
-            null
-        }
-    }
 
     private fun addFileToMediaStore(context: Context, file: File) {
         try {
@@ -1243,5 +1225,47 @@ object RabitNetworkServer {
         val range = rangeHeader.removePrefix("bytes=")
         val start = range.substringBefore('-').toLongOrNull() ?: return 0L
         return start.coerceIn(0L, maxOf(0L, totalSize - 1))
+    }
+    private fun registerService(context: Context, port: Int) {
+        nsdManager = (context.getSystemService(Context.NSD_SERVICE) as NsdManager)
+        
+        val serviceInfo = NsdServiceInfo().apply {
+            serviceName = "HackieHub"
+            serviceType = "_hackie._tcp"
+            setPort(port)
+        }
+
+        nsdRegistrationListener = object : NsdManager.RegistrationListener {
+            override fun onServiceRegistered(NsdServiceInfo: NsdServiceInfo) {
+                Log.d(TAG, "NSD Service registered: ${NsdServiceInfo.serviceName}")
+            }
+
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                Log.e(TAG, "NSD Registration failed: $errorCode")
+            }
+
+            override fun onServiceUnregistered(arg0: NsdServiceInfo) {
+                Log.d(TAG, "NSD Service unregistered")
+            }
+
+            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                Log.e(TAG, "NSD Unregistration failed: $errorCode")
+            }
+        }
+
+        nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, nsdRegistrationListener)
+    }
+
+    private fun unregisterService() {
+        try {
+            nsdRegistrationListener?.let {
+                nsdManager?.unregisterService(it)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unregister NSD", e)
+        } finally {
+            nsdRegistrationListener = null
+            nsdManager = null
+        }
     }
 }

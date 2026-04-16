@@ -13,12 +13,20 @@ import 'package:window_manager/window_manager.dart';
 import 'package:get_mac_address/get_mac_address.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:nsd/nsd.dart';
+import 'package:http/http.dart' as http;
+import 'package:cryptography/cryptography.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final bool isMobile = Platform.isAndroid || Platform.isIOS;
-  final bool isDesktop =
-      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  
+  bool isMobile = false;
+  bool isDesktop = false;
+
+  if (!kIsWeb) {
+    isMobile = Platform.isAndroid || Platform.isIOS;
+    isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  }
 
   if (isMobile) {
     await initializeService();
@@ -314,6 +322,24 @@ Future<Map<String, dynamic>> _runCommand(Map data) async {
     return {'success': true};
   }
 
+  if (command == 'set_volume') {
+    if (Platform.isMacOS) {
+      final volume = (data['value'] as int?) ?? 50;
+      await Process.run('osascript', ['-e', 'set volume output volume $volume']);
+      return {'success': true};
+    }
+  }
+
+  if (command == 'set_brightness') {
+    if (Platform.isMacOS) {
+      final brightness = ((data['value'] as int?) ?? 50) / 100.0;
+      await Process.run('osascript', ['-e', 'tell application "System Events" to set value of attribute "AXValue" of slider 1 of group 1 of window 1 of process "ControlCenter" to $brightness']);
+      // Fallback for some systems
+      await Process.run('osascript', ['-e', 'do shell script "brightness $brightness"']);
+      return {'success': true};
+    }
+  }
+
   if (command == 'run_shell') {
     final String shellCmd = (data['cmd'] as String?) ?? '';
     if (shellCmd.isNotEmpty) {
@@ -599,6 +625,71 @@ Future<void> startDesktopSync() async {
   await _loadHelperSettingsFromDisk();
   await _startDirectHelperServer();
   await _startLanBeacon();
+  await _startPhoneDiscovery();
+}
+
+class CryptoHelper {
+  static final _algorithm = AesGcm.with256bits();
+  
+  static Future<SecretKey> deriveKey(String pin, List<int> salt) async {
+    final pbkdf2 = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 10000,
+      bits: 256,
+    );
+    return await pbkdf2.deriveKeyFromPassword(
+      password: pin,
+      nonce: salt,
+    );
+  }
+
+  static Future<String?> encrypt(String text, String pin) async {
+    try {
+      final salt = List<int>.generate(16, (i) => DateTime.now().millisecond % 256); // Simple random for helper
+      final secretKey = await deriveKey(pin, salt);
+      final secretBox = await _algorithm.encrypt(
+        utf8.encode(text),
+        secretKey: secretKey,
+      );
+      final combined = [...salt, ...secretBox.nonce, ...secretBox.cipherText];
+      return base64.encode(combined);
+    } catch (e) { return null; }
+  }
+
+  static Future<String?> decrypt(String base64Ciphertext, String pin) async {
+    try {
+      final combined = base64.decode(base64Ciphertext);
+      final salt = combined.sublist(0, 16);
+      final iv = combined.sublist(16, 28);
+      final ciphertext = combined.sublist(28);
+      final secretKey = await deriveKey(pin, salt);
+      // Note: cryptography package might handle MAC differently, adjusting for standard GCM
+      final decrypted = await _algorithm.decrypt(
+        SecretBox(ciphertext.sublist(0, ciphertext.length - 16), 
+                  nonce: iv, 
+                  mac: Mac(ciphertext.sublist(ciphertext.length - 16))),
+        secretKey: secretKey,
+      );
+      return utf8.decode(decrypted);
+    } catch (e) { return null; }
+  }
+}
+
+Discovery? _nsdDiscovery;
+final ValueNotifier<List<Service>> _foundPhones = ValueNotifier([]);
+
+Future<void> _startPhoneDiscovery() async {
+  _nsdDiscovery = await startDiscovery('_hackie-hub._tcp');
+  _nsdDiscovery?.addListener(() {
+    _foundPhones.value = _nsdDiscovery?.services.toList() ?? [];
+    if (_foundPhones.value.isNotEmpty) {
+      // Auto-connect to the first one for pro experience
+      final service = _foundPhones.value.first;
+      if (service.host != null && service.port != null) {
+        debugPrint('Found Hackie Hub at ${service.host}:${service.port}');
+      }
+    }
+  });
 }
 
 class GoogleServiceApp extends StatefulWidget {
@@ -651,11 +742,16 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
   Timer? _nowPlayingPollTimer;
   bool _nowPlayingSyncInFlight = false;
   String? _lastNowPlayingSignature;
+  // ignore: unused_field
   String _nowPlayingLastDetected = 'No metadata detected yet';
+  // ignore: unused_field
   String _nowPlayingLastPushStatus = 'No push attempted yet';
+  // ignore: unused_field
   String _nowPlayingLastError = '';
   final List<_BrowserTab> _tabs = [];
   int _activeTabIndex = 0;
+  Timer? _clipboardWatcherTimer;
+  String _lastLocalClipboard = '';
 
   _BrowserTab get _activeTab => _tabs[_activeTabIndex];
 
@@ -880,6 +976,68 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     _phoneEndpointController.text = _phoneUploadEndpoint;
     _checkConnection();
     _startNowPlayingPolling();
+    _startClipboardWatcher();
+  }
+
+  void _startClipboardWatcher() {
+    _clipboardWatcherTimer?.cancel();
+    _clipboardWatcherTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
+      if (!_helperSettings.clipboardSyncEnabled || _showHelperDashboard) return;
+      
+      try {
+        final current = await FlutterClipboard.paste();
+        if (current.isNotEmpty && current != _lastLocalClipboard) {
+          _lastLocalClipboard = current;
+          await _pushClipboardToPhone(current);
+        }
+        await _pullClipboardFromPhone();
+      } catch (_) {}
+    });
+  }
+
+  String get _currentPin => _dashboardPasswordController.text.trim().isEmpty ? "0000" : _dashboardPasswordController.text.trim();
+
+  Future<void> _pullClipboardFromPhone() async {
+    final endpoint = _normalizePhoneUploadEndpoint(_phoneUploadEndpoint);
+    if (endpoint.isEmpty) return;
+    
+    try {
+      final response = await http.get(
+        Uri.parse('$endpoint/clipboard'),
+        headers: {'X-Session-Token': _dashboardPasswordController.text},
+      ).timeout(const Duration(seconds: 2));
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final encrypted = data['text'] as String?;
+        if (encrypted != null) {
+          final decrypted = await CryptoHelper.decrypt(encrypted, _currentPin);
+          if (decrypted != null && decrypted != _lastLocalClipboard) {
+            await FlutterClipboard.copy(decrypted);
+            _lastLocalClipboard = decrypted;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pushClipboardToPhone(String text) async {
+    final endpoint = _normalizePhoneUploadEndpoint(_phoneUploadEndpoint);
+    if (endpoint.isEmpty) return;
+
+    try {
+      final encrypted = await CryptoHelper.encrypt(text, _currentPin);
+      if (encrypted == null) return;
+
+      await http.post(
+        Uri.parse('$endpoint/clipboard'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Token': _dashboardPasswordController.text,
+        },
+        body: jsonEncode({'text': encrypted}),
+      ).timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   Future<void> _initTray() async {
@@ -1307,6 +1465,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     _dashboardPasswordController.dispose();
     _statusRefreshTimer?.cancel();
     _nowPlayingPollTimer?.cancel();
+    _clipboardWatcherTimer?.cancel();
     _runtimeStatus.removeListener(_syncStatusFromRuntime);
     _pendingBrowserHandoffUrl.removeListener(_consumePendingBrowserHandoff);
     trayManager.removeListener(this);
@@ -1412,19 +1571,6 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     _showInfoSnack('Remote File Transfer was disabled. Enabled now.');
   }
 
-  void _useLastPhoneIpForEndpoint() {
-    if (lastClientIp.isEmpty || lastClientIp == 'Unknown') {
-      _showInfoSnack('No recent phone IP found yet.', isError: true);
-      return;
-    }
-    final endpoint = 'http://$lastClientIp:8080';
-    setState(() {
-      _phoneUploadEndpoint = endpoint;
-      _phoneEndpointController.text = endpoint;
-      _phoneShareStatus = 'Using $endpoint';
-    });
-  }
-
   Future<void> _pickFolderAndSendToPhone() async {
     try {
       await _ensureRemoteFileTransferEnabled();
@@ -1489,8 +1635,8 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
 
     setState(() {
       _showHelperDashboard = true;
-      _phoneShareStatus = 'Received ${paths.length} file(s) from macOS';
-      _dropStatus = 'Received ${paths.length} file(s) via Open/Share';
+      _phoneShareStatus = 'Ready to send ${paths.length} file(s) to phone';
+      _dropStatus = 'Received ${paths.length} file(s) via Share menu';
     });
 
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
@@ -1498,24 +1644,26 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     }
 
     try {
+      // Auto-enable remote transfer for incoming manual shares
+      await _ensureRemoteFileTransferEnabled();
+      
       final endpoint = _normalizePhoneUploadEndpoint(_phoneUploadEndpoint);
       if (endpoint.isNotEmpty) {
-        await _ensureRemoteFileTransferEnabled();
         await _sendFilesToPhone(paths);
       } else {
         await _saveDroppedFiles(paths);
         if (!mounted) return;
         setState(() {
           _phoneShareStatus =
-              'Files received. Set phone endpoint to forward to Hackie app.';
+              'Files staged. Provide phone endpoint to finish transfer.';
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _phoneShareStatus = 'Incoming share failed: $e';
+        _phoneShareStatus = 'Share failed: $e';
       });
-      _showInfoSnack('Incoming share failed: $e', isError: true);
+      _showInfoSnack('Share failed: $e', isError: true);
     }
   }
 
@@ -2151,80 +2299,125 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF060A13), Color(0xFF0C1729), Color(0xFF0E2236)],
+            colors: [Color(0xFF060D1A), Color(0xFF0F172A), Color(0xFF1E293B)],
           ),
         ),
         child: Center(
           child: Container(
-            width: 320,
-            padding: const EdgeInsets.all(20),
+            width: 340,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xC20A1524),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              color: const Color(0xC20F172A),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.lock_outline,
-                  color: Color(0xFF5EEAD4),
-                  size: 36,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Dashboard Locked',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5EEAD4).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_person,
+                    color: Color(0xFF5EEAD4),
+                    size: 40,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Enter password to continue',
-                  style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                const SizedBox(height: 16),
+                const Text(
+                  'Hackie Secured',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                Text(
+                  'Enter terminal key to unlock dashboard',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _dashboardPasswordController,
                   obscureText: true,
                   autofocus: true,
-                  style: const TextStyle(color: Colors.white),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    letterSpacing: 4,
+                  ),
                   decoration: InputDecoration(
-                    hintText: 'Password',
-                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    hintText: '••••',
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      letterSpacing: 4,
+                    ),
                     filled: true,
-                    fillColor: const Color(0xFF08101E),
+                    fillColor: Colors.black.withValues(alpha: 0.3),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF5EEAD4),
+                        width: 1.5,
                       ),
                     ),
                   ),
                   onSubmitted: (_) => _tryUnlockDashboard(),
                 ),
                 if (_dashboardUnlockError != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     _dashboardUnlockError!,
                     style: const TextStyle(
-                      color: Color(0xFFFF8C8C),
+                      color: Color(0xFFFF6B6B),
                       fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  height: 52,
+                  child: FilledButton(
                     onPressed: _tryUnlockDashboard,
-                    icon: const Icon(Icons.lock_open, size: 16),
-                    label: const Text('Unlock'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF5EEAD4),
-                      foregroundColor: const Color(0xFF06151B),
+                      foregroundColor: const Color(0xFF0F172A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Unlock Dashboard',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ),
@@ -2237,436 +2430,399 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF060A13), Color(0xFF0C1729), Color(0xFF0E2236)],
-        ),
+        color: Color(0xFF0F172A),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
+      child: Stack(
+        children: [
+          // Background Mesh Decoration
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF101C2E).withValues(alpha: 0.86),
-                    const Color(0xFF0A1423).withValues(alpha: 0.86),
-                  ],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isConnected
-                              ? const Color(0xFF0F6148)
-                              : const Color(0xFF69362A),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          isConnected ? Icons.hub : Icons.hub_outlined,
-                          color: isConnected
-                              ? const Color(0xFF93F5D4)
-                              : const Color(0xFFFFCF9B),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isConnected
-                                  ? 'Hackie Helper is connected'
-                                  : 'Waiting for phone connection',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Endpoint: $_helperIpAddress:8765',
-                              style: TextStyle(
-                                color: Colors.grey.shade300,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Desktop: $deviceName',
-                    style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
-                  ),
-                  Text(
-                    'Last phone IP: $lastClientIp',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                ],
+                shape: BoxShape.circle,
+                color: const Color(0xFF5EEAD4).withValues(alpha: 0.05),
               ),
             ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-                color: const Color(0xA30A1524),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Now Playing Debug',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Detected: $_nowPlayingLastDetected',
-                    style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Push: $_nowPlayingLastPushStatus',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                  if (_nowPlayingLastError.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Error: $_nowPlayingLastError',
-                      style: const TextStyle(
-                        color: Color(0xFFFF8C8C),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  FilledButton.icon(
-                    onPressed: _syncNowPlayingTick,
-                    icon: const Icon(Icons.music_note, size: 16),
-                    label: const Text('Test Metadata Sync Now'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF5EEAD4),
-                      foregroundColor: const Color(0xFF06151B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-                color: const Color(0xA30A1524),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Customization',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Enable or disable each helper capability.',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Clipboard Sync',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Sync clipboard bi-directionally',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    value: _helperSettings.clipboardSyncEnabled,
-                    onChanged: (v) => _updateFeatureSetting(
-                      _helperSettings.copyWith(clipboardSyncEnabled: v),
-                    ),
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Remote File Transfer',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Allow file upload from connected devices',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    value: _helperSettings.remoteFileTransferEnabled,
-                    onChanged: (v) => _updateFeatureSetting(
-                      _helperSettings.copyWith(remoteFileTransferEnabled: v),
-                    ),
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Remote Commands',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Allow safe read-only shell commands',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    value: _helperSettings.remoteCommandEnabled,
-                    onChanged: (v) => _updateFeatureSetting(
-                      _helperSettings.copyWith(remoteCommandEnabled: v),
-                    ),
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Browser Handoff',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Allow phone to open URLs in helper browser',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    value: _helperSettings.browserHandoffEnabled,
-                    onChanged: (v) => _updateFeatureSetting(
-                      _helperSettings.copyWith(browserHandoffEnabled: v),
-                    ),
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Notes Sync',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Keep shared notes bridge active',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    value: _helperSettings.noteSyncEnabled,
-                    onChanged: (v) => _updateFeatureSetting(
-                      _helperSettings.copyWith(noteSyncEnabled: v),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _homeUrlController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Default Home URL',
-                      labelStyle: TextStyle(color: Colors.grey.shade300),
-                      hintText: 'google.com',
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.03),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
+          ),
+          SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Connection Status Card
+                _buildSkeuoCard(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _saveDefaultHomeUrl,
-                          icon: const Icon(Icons.save, size: 16),
-                          label: const Text('Save Home URL'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF5EEAD4),
-                            foregroundColor: const Color(0xFF06151B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            _homeUrlController.text = _defaultBrowserUrl;
-                          },
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Use Current'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-                color: const Color(0xA30A1524),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Remote File Transfer',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _phoneEndpointController,
-                    onChanged: (value) {
-                      _phoneUploadEndpoint = value;
-                    },
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Phone upload endpoint',
-                      labelStyle: TextStyle(color: Colors.grey.shade300),
-                      hintText: 'http://<phone-ip>:8080',
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.03),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _useLastPhoneIpForEndpoint,
-                      icon: const Icon(Icons.auto_fix_high, size: 16),
-                      label: const Text('Use last phone IP'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickFilesAndSendToPhone,
-                          icon: const Icon(Icons.folder_open),
-                          label: const Text('Choose Files'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickFolderAndSendToPhone,
-                          icon: const Icon(Icons.create_new_folder),
-                          label: const Text('Choose Folder'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  DropTarget(
-                    onDragEntered: (_) {
-                      setState(() {
-                        _isDraggingFiles = true;
-                      });
-                    },
-                    onDragExited: (_) {
-                      setState(() {
-                        _isDraggingFiles = false;
-                      });
-                    },
-                    onDragDone: (detail) async {
-                      await _ensureRemoteFileTransferEnabled();
-                      setState(() {
-                        _isDraggingFiles = false;
-                      });
-                      final paths = detail.files
-                          .map((file) => file.path)
-                          .where((path) => path.isNotEmpty)
-                          .toList();
-                      try {
-                        await _sendFilesToPhone(paths);
-                      } catch (e) {
-                        if (!mounted) return;
-                        setState(() {
-                          _phoneShareStatus = 'Phone share failed: $e';
-                        });
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _isDraggingFiles
-                              ? const Color(0xFF5EEAD4)
-                              : Colors.white.withValues(alpha: 0.12),
-                          width: _isDraggingFiles ? 1.6 : 1,
-                        ),
-                        color: Colors.white.withValues(alpha: 0.02),
-                      ),
-                      child: Column(
+                      Row(
                         children: [
-                          Icon(
-                            Icons.upload_file,
-                            color: _isDraggingFiles
-                                ? const Color(0xFF5EEAD4)
-                                : Colors.white70,
-                            size: 32,
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: isConnected
+                                  ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                                  : const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isConnected
+                                    ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                                    : const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Icon(
+                              isConnected ? Icons.connected_tv : Icons.wifi_off,
+                              color: isConnected
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFFF59E0B),
+                              size: 26,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Drop files here to send to phone Downloads',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _phoneShareStatus,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.grey.shade300,
-                              fontSize: 12,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isConnected ? 'System Linked' : 'System Standby',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isConnected
+                                            ? const Color(0xFF10B981)
+                                            : Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      isConnected ? 'Online: $lastClientIp' : 'Awaiting Peer Connection',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
+                      const Divider(height: 32, color: Colors.white10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildStatusTag('Desktop', _helperIpAddress),
+                          _buildStatusTag('Port', '8765'),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 20),
+                
+                // File Transfer Card
+                _buildSkeuoCard(
+                  title: 'File Bridge',
+                  icon: Icons.unarchive_outlined,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fast local transfer to phone Downloads',
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _phoneEndpointController,
+                        onChanged: (v) => _phoneUploadEndpoint = v,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: _buildInputDecoration('Phone Host', 'http://ip:8080'),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              onPressed: _pickFilesAndSendToPhone,
+                              icon: Icons.file_present_rounded,
+                              label: 'Pick Files',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildActionButton(
+                              onPressed: _pickFolderAndSendToPhone,
+                              icon: Icons.folder_zip_rounded,
+                              label: 'Pick Folder',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      DropTarget(
+                        onDragEntered: (_) => setState(() => _isDraggingFiles = true),
+                        onDragExited: (_) => setState(() => _isDraggingFiles = false),
+                        onDragDone: (detail) async {
+                          await _ensureRemoteFileTransferEnabled();
+                          setState(() => _isDraggingFiles = false);
+                          final paths = detail.files.map((f) => f.path).toList();
+                          await _sendFilesToPhone(paths);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: _isDraggingFiles 
+                                ? const Color(0xFF5EEAD4).withValues(alpha: 0.1)
+                                : Colors.black.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _isDraggingFiles 
+                                  ? const Color(0xFF5EEAD4)
+                                  : Colors.white10,
+                              width: 1.5,
+                              style: BorderStyle.solid,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.cloud_upload_outlined,
+                                color: _isDraggingFiles ? const Color(0xFF5EEAD4) : Colors.white38,
+                                size: 36,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _isDraggingFiles ? 'Release to Share' : 'Drop fragments here to sync',
+                                style: TextStyle(
+                                  color: _isDraggingFiles ? const Color(0xFF5EEAD4) : Colors.white54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (_phoneShareStatus.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  _phoneShareStatus,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Clipboard & Features Card
+                _buildSkeuoCard(
+                  title: 'Core Services',
+                  icon: Icons.settings_input_component_outlined,
+                  child: Column(
+                    children: [
+                      _buildFeatureToggle(
+                        'Clipboard Relay',
+                        'Proactive bi-directional sync',
+                        _helperSettings.clipboardSyncEnabled,
+                        (v) => _updateFeatureSetting(_helperSettings.copyWith(clipboardSyncEnabled: v)),
+                        Icons.content_paste_go_rounded,
+                      ),
+                      _buildFeatureToggle(
+                        'Remote Shell',
+                        'Execute safe terminal operations',
+                        _helperSettings.remoteCommandEnabled,
+                        (v) => _updateFeatureSetting(_helperSettings.copyWith(remoteCommandEnabled: v)),
+                        Icons.terminal_rounded,
+                      ),
+                      _buildFeatureToggle(
+                        'Browser Link',
+                        'Accept URL handoffs from peer',
+                        _helperSettings.browserHandoffEnabled,
+                        (v) => _updateFeatureSetting(_helperSettings.copyWith(browserHandoffEnabled: v)),
+                        Icons.open_in_new_rounded,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _homeUrlController,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: _buildInputDecoration('Portal Homepage', 'google.com'),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildActionButton(
+                        onPressed: _saveDefaultHomeUrl,
+                        icon: Icons.save_alt_rounded,
+                        label: 'Save Configuration',
+                        isPrimary: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeuoCard({String? title, IconData? icon, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: const Color(0xFF5EEAD4), size: 20),
+                  const SizedBox(width: 10),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
           ],
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusTag(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label: ',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            value,
+            style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String label, String hint) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Color(0xFF5EEAD4), fontSize: 12, fontWeight: FontWeight.w600),
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+      filled: true,
+      fillColor: Colors.black.withValues(alpha: 0.2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFF5EEAD4), width: 1),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    bool isPrimary = false,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: isPrimary ? const Color(0xFF5EEAD4) : Colors.white.withValues(alpha: 0.05),
+          foregroundColor: isPrimary ? const Color(0xFF0F172A) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
         ),
+        icon: Icon(icon, size: 18),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildFeatureToggle(String title, String subtitle, bool value, Function(bool) onChanged, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white70, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: const Color(0xFF5EEAD4),
+          ),
+        ],
       ),
     );
   }

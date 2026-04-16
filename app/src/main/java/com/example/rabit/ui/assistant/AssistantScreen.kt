@@ -368,14 +368,6 @@ private fun AssistantLeftPanelContent(
         }
 
         AssistantNavDrawerItem(
-            label = "Media Control Deck",
-            subLabel = "Now Playing & Transport",
-            icon = Icons.Default.MusicNote,
-            isSelected = false,
-            onClick = { onNavigate("media_deck") }
-        )
-
-        AssistantNavDrawerItem(
             label = "AirPlay Receiver",
             subLabel = "Wi-Fi audio target (experimental)",
             icon = Icons.Default.Speaker,

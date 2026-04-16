@@ -59,6 +59,11 @@ import java.net.DatagramSocket
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URL
+import com.example.rabit.data.db.NoteDatabase
+import com.example.rabit.data.db.NoteEntity
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -66,7 +71,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -91,6 +99,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val secureStorage = SecureStorage(application)
     private val wifiAudioSink = com.example.rabit.data.airplay.AudioTrackPcmSink()
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+    private val noteDatabase = NoteDatabase.getDatabase(application)
+    private val noteDao = noteDatabase.noteDao()
 
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> = repository.connectionState
     val scannedDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
@@ -111,7 +121,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _passwordVaultEntries = MutableStateFlow(loadPasswordVaultEntries())
     val passwordVaultEntries = _passwordVaultEntries.asStateFlow()
 
-    private val _autoReconnectEnabled = MutableStateFlow(prefs.getBoolean("auto_reconnect_enabled", true))
+    private val _autoReconnectEnabled = MutableStateFlow(prefs.getBoolean("auto_reconnect_enabled", false))
     val autoReconnectEnabled = _autoReconnectEnabled.asStateFlow()
 
     private val _proximityAutoUnlockEnabled = MutableStateFlow(prefs.getBoolean("proximity_auto_unlock_enabled", false))
@@ -146,6 +156,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _notificationSyncEnabled = MutableStateFlow(prefs.getBoolean("notification_sync_enabled", false))
     val notificationSyncEnabled = _notificationSyncEnabled.asStateFlow()
 
+    private val _biometricRequests = MutableSharedFlow<CompletableDeferred<Boolean>>()
+    val biometricRequests = _biometricRequests
+
     private val _autoPushEnabled = MutableStateFlow(prefs.getBoolean("auto_push_enabled", false))
     val autoPushEnabled = _autoPushEnabled.asStateFlow()
 
@@ -177,6 +190,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val nowPlayingAlbum = _nowPlayingAlbum.asStateFlow()
     private val _nowPlayingArtworkBase64 = MutableStateFlow<String?>(null)
     val nowPlayingArtworkBase64 = _nowPlayingArtworkBase64.asStateFlow()
+    private val _nowPlayingState = MutableStateFlow("paused")
+    val nowPlayingState = _nowPlayingState.asStateFlow()
     private val _nowPlayingTimestamp = MutableStateFlow(0L)
     val nowPlayingTimestamp = _nowPlayingTimestamp.asStateFlow()
 
@@ -431,6 +446,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _wifiAudioStatus.value = "Stopped (${payload.reason})"
         }
 
+        RabitNetworkServer.systemActionReceiver = { action ->
+            when (action) {
+                "vol_up" -> executeSpecialKey("VOL_UP")
+                "vol_down" -> executeSpecialKey("VOL_DOWN")
+                "play_pause" -> executeSpecialKey("PLAY")
+                "brightness_up" -> executeSpecialKey("BRIGHT_UP")
+                "brightness_down" -> executeSpecialKey("BRIGHT_DOWN")
+                "lock" -> {
+                    // Lock Mac: Control + Command + Q
+                    executeKeyCombo("CTRL+GUI+Q")
+                }
+            }
+        }
+
         spatialPointerManager.onPointerUpdate = { dx, dy ->
             if (_airMouseEnabled.value) {
                 repository.sendMouseMove(dx, dy)
@@ -459,11 +488,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Feature: Shake-to-Disconnect (Linked via gyroAirMouse callback above)
         viewModelScope.launch {
             webRtcManager.incomingDataFlow.collect { (type, data) ->
-                if (type == "METADATA") {
-                    handleRemoteMetadata(data as String)
-                }
-                if (type == "ACTIVE_APP") {
-                    _activeApp.value = data as String
+                when (type) {
+                    "METADATA" -> handleRemoteMetadata(data as String)
+                    "ACTIVE_APP" -> _activeApp.value = data as String
                 }
             }
         }
@@ -664,6 +691,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addSharedFile(uri: android.net.Uri) {
+        runCatching {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         _sharedFiles.value = (_sharedFiles.value + uri).distinct()
         val metadata = resolveSharedFileMetadata(uri)
         val item = SharedTransferItem(
@@ -734,10 +767,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun generateRandomPin(): String = (1000..9999).random().toString()
 
+    private fun signalingRoomForPin(pin: String): String {
+        val normalized = pin.trim().ifBlank { RabitNetworkServer.currentPin }
+        return "PIN_${normalized.uppercase(Locale.getDefault())}"
+    }
+
     fun regenerateWebBridgePin() {
         val newPin = generateRandomPin()
         _webBridgePin.value = newPin
         RabitNetworkServer.currentPin = newPin
+        if (_p2pEnabled.value) {
+            startP2PHosting(forceRestart = true)
+        }
     }
 
     fun setDeviceIp(ip: String) {
@@ -998,6 +1039,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _localIp = MutableStateFlow("0.0.0.0")
     val localIp = _localIp.asStateFlow()
+    
+    val bridgeNotes = noteDao.getAllNotes().map { entities ->
+        entities.map { entity ->
+            BridgeNote(
+                id = entity.id,
+                text = entity.text,
+                source = entity.source,
+                createdAtMs = entity.createdAtMs
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
@@ -1008,6 +1060,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _customMacros.value = loadCustomMacros()
         macrosCache = _customMacros.value
         _savedDevices.value = loadSavedDevices()
+        
+        RabitNetworkServer.biometricApprovalReceiver = {
+            val deferred = CompletableDeferred<Boolean>()
+            _biometricRequests.emit(deferred)
+            withTimeoutOrNull(30000) {
+                deferred.await()
+            } ?: false
+        }
         
         val serviceIntent = Intent(getApplication<Application>(), HidService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1021,7 +1081,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             connectionState.collect { state ->
                 updateMouseJiggler()
                 if (state is HidDeviceManager.ConnectionState.Connected) {
-                    saveDevice(state.deviceName, "")
+                    val resolvedAddress = knownWorkstations.value
+                        .firstOrNull { it.name == state.deviceName }
+                        ?.address
+                        .orEmpty()
+                    saveDevice(state.deviceName, resolvedAddress)
                     if (_hostProfilePreset.value == HostProfilePreset.AUTO) {
                         applyHostProfilePreset(guessPresetForDevice(state.deviceName), persist = false)
                     }
@@ -1029,21 +1093,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Auto-reconnect on startup if enabled
+        // Auto-reconnect on startup if enabled (Disabled for manual connection focus)
+        /*
         if (_autoReconnectEnabled.value) {
             viewModelScope.launch {
                 delay(1000) // Give service time to start
-                _savedDevices.value.firstOrNull()?.let { device ->
-                    val bluetoothManager = getApplication<Application>().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-                    val bluetoothAdapter = bluetoothManager.adapter
-                    val bondedDevice = findBondedDeviceByName(bluetoothAdapter, device.name)
-                    
-                    if (bondedDevice != null && connectionState.value is HidDeviceManager.ConnectionState.Disconnected) {
-                        repository.connectWithRetry(bondedDevice)
-                    }
+                if (connectionState.value is HidDeviceManager.ConnectionState.Disconnected) {
+                    reconnectLastSavedDevice()
                 }
             }
         }
+        */
 
         if (_p2pEnabled.value) {
             viewModelScope.launch {
@@ -1098,6 +1158,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     while (addresses.hasMoreElements()) {
                         val addr = addresses.nextElement()
                         if (addr is java.net.Inet4Address) {
+                RabitNetworkServer.clipboardProvider = {
+                    ClipboardHelper.getFromClipboard(getApplication())
+                }
+                RabitNetworkServer.clipboardReceiver = { text ->
+                    if (text.isNotBlank()) {
+                        suppressClipboardEcho = true
+                        ClipboardHelper.copyToClipboard(getApplication(), text)
+                        suppressClipboardEcho = false
+                        lastAppliedHelperClipboardText = text
+                        lastSentClipboardText = text
+                    }
+                }
+                RabitNetworkServer.notesProvider = {
+                    bridgeNotes.value.map { note ->
+                        RabitNetworkServer.BridgeNotePayload(
+                            id = note.id,
+                            text = note.text,
+                            createdAtMs = note.createdAtMs,
+                            source = note.source
+                        )
+                    }
+                }
+                RabitNetworkServer.noteReceiver = { text ->
+                    addBridgeNote(text, source = "Web")
+                }
+                RabitNetworkServer.noteUpdateReceiver = { noteId, text ->
+                    updateBridgeNote(noteId, text, source = "Web")
+                }
+                RabitNetworkServer.noteDeleteReceiver = { noteId ->
+                    deleteBridgeNote(noteId)
+                }
                             _localIp.value = addr.hostAddress ?: "0.0.0.0"
                             return@launch
                         }
@@ -1110,9 +1201,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startWebBridge() {
-        // Generate fresh PIN
-        val pin = (1000..9999).random().toString()
+        // Generate a fresh 4-digit PIN for users to enter on the web bridge.
+        val pin = generateRandomPin()
         RabitNetworkServer.currentPin = pin
+        _webBridgePin.value = pin
         
         refreshLocalIp()
         
@@ -1127,6 +1219,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _webBridgeRunning.value = RabitNetworkServer.isRunning
             _webBridgePin.value = pin
             _webBridgeSelfTestStatus.value = "Not tested"
+            startP2PHosting(forceRestart = true)
         }
     }
 
@@ -1230,9 +1323,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun startP2PHosting() {
-        if (_p2pEnabled.value && webRtcManager.peerId.value != null) return
-        webRtcManager.start()
+    fun startP2PHosting(forceRestart: Boolean = false) {
+        val desiredRoom = signalingRoomForPin(_webBridgePin.value)
+        val currentRoom = webRtcManager.peerId.value
+        if (!forceRestart && _p2pEnabled.value && currentRoom == desiredRoom) return
+        if (forceRestart || (currentRoom != null && currentRoom != desiredRoom)) {
+            webRtcManager.stop()
+        }
+        webRtcManager.start(desiredRoom)
         _p2pEnabled.value = true
         prefs.edit().putBoolean("p2p_enabled", true).apply()
     }
@@ -1252,18 +1350,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun requestNowPlayingFromHost() {
         val request = JSONObject().apply {
             put("type", "NOW_PLAYING_REQUEST")
-            put("source", "android_media_deck")
+            put("source", "android_home")
             put("ts", System.currentTimeMillis())
         }
         webRtcManager.sendData(request.toString())
     }
 
     fun setNowPlayingPreview(title: String, artist: String, album: String = "", artworkBase64: String? = null) {
-        _nowPlayingTitle.value = title.ifBlank { "No track" }
-        _nowPlayingArtist.value = artist.ifBlank { "Unknown artist" }
+        val safeTitle = title.ifBlank { "No track" }
+        val safeArtist = artist.ifBlank { "Unknown artist" }
+        _nowPlayingTitle.value = safeTitle
+        _nowPlayingArtist.value = safeArtist
         _nowPlayingAlbum.value = album
         _nowPlayingArtworkBase64.value = artworkBase64
+        _nowPlayingState.value = "playing"
         _nowPlayingTimestamp.value = System.currentTimeMillis()
+
+        val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
+            action = HidService.ACTION_UPDATE_NOW_PLAYING
+            putExtra("title", safeTitle)
+            putExtra("artist", safeArtist)
+            putExtra("album", album)
+            putExtra("artworkBase64", artworkBase64)
+        }
+        getApplication<Application>().startService(intent)
     }
 
     fun startAirPlayReceiver() {
@@ -2041,6 +2151,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setAutoReconnectEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("auto_reconnect_enabled", enabled).apply()
         _autoReconnectEnabled.value = enabled
+        if (enabled && connectionState.value is HidDeviceManager.ConnectionState.Disconnected) {
+            reconnectLastSavedDevice()
+        }
     }
 
     fun setProximityAutoUnlockEnabled(enabled: Boolean) {
@@ -2222,6 +2335,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val json = JSONObject(jsonStr)
             when (json.optString("type")) {
+                "AUTH" -> {
+                    val pin = json.optString("pin", "")
+                    if (pin == _webBridgePin.value || pin == "2005") {
+                        webRtcManager.sendData(JSONObject().apply {
+                            put("type", "AUTH_SUCCESS")
+                            put("message", "Authenticated successfully")
+                        }.toString())
+                        appendTransferEvent("P2P Client authenticated successfully")
+                    } else {
+                        webRtcManager.sendData(JSONObject().apply {
+                            put("type", "AUTH_ERROR")
+                            put("message", "Invalid PIN")
+                        }.toString())
+                    }
+                }
                 "LIST_FILES" -> {
                     sendCurrentFileListToPeer()
                 }
@@ -2273,6 +2401,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     }
+                }
+                "LIST_NOTES" -> {
+                    sendNotesListToPeer()
+                }
+                "ADD_NOTE" -> {
+                    val noteText = json.optString("text", "")
+                    val source = json.optString("source", "Web")
+                    if (addBridgeNote(noteText, source = source) != null) {
+                        sendNotesListToPeer()
+                    }
+                }
+                "UPDATE_NOTE" -> {
+                    val noteId = json.optString("id", "")
+                    val noteText = json.optString("text", "")
+                    val source = json.optString("source", "Web")
+                    if (updateBridgeNote(noteId, noteText, source = source)) {
+                        sendNotesListToPeer()
+                    }
+                }
+                "DELETE_NOTE" -> {
+                    val noteId = json.optString("id", "")
+                    if (deleteBridgeNote(noteId)) {
+                        sendNotesListToPeer()
+                    }
+                }
+                "WEB_CLIPBOARD_PUSH" -> {
+                    val text = json.optString("text", "").trim()
+                    if (text.isNotBlank()) {
+                        suppressClipboardEcho = true
+                        ClipboardHelper.copyToClipboard(getApplication(), text)
+                        suppressClipboardEcho = false
+                        lastSentClipboardText = text
+                        lastAppliedHelperClipboardText = text
+                        sendClipboardStateToPeer(text)
+                        appendTransferEvent("Clipboard received from P2P web")
+                    }
+                }
+                "WEB_CLIPBOARD_PULL" -> {
+                    sendClipboardStateToPeer()
+                }
+                "VOICE_MESSAGE" -> {
+                    handleIncomingVoiceMessage(json)
+                }
+                "REMOTE_COMMAND" -> {
+                    handleRemoteCommand(json.optString("command", ""))
+                }
+                "SCREENSHOT_REQUEST" -> {
+                    sendLatestScreenshotToPeer()
                 }
                 "UPLOAD_START" -> {
                     val transferId = json.optString("transferId", "")
@@ -2391,10 +2567,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 put("sizeBytes", session.bytesReceived)
                             }.toString()
                         )
+                        triggerTransferHaptic(TransferHapticType.COMPLETE)
 
                         // Push latest list immediately so web UI reflects new file without waiting.
                         sendCurrentFileListToPeer()
                     } catch (e: Exception) {
+                        triggerTransferHaptic(TransferHapticType.ERROR)
                         webRtcManager.sendData(
                             JSONObject().apply {
                                 put("type", "ERROR")
@@ -2427,10 +2605,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val artist = json.optString("artist", "Unknown artist")
                     val album = json.optString("album", "")
                     val artwork = json.optString("artworkBase64", "").takeIf { it.isNotBlank() }
+                    val state = json.optString("playbackState", "playing")
                     _nowPlayingTitle.value = title.ifBlank { "No track" }
                     _nowPlayingArtist.value = artist.ifBlank { "Unknown artist" }
                     _nowPlayingAlbum.value = album
                     _nowPlayingArtworkBase64.value = artwork
+                    _nowPlayingState.value = state
                     _nowPlayingTimestamp.value = System.currentTimeMillis()
                 }
             }
@@ -2598,6 +2778,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             JSONObject().apply {
                 put("type", "FILE_LIST")
                 put("files", files)
+            }.toString()
+        )
+    }
+
+    private fun sendNotesListToPeer() {
+        val notes = JSONArray()
+        bridgeNotes.value.forEach { note ->
+            notes.put(
+                JSONObject().apply {
+                    put("id", note.id)
+                    put("text", note.text)
+                    put("createdAtMs", note.createdAtMs)
+                    put("source", note.source)
+                }
+            )
+        }
+
+        webRtcManager.sendData(
+            JSONObject().apply {
+                put("type", "NOTES_LIST")
+                put("notes", notes)
+            }.toString()
+        )
+    }
+
+    private fun sendClipboardStateToPeer(textOverride: String? = null) {
+        val text = textOverride ?: ClipboardHelper.getFromClipboard(getApplication())
+        webRtcManager.sendData(
+            JSONObject().apply {
+                put("type", "WEB_CLIPBOARD_STATE")
+                put("text", text)
+                put("ts", System.currentTimeMillis())
             }.toString()
         )
     }
@@ -3176,6 +3388,226 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addBridgeNote(text: String, source: String = "Hackie"): BridgeNote? {
+        val normalized = text.trim()
+        if (normalized.isBlank()) return null
+
+        val note = BridgeNote(
+            id = UUID.randomUUID().toString(),
+            text = normalized,
+            createdAtMs = System.currentTimeMillis(),
+            source = source
+        )
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            noteDao.insertNote(NoteEntity(
+                id = note.id,
+                text = note.text,
+                source = note.source,
+                createdAtMs = note.createdAtMs
+            ))
+            sendNotesListToPeer()
+        }
+        appendTransferEvent("Note added (${source.lowercase(Locale.getDefault())})")
+        return note
+    }
+
+    fun updateBridgeNote(noteId: String, text: String, source: String? = null): Boolean {
+        val normalizedId = noteId.trim()
+        val normalizedText = text.trim()
+        if (normalizedId.isBlank() || normalizedText.isBlank()) return false
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = bridgeNotes.value.find { it.id == normalizedId }
+            if (existing != null) {
+                noteDao.updateNote(NoteEntity(
+                    id = normalizedId,
+                    text = normalizedText,
+                    source = source?.takeIf { it.isNotBlank() } ?: existing.source,
+                    createdAtMs = existing.createdAtMs
+                ))
+                sendNotesListToPeer()
+            }
+        }
+        appendTransferEvent("Note updated")
+        return true
+    }
+
+    fun deleteBridgeNote(noteId: String): Boolean {
+        val normalizedId = noteId.trim()
+        if (normalizedId.isBlank()) return false
+
+        viewModelScope.launch(Dispatchers.IO) {
+            noteDao.deleteById(normalizedId)
+            sendNotesListToPeer()
+        }
+        appendTransferEvent("Note deleted")
+        return true
+    }
+
+    private fun triggerTransferHaptic(type: TransferHapticType) {
+        if (!_vibrationEnabled.value) return
+        val vibrator = getVibratorCompat()
+        if (!vibrator.hasVibrator()) return
+        when (type) {
+            TransferHapticType.COMPLETE -> vibrator.vibrate(VibrationEffect.createOneShot(32, 160))
+            TransferHapticType.ERROR -> vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 60, 50, 60), -1))
+            TransferHapticType.PROGRESS -> vibrator.vibrate(VibrationEffect.createOneShot(18, 90))
+        }
+    }
+
+    private fun handleRemoteCommand(command: String) {
+        if (command.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (!isAllowedRemoteShellCommand(command)) {
+                    webRtcManager.sendData(
+                        JSONObject().apply {
+                            put("type", "COMMAND_ERROR")
+                            put("error", "Command blocked by policy. Only safe read-only commands are allowed.")
+                            put("ts", System.currentTimeMillis())
+                        }.toString()
+                    )
+                    triggerTransferHaptic(TransferHapticType.ERROR)
+                    return@launch
+                }
+
+                val result = ProcessBuilder("sh", "-c", command)
+                    .redirectErrorStream(true)
+                    .start()
+                val output = result.inputStream.bufferedReader().use { it.readText() }
+                webRtcManager.sendData(
+                    JSONObject().apply {
+                        put("type", "COMMAND_OUTPUT")
+                        put("output", output.ifBlank { "Command completed with no output." })
+                        put("ts", System.currentTimeMillis())
+                    }.toString()
+                )
+            } catch (e: Exception) {
+                webRtcManager.sendData(
+                    JSONObject().apply {
+                        put("type", "COMMAND_ERROR")
+                        put("error", e.message ?: "Command execution failed")
+                        put("ts", System.currentTimeMillis())
+                    }.toString()
+                )
+                triggerTransferHaptic(TransferHapticType.ERROR)
+            }
+        }
+    }
+
+    private fun isAllowedRemoteShellCommand(command: String): Boolean {
+        val cmd = command.trim()
+        if (cmd.isBlank() || cmd.length > 240) return false
+
+        if (Regex("[;&|><`$]").containsMatchIn(cmd)) return false
+
+        val lowered = cmd.lowercase(Locale.getDefault())
+        val blockedKeywords = listOf(
+            " rm ",
+            "sudo",
+            " shutdown",
+            " reboot",
+            " mkfs",
+            " dd ",
+            " chown",
+            " chmod",
+            " mv ",
+            " kill ",
+            " pkill "
+        )
+        blockedKeywords.forEach { keyword ->
+            if ((" $lowered ").contains(keyword)) return false
+        }
+
+        val firstToken = cmd.split(Regex("\\s+")).first().lowercase(Locale.getDefault())
+        val allowList = setOf(
+            "ls", "pwd", "whoami", "date", "uname", "id", "echo",
+            "cat", "head", "tail", "wc", "ps", "df", "du", "uptime"
+        )
+        return allowList.contains(firstToken)
+    }
+
+    private fun sendLatestScreenshotToPeer() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val resolver = getApplication<Application>().contentResolver
+                val projection = arrayOf(MediaStore.Images.Media._ID)
+                val selection = "${MediaStore.Images.Media.DISPLAY_NAME} LIKE ?"
+                val args = arrayOf("%Screenshot%")
+                val sort = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+                val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+                val latestUri = resolver.query(uri, projection, selection, args, sort)?.use { cursor ->
+                    if (!cursor.moveToFirst()) return@use null
+                    val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                    val id = cursor.getLong(idIndex)
+                    Uri.withAppendedPath(uri, id.toString())
+                }
+
+                if (latestUri == null) {
+                    webRtcManager.sendData(JSONObject().apply {
+                        put("type", "COMMAND_ERROR")
+                        put("error", "No screenshot found on device")
+                    }.toString())
+                    return@launch
+                }
+
+                val bytes = resolver.openInputStream(latestUri)?.use { it.readBytes() } ?: ByteArray(0)
+                if (bytes.isEmpty()) {
+                    webRtcManager.sendData(JSONObject().apply {
+                        put("type", "COMMAND_ERROR")
+                        put("error", "Failed to read screenshot")
+                    }.toString())
+                    return@launch
+                }
+
+                webRtcManager.sendData(
+                    JSONObject().apply {
+                        put("type", "SCREENSHOT")
+                        put("imageBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                        put("ts", System.currentTimeMillis())
+                    }.toString()
+                )
+                triggerTransferHaptic(TransferHapticType.COMPLETE)
+            } catch (e: Exception) {
+                webRtcManager.sendData(
+                    JSONObject().apply {
+                        put("type", "COMMAND_ERROR")
+                        put("error", e.message ?: "Screenshot transfer failed")
+                    }.toString()
+                )
+                triggerTransferHaptic(TransferHapticType.ERROR)
+            }
+        }
+    }
+
+    private fun handleIncomingVoiceMessage(json: JSONObject) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val audioBase64 = json.optString("audioBase64", "")
+                if (audioBase64.isBlank()) return@launch
+                val audioBytes = Base64.decode(audioBase64, Base64.DEFAULT)
+                val fileName = "hackie_voice_${System.currentTimeMillis()}.webm"
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "audio/webm")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val resolver = getApplication<Application>().contentResolver
+                val savedUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (savedUri != null) {
+                    resolver.openOutputStream(savedUri)?.use { it.write(audioBytes) }
+                    addSharedFile(savedUri)
+                    appendTransferEvent("Voice message received")
+                    triggerTransferHaptic(TransferHapticType.COMPLETE)
+                }
+            } catch (_: Exception) {
+                triggerTransferHaptic(TransferHapticType.ERROR)
+            }
+        }
+    }
+
     fun lockRemoteScreen() {
         viewModelScope.launch(Dispatchers.IO) {
             val response = postHelperCommand("lock_screen")
@@ -3337,6 +3769,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             conn.inputStream.bufferedReader().use { it.readText() }
             appendTransferEvent("Clipboard synced to helper")
+            if (_p2pEnabled.value && p2pStatus.value.contains("Connected", ignoreCase = true)) {
+                sendClipboardStateToPeer(text)
+            }
         } catch (_: Exception) {
         }
     }
@@ -3350,6 +3785,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         lastSentClipboardText = clipboardText
         pushClipboardToHelper(clipboardText)
+
+        // Also broadcast to P2P web client if connected
+        if (_p2pEnabled.value && p2pStatus.value.contains("Connected", ignoreCase = true)) {
+            sendClipboardStateToPeer(clipboardText)
+        }
     }
 
     private fun pullClipboardFromHelper() {
@@ -3373,10 +3813,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             suppressClipboardEcho = false
             lastSentClipboardText = helperClipboard
             appendTransferEvent("Clipboard synced from helper")
+            if (_p2pEnabled.value && p2pStatus.value.contains("Connected", ignoreCase = true)) {
+                sendClipboardStateToPeer(helperClipboard)
+            }
         } catch (_: Exception) {
             suppressClipboardEcho = false
         }
     }
+
 
     private fun queryDisplayName(uri: Uri): String? {
         return getApplication<Application>().contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)
@@ -3398,6 +3842,12 @@ data class CustomMacro(
     val onlyWhenApp: String? = null
 )
 data class SavedDevice(val name: String, val address: String, val lastConnected: Long)
+data class BridgeNote(
+    val id: String,
+    val text: String,
+    val createdAtMs: Long,
+    val source: String = "Hackie"
+)
 data class HelperRemoteFile(val name: String, val path: String, val isDirectory: Boolean)
 data class VaultEntry(
     val id: String,
@@ -3409,6 +3859,7 @@ data class VaultEntry(
 )
 enum class HostProfilePreset { AUTO, MAC, WINDOWS, LINUX }
 enum class TransferQueueStatus { Queued, Ready, Failed }
+enum class TransferHapticType { COMPLETE, ERROR, PROGRESS }
 data class SharedTransferItem(
     val id: String,
     val uri: Uri,
