@@ -131,35 +131,10 @@ fun HelperScreen(
             Box(modifier = Modifier.fillMaxSize().alpha(0.05f).background(
                 Brush.verticalGradient(listOf(MintTeal, Color.Transparent))
             ))
-        }
-
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "DESKTOP HELPER",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 2.sp
-                            ),
-                            color = Platinum
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-            }
-        ) { padding ->
+            
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
                     .verticalScroll(scrollState)
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)

@@ -458,6 +458,11 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                     restoreState = target != "assistant"
                 }
             },
+            showTopBar = currentRoute.split("?").first() !in listOf(
+                "helper", "remote_explorer", "reverse_shell", "terminal_scanner", 
+                "auto_clicker", "web_bridge", "airplay_receiver", "profile", 
+                "assistant", "injector", "password_manager"
+            ),
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,
             featureAssistantVisible = featureAssistantVisible,

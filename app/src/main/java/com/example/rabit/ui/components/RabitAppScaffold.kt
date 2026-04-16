@@ -44,6 +44,7 @@ import com.example.rabit.ui.theme.*
 fun RabitAppScaffold(
     currentRoute: String,
     onNavigate: (String) -> Unit,
+    showTopBar: Boolean = true,
     featureWebBridgeVisible: Boolean = true,
     featureAutomationVisible: Boolean = true,
     featureAssistantVisible: Boolean = true,
@@ -392,7 +393,8 @@ fun RabitAppScaffold(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                CenterAlignedTopAppBar(
+                if (showTopBar) {
+                    CenterAlignedTopAppBar(
                     title = {
                         Text(
                             text = screenTitle,
@@ -421,6 +423,7 @@ fun RabitAppScaffold(
                         titleContentColor = Platinum
                     )
                 )
+                }
             }
         ) { padding ->
             Box(
