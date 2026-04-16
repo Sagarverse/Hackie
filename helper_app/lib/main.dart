@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +89,7 @@ class _HelperFeatureSettings {
   final bool browserHandoffEnabled;
   final bool noteSyncEnabled;
   final String defaultHomeUrl;
+  final String authPin;
 
   const _HelperFeatureSettings({
     this.clipboardSyncEnabled = true,
@@ -96,6 +98,7 @@ class _HelperFeatureSettings {
     this.browserHandoffEnabled = true,
     this.noteSyncEnabled = true,
     this.defaultHomeUrl = 'https://www.google.com/?igu=1',
+    this.authPin = '',
   });
 
   _HelperFeatureSettings copyWith({
@@ -105,6 +108,7 @@ class _HelperFeatureSettings {
     bool? browserHandoffEnabled,
     bool? noteSyncEnabled,
     String? defaultHomeUrl,
+    String? authPin,
   }) {
     return _HelperFeatureSettings(
       clipboardSyncEnabled: clipboardSyncEnabled ?? this.clipboardSyncEnabled,
@@ -115,6 +119,7 @@ class _HelperFeatureSettings {
           browserHandoffEnabled ?? this.browserHandoffEnabled,
       noteSyncEnabled: noteSyncEnabled ?? this.noteSyncEnabled,
       defaultHomeUrl: defaultHomeUrl ?? this.defaultHomeUrl,
+      authPin: authPin ?? this.authPin,
     );
   }
 
@@ -126,6 +131,7 @@ class _HelperFeatureSettings {
       'browserHandoffEnabled': browserHandoffEnabled,
       'noteSyncEnabled': noteSyncEnabled,
       'defaultHomeUrl': defaultHomeUrl,
+      'authPin': authPin,
     };
   }
 
@@ -140,9 +146,11 @@ class _HelperFeatureSettings {
           (json['defaultHomeUrl'] as String?)?.trim().isNotEmpty == true
           ? (json['defaultHomeUrl'] as String).trim()
           : 'https://www.google.com/?igu=1',
+      authPin: (json['authPin'] as String?) ?? '',
     );
   }
 }
+
 
 _HelperFeatureSettings _helperSettings = const _HelperFeatureSettings();
 
@@ -157,13 +165,22 @@ File _settingsStoreFile() {
 Future<void> _loadHelperSettingsFromDisk() async {
   try {
     final file = _settingsStoreFile();
-    if (!await file.exists()) return;
-    final raw = await file.readAsString();
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) return;
-    _helperSettings = _HelperFeatureSettings.fromJson(decoded);
+    if (await file.exists()) {
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        _helperSettings = _HelperFeatureSettings.fromJson(decoded);
+      }
+    }
   } catch (e) {
     debugPrint('Failed to load helper settings: $e');
+  }
+
+  if (_helperSettings.authPin.isEmpty) {
+    final rand = Random();
+    final newPin = List.generate(4, (_) => rand.nextInt(10).toString()).join();
+    _helperSettings = _helperSettings.copyWith(authPin: newPin);
+    await _persistHelperSettings();
   }
 }
 
@@ -387,6 +404,17 @@ Future<void> _startDirectHelperServer() async {
     try {
       _markClientSeen(request);
       final path = request.uri.path;
+
+      final isPublicEndpoint = path == '/health' || path == '/info';
+      if (!isPublicEndpoint && _helperSettings.authPin.isNotEmpty) {
+        final providedPin = request.headers.value('x-auth-pin') ?? '';
+        if (providedPin != _helperSettings.authPin) {
+          request.response.statusCode = HttpStatus.forbidden;
+          request.response.write(jsonEncode({'success': false, 'error': 'Invalid Auth PIN'}));
+          await request.response.close();
+          return;
+        }
+      }
 
       if (request.method == 'GET' && path == '/health') {
         request.response.headers.contentType = ContentType.json;
@@ -2531,6 +2559,66 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                           _buildStatusTag('Desktop', _helperIpAddress),
                           _buildStatusTag('Port', '8765'),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Auth PIN Card
+                _buildSkeuoCard(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withAlpha(40),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
+                            ),
+                            child: const Icon(Icons.password, color: Color(0xFF818CF8), size: 24),
+                          ),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Pairing Auth PIN',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Enter on phone to connect',
+                                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Text(
+                          _helperSettings.authPin,
+                          style: const TextStyle(
+                            color: Color(0xFF5EEAD4),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 20,
+                            letterSpacing: 4,
+                          ),
+                        ),
                       ),
                     ],
                   ),

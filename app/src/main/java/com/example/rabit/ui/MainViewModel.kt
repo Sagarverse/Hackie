@@ -3690,6 +3690,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     val helperBaseUrl: kotlinx.coroutines.flow.StateFlow<String> = _helperBaseUrl
 
+    private val _helperPin = kotlinx.coroutines.flow.MutableStateFlow(
+        prefs.getString("helper_pin", "") ?: ""
+    )
+    val helperPin: kotlinx.coroutines.flow.StateFlow<String> = _helperPin
+
     private val _isHelperConnected = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isHelperConnected: kotlinx.coroutines.flow.StateFlow<Boolean> = _isHelperConnected
 
@@ -3792,6 +3797,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _helperBaseUrl.value = normalized
         prefs.edit().putString("helper_base_url", normalized).apply()
         _helperConnectionStatus.value = if (normalized.isBlank()) "Disconnected" else "Endpoint saved"
+    }
+
+    fun setHelperPin(pin: String) {
+        _helperPin.value = pin
+        prefs.edit().putString("helper_pin", pin).apply()
+        com.example.rabit.data.storage.RemoteStorageManager.helperPin = pin
     }
 
     fun resetHelperConnectionAndRescan() {

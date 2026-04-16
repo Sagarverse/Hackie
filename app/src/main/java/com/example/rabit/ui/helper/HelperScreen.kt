@@ -103,6 +103,7 @@ fun HelperScreen(
     val helperAutoConnectStatus by viewModel.helperAutoConnectStatus.collectAsState()
     val helperLastAutoDiscoverAt by viewModel.helperLastAutoDiscoverAt.collectAsState()
     val helperIp by viewModel.helperDeviceIp.collectAsState()
+    val helperPin by viewModel.helperPin.collectAsState()
     val helperMac by viewModel.helperDeviceMac.collectAsState()
     val terminalOutput by viewModel.terminalOutput.collectAsState()
     val currentRemotePath by viewModel.currentRemotePath.collectAsState()
@@ -196,6 +197,30 @@ fun HelperScreen(
                             InfoChip(label = "IP", value = helperIp.ifBlank { "???" })
                             InfoChip(label = "PORT", value = "8765")
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = helperPin,
+                            onValueChange = { viewModel.setHelperPin(it) },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            label = { Text("Helper Pairing PIN", color = Silver.copy(alpha = 0.6f)) },
+                            placeholder = { Text("Enter PIN from Mac", color = Silver.copy(alpha = 0.4f)) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MintTeal,
+                                unfocusedBorderColor = Silver.copy(alpha = 0.1f),
+                                focusedLabelColor = MintTeal,
+                                focusedContainerColor = Color.Black.copy(alpha = 0.2f),
+                                unfocusedContainerColor = Color.Black.copy(alpha = 0.1f)
+                            ),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp,
+                                color = Platinum,
+                                textAlign = TextAlign.Center
+                            )
+                        )
                     }
                 }
 

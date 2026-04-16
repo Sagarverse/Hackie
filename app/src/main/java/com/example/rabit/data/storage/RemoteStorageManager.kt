@@ -47,6 +47,7 @@ object RemoteStorageManager {
     @Volatile var sshUser: String = ""
     @Volatile var sshPassword: String = ""
     @Volatile var helperBaseUrl: String = ""
+    @Volatile var helperPin: String = ""
 
     private var cacheDir: File? = null
 
@@ -59,6 +60,7 @@ object RemoteStorageManager {
         sshUser = prefs.getString("ssh_user", "") ?: ""
         sshPassword = prefs.getString("ssh_password", "") ?: ""
         helperBaseUrl = prefs.getString("helper_base_url", "") ?: ""
+        helperPin = prefs.getString("helper_pin", "") ?: ""
 
         cacheDir = File(context.cacheDir, CACHE_DIR_NAME).also { it.mkdirs() }
 
@@ -187,6 +189,7 @@ object RemoteStorageManager {
         return try {
             val encodedPath = URLEncoder.encode(path, "UTF-8")
             val conn = (URL("$helperBaseUrl/files?path=$encodedPath").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -283,6 +286,7 @@ object RemoteStorageManager {
         return try {
             val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
             val conn = (URL("$helperBaseUrl/file/download?path=$encodedPath").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = 30_000
@@ -331,6 +335,7 @@ object RemoteStorageManager {
             val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
             val boundary = "----HackieBoundary${System.currentTimeMillis()}"
             val conn = (URL("$helperBaseUrl/file/upload?path=$encodedPath").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "POST"
                 doOutput = true
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -383,6 +388,7 @@ object RemoteStorageManager {
         return try {
             val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
             val conn = (URL("$helperBaseUrl/file/delete?path=$encodedPath").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "DELETE"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -433,6 +439,7 @@ object RemoteStorageManager {
                 put("isDir", isDirectory)
             }
             val conn = (URL("$helperBaseUrl/file/create").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "POST"
                 doOutput = true
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -483,6 +490,7 @@ object RemoteStorageManager {
                 put("newPath", newPath)
             }
             val conn = (URL("$helperBaseUrl/file/rename").openConnection() as HttpURLConnection).apply {
+                if (helperPin.isNotBlank()) setRequestProperty("X-Auth-PIN", helperPin)
                 requestMethod = "POST"
                 doOutput = true
                 connectTimeout = CONNECT_TIMEOUT_MS
