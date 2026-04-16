@@ -3265,7 +3265,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Fast path: listen for helper UDP beacon first.
                 try {
                     DatagramSocket(8766).use { socket ->
-                        socket.soTimeout = 1200
+                        socket.soTimeout = 3000
                         socket.reuseAddress = true
                         val buf = ByteArray(2048)
                         val packet = DatagramPacket(buf, buf.size)
