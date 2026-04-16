@@ -50,7 +50,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.google.android.googleHelper.hackiehelper</string>
+			<string>com.sagar.hackie.helper.hackiehelper</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>hackiehelper</string>

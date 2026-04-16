@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.google.android.googleHelper.share</string>
+		<string>group.com.sagar.hackie.share</string>
 	</array>
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>

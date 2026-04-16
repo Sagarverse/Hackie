@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.google.android" "\0"
-            VALUE "FileDescription", "google_helper" "\0"
+            VALUE "CompanyName", "com.sagar.hackie" "\0"
+            VALUE "FileDescription", "hackie_helper" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "google_helper" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.google.android. All rights reserved." "\0"
-            VALUE "OriginalFilename", "google_helper.exe" "\0"
-            VALUE "ProductName", "google_helper" "\0"
+            VALUE "InternalName", "hackie_helper" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.sagar.hackie. All rights reserved." "\0"
+            VALUE "OriginalFilename", "hackie_helper.exe" "\0"
+            VALUE "ProductName", "hackie_helper" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

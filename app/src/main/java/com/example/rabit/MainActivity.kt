@@ -335,14 +335,7 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 composable("snippets") {
                     SnippetsScreen(viewModel, onBack = { navController.popBackStack() })
                 }
-                composable("shortcuts") {
-                    AutomationDashboardScreen(
-                        viewModel = viewModel,
-                        onBack = { navController.popBackStack() },
-                        onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
-                        onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") }
-                    )
-                }
+                // "shortcuts" route removed — use "automation" instead
                 composable("global_search") {
                     val available = buildSet {
                         add("home")

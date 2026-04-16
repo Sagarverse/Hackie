@@ -16,31 +16,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.rabit.ui.theme.*
 
-@Composable
-fun SkeuoCard(
-    modifier: Modifier = Modifier,
-    cornerRadius: Dp = 24.dp,
-    background: Brush = Brush.verticalGradient(
-        listOf(
-            Color(0xFFF2F2F7),
-            Color(0xFFE0E0E5),
-            Color(0xFFB0B0B8)
-        )
-    ),
-    shadowColor: Color = Color(0x22000000),
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .shadow(12.dp, RoundedCornerShape(cornerRadius), ambientColor = shadowColor, spotColor = shadowColor)
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(background)
-            .padding(18.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
-}
+// Light SkeuoCard removed — use DarkSkeuoCard for the app's dark theme
 
 /**
  * Dark variant of SkeuoCard that matches the app's dark premium aesthetic.

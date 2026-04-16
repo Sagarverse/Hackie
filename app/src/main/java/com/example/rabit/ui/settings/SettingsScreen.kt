@@ -126,17 +126,13 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.Transparent,
@@ -437,7 +433,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
-    }
 
     // ─── Dialogs ───
 

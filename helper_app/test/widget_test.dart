@@ -7,7 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:google_helper/main.dart';
+import 'package:hackie_helper/main.dart';
 
 void main() {
   testWidgets('Helper app renders main title', (WidgetTester tester) async {

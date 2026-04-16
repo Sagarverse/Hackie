@@ -8,7 +8,7 @@
 PRODUCT_NAME = Hackie Helper
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper
+PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.hackieHelper
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.google.android. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.sagar.hackie. All rights reserved.

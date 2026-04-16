@@ -1477,7 +1477,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendKey(keyCode: Byte) {
         performHapticFeedback(_hapticPreset.value)
-        repository.sendKey(keyCode, _activeModifiers.value)
+        val mods = _activeModifiers.value
+        repository.sendKey(keyCode, mods)
+        // Auto-clear modifiers after pressing a non-modifier key (standard keyboard behavior)
+        if (mods != 0.toByte()) {
+            _activeModifiers.value = 0
+        }
     }
 
     fun sendKey(keyCode: Byte, modifier: Byte) {
@@ -1625,15 +1630,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         keys.forEach { key ->
             when (key) {
-                "GUI", "CMD", "WIN" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_GUI
+                // ── Modifier keys ──
+                "GUI", "CMD", "WIN", "COMMAND", "SUPER" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_GUI
                 "SHIFT" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_SHIFT
-                "ALT", "OPTION" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_ALT
-                "CTRL" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_CTRL
+                "ALT", "OPTION", "OPT" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_ALT
+                "CTRL", "CONTROL" -> modifiers = modifiers or HidKeyCodes.MODIFIER_LEFT_CTRL
+                // ── Special keys ──
                 "SPACE" -> mainKey = HidKeyCodes.KEY_SPACE
-                "ENTER" -> mainKey = HidKeyCodes.KEY_ENTER
-                "ESC" -> mainKey = HidKeyCodes.KEY_ESC
+                "ENTER", "RETURN" -> mainKey = HidKeyCodes.KEY_ENTER
+                "ESC", "ESCAPE" -> mainKey = HidKeyCodes.KEY_ESC
                 "TAB" -> mainKey = HidKeyCodes.KEY_TAB
-                "BACKSPACE" -> mainKey = HidKeyCodes.KEY_BACKSPACE
+                "BACKSPACE", "DELETE", "DEL" -> mainKey = HidKeyCodes.KEY_BACKSPACE
+                "CAPSLOCK", "CAPS" -> mainKey = HidKeyCodes.KEY_CAPS_LOCK
+                // ── Arrow keys ──
+                "LEFT" -> mainKey = HidKeyCodes.KEY_LEFT
+                "RIGHT" -> mainKey = HidKeyCodes.KEY_RIGHT
+                "UP" -> mainKey = HidKeyCodes.KEY_UP
+                "DOWN" -> mainKey = HidKeyCodes.KEY_DOWN
+                // ── Function keys ──
+                "F1" -> mainKey = HidKeyCodes.KEY_F1
+                "F2" -> mainKey = HidKeyCodes.KEY_F2
+                "F3" -> mainKey = HidKeyCodes.KEY_F3
+                "F4" -> mainKey = HidKeyCodes.KEY_F4
+                "F5" -> mainKey = HidKeyCodes.KEY_F5
+                "F6" -> mainKey = HidKeyCodes.KEY_F6
+                "F7" -> mainKey = HidKeyCodes.KEY_F7
+                "F8" -> mainKey = HidKeyCodes.KEY_F8
+                "F9" -> mainKey = HidKeyCodes.KEY_F9
+                "F10" -> mainKey = HidKeyCodes.KEY_F10
+                "F11" -> mainKey = HidKeyCodes.KEY_F11
+                "F12" -> mainKey = HidKeyCodes.KEY_F12
+                // ── Punctuation keys ──
+                "MINUS" -> mainKey = HidKeyCodes.KEY_MINUS
+                "EQUAL", "EQUALS" -> mainKey = HidKeyCodes.KEY_EQUAL
+                "COMMA" -> mainKey = HidKeyCodes.KEY_COMMA
+                "DOT", "PERIOD" -> mainKey = HidKeyCodes.KEY_DOT
+                "SLASH" -> mainKey = HidKeyCodes.KEY_SLASH
+                "SEMICOLON" -> mainKey = HidKeyCodes.KEY_SEMICOLON
+                "QUOTE", "APOSTROPHE" -> mainKey = HidKeyCodes.KEY_APOSTROPHE
+                "GRAVE", "BACKTICK" -> mainKey = HidKeyCodes.KEY_GRAVE
+                "LBRACKET" -> mainKey = HidKeyCodes.KEY_LEFT_BRACKET
+                "RBRACKET" -> mainKey = HidKeyCodes.KEY_RIGHT_BRACKET
+                "BACKSLASH" -> mainKey = HidKeyCodes.KEY_BACKSLASH
                 else -> {
                     if (key.length == 1 && key[0] in 'A'..'Z') {
                         mainKey = (HidKeyCodes.KEY_A + (key[0] - 'A')).toByte()
@@ -1925,15 +1963,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         executeMacro2Script(macro.command, macro.cooldownMs)
     }
 
+    private val modifierBytesSet = setOf(
+        HidKeyCodes.MODIFIER_LEFT_CTRL,
+        HidKeyCodes.MODIFIER_LEFT_SHIFT,
+        HidKeyCodes.MODIFIER_LEFT_ALT,
+        HidKeyCodes.MODIFIER_LEFT_GUI
+    )
+
     fun sendKeyCombination(codes: List<Byte>) {
         viewModelScope.launch {
-            val modifiers = codes.filter { it in listOf(
-                HidKeyCodes.MODIFIER_LEFT_CTRL,
-                HidKeyCodes.MODIFIER_LEFT_SHIFT,
-                HidKeyCodes.MODIFIER_LEFT_ALT,
-                HidKeyCodes.MODIFIER_LEFT_GUI
-            ) }
-            val mainKey = codes.firstOrNull { it !in modifiers } ?: HidKeyCodes.KEY_NONE
+            val modifiers = codes.filter { it in modifierBytesSet }
+            val mainKey = codes.firstOrNull { it !in modifierBytesSet } ?: HidKeyCodes.KEY_NONE
             var combinedMod: Byte = 0
             modifiers.forEach { combinedMod = combinedMod or it }
             repository.sendKey(mainKey, combinedMod)

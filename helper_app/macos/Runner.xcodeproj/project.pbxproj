@@ -86,7 +86,7 @@
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
 		335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
-		33CC10ED2044A3C60003C045 /* google_helper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = google_helper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		33CC10ED2044A3C60003C045 /* hackie_helper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = hackie_helper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		33CC10F02044A3C60003C045 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		33CC10F22044A3C60003C045 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Runner/Assets.xcassets; sourceTree = "<group>"; };
 		33CC10F52044A3C60003C045 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
@@ -176,7 +176,7 @@
 		33CC10EE2044A3C60003C045 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				33CC10ED2044A3C60003C045 /* google_helper.app */,
+				33CC10ED2044A3C60003C045 /* hackie_helper.app */,
 				A1B2C3051111111111111111 /* HackieShare.appex */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
 			);
@@ -294,7 +294,7 @@
 			);
 			name = Runner;
 			productName = Runner;
-			productReference = 33CC10ED2044A3C60003C045 /* google_helper.app */;
+			productReference = 33CC10ED2044A3C60003C045 /* hackie_helper.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A1B2C30A1111111111111111 /* HackieShare */ = {
@@ -567,10 +567,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/google_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/google_helper";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/hackie_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/hackie_helper";
 			};
 			name = Debug;
 		};
@@ -582,10 +582,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/google_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/google_helper";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/hackie_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/hackie_helper";
 			};
 			name = Release;
 		};
@@ -597,10 +597,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/google_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/google_helper";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/hackie_helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/hackie_helper";
 			};
 			name = Profile;
 		};
@@ -856,7 +856,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.HackieShare;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.HackieShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -880,7 +880,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.HackieShare;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.HackieShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -903,7 +903,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.android.googleHelper.HackieShare;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sagar.hackie.helper.HackieShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;

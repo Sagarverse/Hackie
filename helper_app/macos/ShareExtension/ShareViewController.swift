@@ -1,7 +1,7 @@
 import AppKit
 
 final class ShareViewController: NSViewController {
-  private let appGroupIdentifier = "group.com.google.android.googleHelper.share"
+  private let appGroupIdentifier = "group.com.sagar.hackie.share"
   private let callbackScheme = "hackiehelper"
   private let fileUrlTypeIdentifier = "public.file-url"
   private let urlTypeIdentifier = "public.url"

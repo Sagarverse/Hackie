@@ -126,126 +126,110 @@ fun GlobalSearchScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            TopAppBar(
-                title = { Text("Search", color = Platinum) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Obsidian)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            label = { Text("Search command or feature") },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentBlue,
+                unfocusedBorderColor = BorderColor,
+                focusedTextColor = Platinum,
+                unfocusedTextColor = Platinum
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                label = { Text("Search command or feature") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentBlue,
-                    unfocusedBorderColor = BorderColor,
-                    focusedTextColor = Platinum,
-                    unfocusedTextColor = Platinum
+            Text("Quick Run", color = Platinum, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (quickRunEnabled) "ON" else "OFF", color = Silver, fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Switch(
+                    checked = quickRunEnabled,
+                    onCheckedChange = { quickRunEnabled = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = AccentBlue,
+                        checkedTrackColor = AccentBlue.copy(alpha = 0.4f)
+                    )
                 )
-            )
+            }
+        }
 
-            Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = if (quickRunEnabled) {
+                "Tap a command to execute instantly. Use Open to jump to its page."
+            } else {
+                "Tap a result to open its feature page."
+            },
+            color = Silver,
+            fontSize = 11.sp
+        )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Quick Run", color = Platinum, fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (quickRunEnabled) "ON" else "OFF", color = Silver, fontSize = 11.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Switch(
-                        checked = quickRunEnabled,
-                        onCheckedChange = { quickRunEnabled = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = AccentBlue,
-                            checkedTrackColor = AccentBlue.copy(alpha = 0.4f)
-                        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (matchedCommands.isNotEmpty()) {
+                item("commands_header") {
+                    Text("Commands", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                items(matchedCommands, key = { it.id }) { command ->
+                    CommandRow(
+                        command = command,
+                        quickRunEnabled = quickRunEnabled,
+                        onRun = { onExecuteAction(command.id) },
+                        onOpen = {
+                            if (availableRoutes.contains(command.route)) {
+                                onNavigate(command.route)
+                            }
+                        }
                     )
                 }
             }
 
-            Text(
-                text = if (quickRunEnabled) {
-                    "Tap a command to execute instantly. Use Open to jump to its page."
-                } else {
-                    "Tap a result to open its feature page."
-                },
-                color = Silver,
-                fontSize = 11.sp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (matchedCommands.isNotEmpty()) {
-                    item("commands_header") {
-                        Text("Commands", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    items(matchedCommands, key = { it.id }) { command ->
-                        CommandRow(
-                            command = command,
-                            quickRunEnabled = quickRunEnabled,
-                            onRun = { onExecuteAction(command.id) },
-                            onOpen = {
-                                if (availableRoutes.contains(command.route)) {
-                                    onNavigate(command.route)
-                                }
-                            }
-                        )
-                    }
+            if (matchedFeatures.isNotEmpty()) {
+                item("features_header") {
+                    Text("Features", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
-
-                if (matchedFeatures.isNotEmpty()) {
-                    item("features_header") {
-                        Text("Features", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    items(matchedFeatures, key = { it.route }) { feature ->
-                        FeatureRow(
-                            feature = feature,
-                            currentRoute = currentRoute,
-                            onOpen = { onNavigate(feature.route) }
-                        )
-                    }
+                items(matchedFeatures, key = { it.route }) { feature ->
+                    FeatureRow(
+                        feature = feature,
+                        currentRoute = currentRoute,
+                        onOpen = { onNavigate(feature.route) }
+                    )
                 }
+            }
 
-                if (matchedCommands.isEmpty() && matchedFeatures.isEmpty()) {
-                    item("empty") {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            color = Graphite.copy(alpha = 0.45f),
-                            border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f))
-                        ) {
-                            Text(
-                                "No results for '$query'",
-                                color = Silver,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(14.dp)
-                            )
-                        }
+            if (matchedCommands.isEmpty() && matchedFeatures.isEmpty()) {
+                item("empty") {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Graphite.copy(alpha = 0.45f),
+                        border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            "No results for '$query'",
+                            color = Silver,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(14.dp)
+                        )
                     }
                 }
             }

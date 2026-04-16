@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.PremiumGlassCard
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * TrackpadSection - A high-performance remote trackpad with integrated mouse buttons.
@@ -36,6 +38,7 @@ import com.example.rabit.ui.components.PremiumGlassCard
 @Composable
 fun TrackpadSection(viewModel: MainViewModel) {
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     val airMouseEnabled by viewModel.airMouseEnabled.collectAsState()
     val airMouseSensitivity by viewModel.airMouseSensitivity.collectAsState()
     val isCalibrating by viewModel.isAirMouseCalibrating.collectAsState()
@@ -55,23 +58,23 @@ fun TrackpadSection(viewModel: MainViewModel) {
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = {
-                            viewModel.sendMouseMove(0f, 0f, buttons = 1)
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            scope.launch {
+                                viewModel.sendMouseMove(0f, 0f, buttons = 1)
+                                delay(50)
                                 viewModel.sendMouseMove(0f, 0f, buttons = 0)
-                            }, 50)
+                            }
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         },
                         onDoubleTap = {
-                            viewModel.sendMouseMove(0f, 0f, buttons = 1)
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            scope.launch {
+                                viewModel.sendMouseMove(0f, 0f, buttons = 1)
+                                delay(50)
                                 viewModel.sendMouseMove(0f, 0f, buttons = 0)
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    viewModel.sendMouseMove(0f, 0f, buttons = 1)
-                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        viewModel.sendMouseMove(0f, 0f, buttons = 0)
-                                    }, 50)
-                                }, 50)
-                            }, 50)
+                                delay(50)
+                                viewModel.sendMouseMove(0f, 0f, buttons = 1)
+                                delay(50)
+                                viewModel.sendMouseMove(0f, 0f, buttons = 0)
+                            }
                         }
                     )
                 }
@@ -174,10 +177,11 @@ fun TrackpadSection(viewModel: MainViewModel) {
                 modifier = Modifier.weight(1.5f),
                 text = "LEFT CLICK",
                 onClick = {
-                    viewModel.sendMouseMove(0f, 0f, buttons = 1)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    scope.launch {
+                        viewModel.sendMouseMove(0f, 0f, buttons = 1)
+                        delay(50)
                         viewModel.sendMouseMove(0f, 0f, buttons = 0)
-                    }, 50)
+                    }
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
@@ -185,10 +189,11 @@ fun TrackpadSection(viewModel: MainViewModel) {
                 modifier = Modifier.weight(1f),
                 text = "RIGHT",
                 onClick = {
-                    viewModel.sendMouseMove(0f, 0f, buttons = 2)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    scope.launch {
+                        viewModel.sendMouseMove(0f, 0f, buttons = 2)
+                        delay(50)
                         viewModel.sendMouseMove(0f, 0f, buttons = 0)
-                    }, 50)
+                    }
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
             )

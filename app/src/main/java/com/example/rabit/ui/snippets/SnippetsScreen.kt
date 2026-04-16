@@ -52,23 +52,13 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = AccentGold,
-                contentColor = Obsidian
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Snippet")
-            }
-        }
-    ) { padding ->
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         if (snippets.isEmpty()) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                    .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -121,7 +111,6 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(vertical = 12.dp)
@@ -210,6 +199,18 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     )
                 }
             }
+        }
+
+        // Floating Action Button
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            containerColor = AccentGold,
+            contentColor = Obsidian,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Snippet")
         }
     }
 

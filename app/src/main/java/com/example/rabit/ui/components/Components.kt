@@ -620,3 +620,33 @@ fun QuickConnectCard(
         }
     }
 }
+
+@Composable
+fun BluetoothDisabledBanner(onEnableClick: () -> Unit) {
+    DarkSkeuoCard(
+        modifier = Modifier.fillMaxWidth(),
+        borderColor = Color(0xFF3A4A5F).copy(alpha = 0.3f)
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFFD9B443).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.BluetoothDisabled, null, tint = Color(0xFFD9B443), modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Bluetooth is Off", color = Color(0xFFF5F8FF), fontWeight = FontWeight.Bold)
+                Text("Enable it to discover nearby computers", color = Color(0xFFA9B3C2), fontSize = 11.sp)
+            }
+            TextButton(onClick = onEnableClick) {
+                Text("ENABLE", color = Color(0xFFD9B443), fontWeight = FontWeight.Black)
+            }
+        }
+    }
+}

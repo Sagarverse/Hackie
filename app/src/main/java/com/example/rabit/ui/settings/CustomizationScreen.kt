@@ -59,17 +59,13 @@ fun CustomizationScreen(
 
     var showPasswordDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = Obsidian
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
             // ─── Security Section ───
             PremiumSectionHeader("SECURITY & ACCESS")
             PremiumGlassCard {
@@ -318,7 +314,6 @@ fun CustomizationScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
-    }
 
     if (showPasswordDialog) {
         var tempPass by remember { mutableStateOf(password) }

@@ -1,6 +1,6 @@
 {
-    "name": "google_helper",
-    "short_name": "google_helper",
+    "name": "hackie_helper",
+    "short_name": "hackie_helper",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

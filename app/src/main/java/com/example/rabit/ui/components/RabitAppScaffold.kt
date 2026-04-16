@@ -274,7 +274,7 @@ fun RabitAppScaffold(
                     }
                 )
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 DrawerItem(
                     label = "Password Manager",
@@ -287,18 +287,18 @@ fun RabitAppScaffold(
                     }
                 )
 
-                            DrawerItem(
-                                label = "System Settings",
-                                subLabel = "Configuration & Sensitivity",
-                                icon = Icons.Default.Settings,
-                                isSelected = currentRoute == "settings",
-                                onClick = {
-                                    onNavigate("settings")
-                                    scope.launch { drawerState.close() }
-                                }
-                            )
+                DrawerItem(
+                    label = "System Settings",
+                    subLabel = "Configuration & Sensitivity",
+                    icon = Icons.Default.Settings,
+                    isSelected = currentRoute == "settings",
+                    onClick = {
+                        onNavigate("settings")
+                        scope.launch { drawerState.close() }
+                    }
+                )
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                         }
 
                     Box(

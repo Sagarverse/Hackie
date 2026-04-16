@@ -3,7 +3,7 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
-  private let shareAppGroupId = "group.com.google.android.googleHelper.share"
+  private let shareAppGroupId = "group.com.sagar.hackie.share"
   private let shareInboxFolder = "SharedInbox"
   private var shareChannel: FlutterMethodChannel?
   private var pendingOpenPaths: [String] = []

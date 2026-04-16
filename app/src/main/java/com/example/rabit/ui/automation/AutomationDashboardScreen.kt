@@ -96,21 +96,17 @@ fun AutomationDashboardScreen(
         contentVisible = true
     }
 
-    Scaffold(
-        containerColor = Obsidian
-    ) { padding ->
-        AnimatedVisibility(
-            visible = contentVisible,
-            enter = fadeIn(animationSpec = tween(320)) + slideInVertically(initialOffsetY = { it / 14 }, animationSpec = tween(320))
+    AnimatedVisibility(
+        visible = contentVisible,
+        enter = fadeIn(animationSpec = tween(320)) + slideInVertically(initialOffsetY = { it / 14 }, animationSpec = tween(320))
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -286,7 +282,6 @@ fun AutomationDashboardScreen(
                         )
                     }
                 }
-            }
             }
         }
     }

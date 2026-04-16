@@ -1,4 +1,4 @@
-package com.google.android.google_helper
+package com.sagar.hackie.helper
 
 import io.flutter.embedding.android.FlutterActivity
 

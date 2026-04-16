@@ -84,12 +84,32 @@ fun KeyboardScreen(
             .fillMaxSize()
             .padding(horizontal = 20.dp)
     ) {
-        // High-Precision Header
-        PremiumHeader(
-            connectionState = connectionState,
-            onNavigateToSettings = onNavigateToSettings,
-            onDisconnect = onDisconnect
-        )
+        // Compact connection status (global top bar is provided by RabitAppScaffold)
+        val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(
+                        if (deviceName != "OFFLINE") SuccessGreen else Color(0xFFD93030),
+                        CircleShape
+                    )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                deviceName.uppercase(),
+                color = Silver,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 2.sp
+            )
+        }
 
         // Module Switcher (TabRow alternative for extreme responsiveness)
         Row(
@@ -175,7 +195,7 @@ fun PremiumHeader(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                "Hi pookie, I am Hackie. Let's cause productive chaos.",
+                "Remote infrastructure control interface.",
                 color = AccentBlue,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
