@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -10,6 +11,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:get_mac_address/get_mac_address.dart';
+import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 void main() async {
@@ -22,15 +24,34 @@ void main() async {
     await initializeService();
   } else if (isDesktop) {
     await windowManager.ensureInitialized();
-    const WindowOptions windowOptions = WindowOptions(
+
+    try {
+      launchAtStartup.setup(
+        appName: 'Hackie Helper',
+        appPath: Platform.resolvedExecutable,
+      );
+      final isEnabled = await launchAtStartup.isEnabled();
+      if (!isEnabled) {
+        await launchAtStartup.enable();
+      }
+    } catch (e) {
+      debugPrint('Launch-at-startup setup failed: $e');
+    }
+
+    final WindowOptions windowOptions = WindowOptions(
       size: Size(400, 600),
       center: true,
-      skipTaskbar: true,
+      skipTaskbar: !kDebugMode,
       titleBarStyle: TitleBarStyle.hidden,
     );
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.setAlwaysOnTop(true);
-      await windowManager.hide(); // Start hidden, accessible via tray
+
+      // Keep window visible during debug launches so macOS foregrounding can
+      // complete cleanly. Hide at startup for non-debug builds.
+      if (!kDebugMode) {
+        await windowManager.hide(); // Start hidden, accessible via tray
+      }
     });
 
     // Start background sync loop for desktop
@@ -50,6 +71,150 @@ String _helperDeviceName = 'Desktop';
 String _helperIpAddress = 'Unknown IP';
 String _helperMacAddress = 'Unknown MAC';
 RawDatagramSocket? _beaconSocket;
+const String _settingsStoreFileName = '.hackie_helper_settings.json';
+
+class _HelperFeatureSettings {
+  final bool clipboardSyncEnabled;
+  final bool remoteFileTransferEnabled;
+  final bool remoteCommandEnabled;
+  final bool browserHandoffEnabled;
+  final bool noteSyncEnabled;
+  final String defaultHomeUrl;
+
+  const _HelperFeatureSettings({
+    this.clipboardSyncEnabled = true,
+    this.remoteFileTransferEnabled = true,
+    this.remoteCommandEnabled = true,
+    this.browserHandoffEnabled = true,
+    this.noteSyncEnabled = true,
+    this.defaultHomeUrl = 'https://www.google.com/?igu=1',
+  });
+
+  _HelperFeatureSettings copyWith({
+    bool? clipboardSyncEnabled,
+    bool? remoteFileTransferEnabled,
+    bool? remoteCommandEnabled,
+    bool? browserHandoffEnabled,
+    bool? noteSyncEnabled,
+    String? defaultHomeUrl,
+  }) {
+    return _HelperFeatureSettings(
+      clipboardSyncEnabled: clipboardSyncEnabled ?? this.clipboardSyncEnabled,
+      remoteFileTransferEnabled:
+          remoteFileTransferEnabled ?? this.remoteFileTransferEnabled,
+      remoteCommandEnabled: remoteCommandEnabled ?? this.remoteCommandEnabled,
+      browserHandoffEnabled:
+          browserHandoffEnabled ?? this.browserHandoffEnabled,
+      noteSyncEnabled: noteSyncEnabled ?? this.noteSyncEnabled,
+      defaultHomeUrl: defaultHomeUrl ?? this.defaultHomeUrl,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'clipboardSyncEnabled': clipboardSyncEnabled,
+      'remoteFileTransferEnabled': remoteFileTransferEnabled,
+      'remoteCommandEnabled': remoteCommandEnabled,
+      'browserHandoffEnabled': browserHandoffEnabled,
+      'noteSyncEnabled': noteSyncEnabled,
+      'defaultHomeUrl': defaultHomeUrl,
+    };
+  }
+
+  static _HelperFeatureSettings fromJson(Map<String, dynamic> json) {
+    return _HelperFeatureSettings(
+      clipboardSyncEnabled: json['clipboardSyncEnabled'] != false,
+      remoteFileTransferEnabled: json['remoteFileTransferEnabled'] != false,
+      remoteCommandEnabled: json['remoteCommandEnabled'] != false,
+      browserHandoffEnabled: json['browserHandoffEnabled'] != false,
+      noteSyncEnabled: json['noteSyncEnabled'] != false,
+      defaultHomeUrl:
+          (json['defaultHomeUrl'] as String?)?.trim().isNotEmpty == true
+          ? (json['defaultHomeUrl'] as String).trim()
+          : 'https://www.google.com/?igu=1',
+    );
+  }
+}
+
+_HelperFeatureSettings _helperSettings = const _HelperFeatureSettings();
+
+File _settingsStoreFile() {
+  final home = Platform.environment['HOME'];
+  final base = (home != null && home.isNotEmpty)
+      ? Directory(home)
+      : Directory.systemTemp;
+  return File('${base.path}${Platform.pathSeparator}$_settingsStoreFileName');
+}
+
+Future<void> _loadHelperSettingsFromDisk() async {
+  try {
+    final file = _settingsStoreFile();
+    if (!await file.exists()) return;
+    final raw = await file.readAsString();
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) return;
+    _helperSettings = _HelperFeatureSettings.fromJson(decoded);
+  } catch (e) {
+    debugPrint('Failed to load helper settings: $e');
+  }
+}
+
+Future<void> _persistHelperSettings() async {
+  try {
+    final file = _settingsStoreFile();
+    await file.writeAsString(jsonEncode(_helperSettings.toJson()), flush: true);
+  } catch (e) {
+    debugPrint('Failed to persist helper settings: $e');
+  }
+}
+
+bool _isShellCommandAllowed(String shellCmd) {
+  final cmd = shellCmd.trim();
+  if (cmd.isEmpty || cmd.length > 240) return false;
+
+  // Block obvious shell chaining/injection characters.
+  if (RegExp(r'[;&|><`$]').hasMatch(cmd)) return false;
+
+  final lowered = cmd.toLowerCase();
+  const blockedKeywords = <String>[
+    ' rm ',
+    'sudo',
+    ' shutdown',
+    ' reboot',
+    ' mkfs',
+    ' dd ',
+    ' chown',
+    ' chmod',
+    ' mv ',
+    ' kill ',
+    ' pkill ',
+  ];
+  for (final keyword in blockedKeywords) {
+    if ((' $lowered ').contains(keyword)) return false;
+  }
+
+  final firstToken = cmd.split(RegExp(r'\s+')).first.toLowerCase();
+  const allowList = <String>{
+    'ls',
+    'pwd',
+    'whoami',
+    'date',
+    'uname',
+    'id',
+    'echo',
+    'cat',
+    'head',
+    'tail',
+    'wc',
+    'ps',
+    'df',
+    'du',
+    'uptime',
+    'sw_vers',
+    'system_profiler',
+  };
+  return allowList.contains(firstToken);
+}
 
 class _HelperRuntimeStatus {
   final bool serverOnline;
@@ -80,8 +245,6 @@ class _ZoomInBrowserIntent extends Intent {
 class _ZoomOutBrowserIntent extends Intent {
   const _ZoomOutBrowserIntent();
 }
-
-enum _SearchMode { web, ai, images, news }
 
 final ValueNotifier<_HelperRuntimeStatus> _runtimeStatus = ValueNotifier(
   const _HelperRuntimeStatus(
@@ -130,6 +293,9 @@ Future<Map<String, dynamic>> _runCommand(Map data) async {
   if (command == null) return {'success': false, 'error': 'Missing command'};
 
   if (command == 'open_url') {
+    if (!_helperSettings.browserHandoffEnabled) {
+      return {'success': false, 'error': 'Browser handoff is disabled'};
+    }
     final String url = (data['url'] as String?) ?? '';
     if (url.isNotEmpty) {
       _pendingBrowserHandoffUrl.value = url;
@@ -151,6 +317,13 @@ Future<Map<String, dynamic>> _runCommand(Map data) async {
   if (command == 'run_shell') {
     final String shellCmd = (data['cmd'] as String?) ?? '';
     if (shellCmd.isNotEmpty) {
+      if (!_isShellCommandAllowed(shellCmd)) {
+        return {
+          'success': false,
+          'error':
+              'Command blocked by policy. Only safe read-only commands are allowed.',
+        };
+      }
       final ProcessResult result = Platform.isWindows
           ? await Process.run('cmd.exe', ['/c', shellCmd])
           : await Process.run('sh', ['-c', shellCmd]);
@@ -218,6 +391,14 @@ Future<void> _startDirectHelperServer() async {
       }
 
       if (request.method == 'GET' && path == '/clipboard') {
+        if (!_helperSettings.clipboardSyncEnabled) {
+          request.response.statusCode = HttpStatus.forbidden;
+          request.response.write(
+            jsonEncode({'success': false, 'error': 'Clipboard sync disabled'}),
+          );
+          await request.response.close();
+          return;
+        }
         final currentClipboard = await FlutterClipboard.paste();
         request.response.headers.contentType = ContentType.json;
         request.response.write(jsonEncode({'content': currentClipboard}));
@@ -226,6 +407,14 @@ Future<void> _startDirectHelperServer() async {
       }
 
       if (request.method == 'POST' && path == '/clipboard') {
+        if (!_helperSettings.clipboardSyncEnabled) {
+          request.response.statusCode = HttpStatus.forbidden;
+          request.response.write(
+            jsonEncode({'success': false, 'error': 'Clipboard sync disabled'}),
+          );
+          await request.response.close();
+          return;
+        }
         final payload =
             jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final content = (payload['content'] as String?) ?? '';
@@ -262,7 +451,56 @@ Future<void> _startDirectHelperServer() async {
         return;
       }
 
+      if (request.method == 'POST' && path == '/open') {
+        final payload =
+            jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+        final targetPath = (payload['path'] as String?)?.trim() ?? '';
+        final reveal = payload['reveal'] == true;
+        if (targetPath.isEmpty) {
+          request.response.statusCode = HttpStatus.badRequest;
+          request.response.write(
+            jsonEncode({'success': false, 'error': 'Missing path'}),
+          );
+          await request.response.close();
+          return;
+        }
+
+        if (Platform.isMacOS) {
+          if (reveal) {
+            await Process.run('open', ['-R', targetPath]);
+          } else {
+            await Process.run('open', [targetPath]);
+          }
+        } else if (Platform.isWindows) {
+          if (reveal) {
+            await Process.run('explorer', ['/select,', targetPath]);
+          } else {
+            await Process.run('cmd', ['/c', 'start', '', targetPath]);
+          }
+        } else if (Platform.isLinux) {
+          await Process.run('xdg-open', [
+            reveal ? File(targetPath).parent.path : targetPath,
+          ]);
+        }
+
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({'success': true}));
+        await request.response.close();
+        return;
+      }
+
       if (request.method == 'POST' && path == '/upload') {
+        if (!_helperSettings.remoteFileTransferEnabled) {
+          request.response.statusCode = HttpStatus.forbidden;
+          request.response.write(
+            jsonEncode({
+              'success': false,
+              'error': 'Remote file transfer is disabled',
+            }),
+          );
+          await request.response.close();
+          return;
+        }
         final name =
             request.uri.queryParameters['name'] ??
             'hackie_file_${DateTime.now().millisecondsSinceEpoch}';
@@ -287,6 +525,17 @@ Future<void> _startDirectHelperServer() async {
       }
 
       if (request.method == 'POST' && path == '/command') {
+        if (!_helperSettings.remoteCommandEnabled) {
+          request.response.statusCode = HttpStatus.forbidden;
+          request.response.write(
+            jsonEncode({
+              'success': false,
+              'error': 'Remote command execution is disabled',
+            }),
+          );
+          await request.response.close();
+          return;
+        }
         final payload =
             jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final response = await _runCommand(payload);
@@ -347,6 +596,7 @@ Future<void> startDesktopSync() async {
   _helperDeviceName = deviceName;
   _helperIpAddress = ipAddress;
   _helperMacAddress = macAddress;
+  await _loadHelperSettingsFromDisk();
   await _startDirectHelperServer();
   await _startLanBeacon();
 }
@@ -360,25 +610,37 @@ class GoogleServiceApp extends StatefulWidget {
 
 class _GoogleServiceAppState extends State<GoogleServiceApp>
     with TrayListener, WindowListener {
-  static const String _defaultBrowserUrl = 'https://www.google.com/?igu=1';
+  static const MethodChannel _nativeShareChannel = MethodChannel(
+    'hackie/share',
+  );
+  static const String _fallbackBrowserUrl = 'https://www.google.com/?igu=1';
+  static const String _modernDesktopUserAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+  final GlobalKey<NavigatorState> _appNavigatorKey =
+      GlobalKey<NavigatorState>();
 
   int _tabIdCounter = 0;
 
   final TextEditingController _addressController = TextEditingController(
-    text: _defaultBrowserUrl,
+    text: _fallbackBrowserUrl,
   );
   final TextEditingController _phoneEndpointController =
       TextEditingController();
 
   bool isConnected = false;
   bool _showHelperDashboard = false;
+  bool _dashboardUnlocked = false;
+  final TextEditingController _dashboardPasswordController =
+      TextEditingController();
+  String? _dashboardUnlockError;
   bool _showBrowserToolbar = false;
   bool _isAlwaysOnTop = true;
   bool _isDraggingFiles = false;
   bool _isPinchingBrowser = false;
   double _browserZoom = 1.0;
   double _pinchStartZoom = 1.0;
-  _SearchMode _searchMode = _SearchMode.ai;
+  final TextEditingController _homeUrlController = TextEditingController();
   String _dropStatus = 'Drop files or images here to upload';
   String _phoneUploadEndpoint = '';
   String _phoneShareStatus =
@@ -386,29 +648,16 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
   String deviceName = "Unknown Device";
   String lastClientIp = "Unknown";
   Timer? _statusRefreshTimer;
+  Timer? _nowPlayingPollTimer;
+  bool _nowPlayingSyncInFlight = false;
+  String? _lastNowPlayingSignature;
+  String _nowPlayingLastDetected = 'No metadata detected yet';
+  String _nowPlayingLastPushStatus = 'No push attempted yet';
+  String _nowPlayingLastError = '';
   final List<_BrowserTab> _tabs = [];
   int _activeTabIndex = 0;
 
   _BrowserTab get _activeTab => _tabs[_activeTabIndex];
-
-  String _searchModeLabel(_SearchMode mode) {
-    switch (mode) {
-      case _SearchMode.web:
-        return 'Web';
-      case _SearchMode.ai:
-        return 'AI';
-      case _SearchMode.images:
-        return 'Images';
-      case _SearchMode.news:
-        return 'News';
-    }
-  }
-
-  void _setSearchMode(_SearchMode mode) {
-    setState(() {
-      _searchMode = mode;
-    });
-  }
 
   Future<void> _setAlwaysOnTop(bool value) async {
     _isAlwaysOnTop = value;
@@ -416,18 +665,17 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     if (mounted) setState(() {});
   }
 
-  String _buildSearchUrl(String query) {
-    final encoded = Uri.encodeComponent(query);
-    switch (_searchMode) {
-      case _SearchMode.web:
-        return 'https://www.google.com/search?q=$encoded';
-      case _SearchMode.ai:
-        return 'https://www.google.com/search?udm=50&q=$encoded';
-      case _SearchMode.images:
-        return 'https://www.google.com/search?tbm=isch&q=$encoded';
-      case _SearchMode.news:
-        return 'https://www.google.com/search?tbm=nws&q=$encoded';
-    }
+  String get _defaultBrowserUrl {
+    final saved = _helperSettings.defaultHomeUrl.trim();
+    if (saved.isEmpty) return _fallbackBrowserUrl;
+    final withScheme =
+        saved.startsWith('http://') || saved.startsWith('https://')
+        ? saved
+        : 'https://$saved';
+    final parsed = Uri.tryParse(withScheme);
+    return (parsed == null || parsed.host.isEmpty)
+        ? _fallbackBrowserUrl
+        : withScheme;
   }
 
   String _sanitizeFileName(String path) {
@@ -490,6 +738,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(_modernDesktopUserAgent)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
@@ -604,8 +853,18 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
   void initState() {
     super.initState();
 
+    _nativeShareChannel.setMethodCallHandler((call) async {
+      if (call.method != 'openFiles') return;
+      final dynamic args = call.arguments;
+      final paths = (args is List)
+          ? args.whereType<String>().toList()
+          : <String>[];
+      await _handleIncomingSharedFiles(paths);
+    });
+
     _tabs.add(_createTab(_defaultBrowserUrl));
     _addressController.text = _tabs.first.url;
+    _homeUrlController.text = _helperSettings.defaultHomeUrl;
 
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       trayManager.addListener(this);
@@ -620,13 +879,14 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     });
     _phoneEndpointController.text = _phoneUploadEndpoint;
     _checkConnection();
+    _startNowPlayingPolling();
   }
 
   Future<void> _initTray() async {
     await trayManager.setIcon(
       Platform.isWindows ? 'web/icons/Icon-192.png' : 'web/icons/Icon-192.png',
     );
-    await trayManager.setToolTip('Google Helper (Hackie Client)');
+    await trayManager.setToolTip('Hackie Helper');
     await trayManager.setContextMenu(
       Menu(
         items: [
@@ -636,6 +896,381 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
         ],
       ),
     );
+  }
+
+  Future<void> _showHelperWindow() async {
+    await windowManager.show();
+    await windowManager.setAlwaysOnTop(_isAlwaysOnTop);
+    // Give the host a short moment to complete window activation before
+    // requesting focus to reduce flaky foreground failures on macOS.
+    await Future.delayed(const Duration(milliseconds: 120));
+    await windowManager.focus();
+  }
+
+  Future<String> _runAppleScript(String script) async {
+    if (!Platform.isMacOS) return '';
+    try {
+      final result = await Process.run('osascript', ['-e', script]);
+      if (result.exitCode != 0) {
+        final stderr = (result.stderr?.toString() ?? '').trim();
+        if (stderr.isNotEmpty && mounted) {
+          setState(() {
+            _nowPlayingLastError = stderr;
+          });
+        }
+        return '';
+      }
+      return (result.stdout?.toString() ?? '').trim();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _nowPlayingLastError = 'osascript invocation failed';
+        });
+      }
+      return '';
+    }
+  }
+
+  Future<bool> _isMacAppRunning(String appName) async {
+    final value = await _runAppleScript(
+      'tell application "System Events" to (name of processes) contains "$appName"',
+    );
+    return value.toLowerCase() == 'true';
+  }
+
+  Future<Map<String, String>?> _readNowPlayingFromMac() async {
+    if (!Platform.isMacOS) return null;
+
+    final isMusicRunning = await _isMacAppRunning('Music');
+    final musicState = isMusicRunning
+        ? await _runAppleScript('tell application "Music" to player state')
+        : '';
+    if (musicState.toLowerCase() == 'playing') {
+      final title = await _runAppleScript(
+        'tell application "Music" to name of current track',
+      );
+      final artist = await _runAppleScript(
+        'tell application "Music" to artist of current track',
+      );
+      final album = await _runAppleScript(
+        'tell application "Music" to album of current track',
+      );
+      if (title.isNotEmpty) {
+        return {
+          'title': title,
+          'artist': artist,
+          'album': album,
+          'source': 'music',
+        };
+      }
+    }
+
+    final isSpotifyRunning = await _isMacAppRunning('Spotify');
+    final spotifyState = isSpotifyRunning
+        ? await _runAppleScript('tell application "Spotify" to player state')
+        : '';
+    if (spotifyState.toLowerCase() == 'playing') {
+      final title = await _runAppleScript(
+        'tell application "Spotify" to name of current track',
+      );
+      final artist = await _runAppleScript(
+        'tell application "Spotify" to artist of current track',
+      );
+      final album = await _runAppleScript(
+        'tell application "Spotify" to album of current track',
+      );
+      if (title.isNotEmpty) {
+        return {
+          'title': title,
+          'artist': artist,
+          'album': album,
+          'source': 'spotify',
+        };
+      }
+    }
+
+    final systemBrowserNowPlaying = await _readNowPlayingFromSystemBrowsers();
+    if (systemBrowserNowPlaying != null) {
+      return systemBrowserNowPlaying;
+    }
+
+    final browserNowPlaying = await _readNowPlayingFromBrowser();
+    if (browserNowPlaying != null) {
+      return browserNowPlaying;
+    }
+
+    return null;
+  }
+
+  Future<Map<String, String>?> _readNowPlayingFromSystemBrowsers() async {
+    if (!Platform.isMacOS) return null;
+
+    final browserScripts = <Map<String, String>>[
+      {
+        'app': 'Google Chrome',
+        'script':
+            'tell application "Google Chrome"\n'
+            'if (count of windows) = 0 then return ""\n'
+            'set t to title of active tab of front window\n'
+            'set u to URL of active tab of front window\n'
+            'return t & linefeed & u\n'
+            'end tell',
+      },
+      {
+        'app': 'Microsoft Edge',
+        'script':
+            'tell application "Microsoft Edge"\n'
+            'if (count of windows) = 0 then return ""\n'
+            'set t to title of active tab of front window\n'
+            'set u to URL of active tab of front window\n'
+            'return t & linefeed & u\n'
+            'end tell',
+      },
+      {
+        'app': 'Safari',
+        'script':
+            'tell application "Safari"\n'
+            'if (count of windows) = 0 then return ""\n'
+            'set t to name of current tab of front window\n'
+            'set u to URL of current tab of front window\n'
+            'return t & linefeed & u\n'
+            'end tell',
+      },
+    ];
+
+    for (final browser in browserScripts) {
+      final appName = browser['app']!;
+      if (!await _isMacAppRunning(appName)) continue;
+
+      final result = await _runAppleScript(browser['script']!);
+      if (result.isEmpty) continue;
+
+      final lines = result
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      if (lines.length < 2) continue;
+
+      final title = lines.first;
+      final url = lines.last;
+      final host = Uri.tryParse(url)?.host ?? '';
+      if (host.isEmpty) continue;
+
+      final parsed = _parseNowPlayingFromBrowser(host, title);
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  String _normalizeJavaScriptResult(Object? value) {
+    var text = value?.toString() ?? '';
+    text = text.trim();
+    if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+      text = text.substring(1, text.length - 1);
+    }
+    return text
+        .replaceAll(r'\n', ' ')
+        .replaceAll(r'\t', ' ')
+        .replaceAll(r'\"', '"')
+        .trim();
+  }
+
+  Map<String, String>? _parseNowPlayingFromBrowser(String host, String title) {
+    final normalizedHost = host.toLowerCase();
+    final rawTitle = title.trim();
+    if (rawTitle.isEmpty) return null;
+
+    if (normalizedHost.contains('spotify')) {
+      final cleaned = rawTitle
+          .replaceAll(RegExp(r'\s*\|\s*Spotify\s*$'), '')
+          .trim();
+      final songByParts = cleaned.split(' - song by ');
+      if (songByParts.length == 2) {
+        return {
+          'title': songByParts[0].trim(),
+          'artist': songByParts[1].trim(),
+          'album': '',
+          'source': 'spotify-web',
+        };
+      }
+      final hyphenParts = cleaned.split(' - ');
+      if (hyphenParts.length >= 2) {
+        return {
+          'title': hyphenParts.sublist(1).join(' - ').trim(),
+          'artist': hyphenParts.first.trim(),
+          'album': '',
+          'source': 'spotify-web',
+        };
+      }
+    }
+
+    if (normalizedHost.contains('music.youtube.com') ||
+        rawTitle.toLowerCase().contains('youtube music')) {
+      final cleaned = rawTitle
+          .replaceAll(RegExp(r'\s*-\s*YouTube Music\s*$'), '')
+          .trim();
+      final parts = cleaned.split(' - ');
+      if (parts.length >= 2) {
+        return {
+          'title': parts.first.trim(),
+          'artist': parts.sublist(1).join(' - ').trim(),
+          'album': '',
+          'source': 'youtube-music-web',
+        };
+      }
+      return {
+        'title': cleaned,
+        'artist': 'Unknown artist',
+        'album': '',
+        'source': 'youtube-music-web',
+      };
+    }
+
+    if (normalizedHost.contains('music.apple.com') ||
+        rawTitle.contains('Apple Music')) {
+      final cleaned = rawTitle
+          .replaceAll(RegExp(r'\s*[|\-]\s*Apple Music\s*$'), '')
+          .trim();
+      final parts = cleaned.split(' - ');
+      if (parts.length >= 2) {
+        return {
+          'title': parts.first.trim(),
+          'artist': parts.sublist(1).join(' - ').trim(),
+          'album': '',
+          'source': 'apple-music-web',
+        };
+      }
+    }
+
+    return null;
+  }
+
+  Future<Map<String, String>?> _readNowPlayingFromBrowser() async {
+    if (_tabs.isEmpty) return null;
+
+    final tab = _tabs[_activeTabIndex];
+    final host = Uri.tryParse(tab.url)?.host ?? '';
+    if (host.isEmpty) return null;
+
+    try {
+      final titleRaw = await tab.controller.runJavaScriptReturningResult(
+        'document.title || ""',
+      );
+      final title = _normalizeJavaScriptResult(titleRaw);
+      if (title.isEmpty) return null;
+      return _parseNowPlayingFromBrowser(host, title);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _postNowPlayingToPhone(Map<String, String> metadata) async {
+    final endpoint = _normalizePhoneUploadEndpoint(_phoneUploadEndpoint);
+    if (endpoint.isEmpty) return false;
+
+    final payload = <String, dynamic>{
+      'title': metadata['title'] ?? 'No track',
+      'artist': metadata['artist'] ?? 'Unknown artist',
+      'album': metadata['album'] ?? '',
+      'artworkBase64': null,
+      'source': metadata['source'] ?? 'helper_app',
+    };
+
+    final urls = <String>[
+      '$endpoint/helper/now-playing',
+      '$endpoint/now-playing',
+    ];
+
+    for (final url in urls) {
+      try {
+        final client = HttpClient();
+        final request = await client.postUrl(Uri.parse(url));
+        request.headers.contentType = ContentType.json;
+        request.add(utf8.encode(jsonEncode(payload)));
+        final response = await request.close();
+        await response.drain();
+        client.close(force: true);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          if (mounted) {
+            setState(() {
+              _nowPlayingLastPushStatus =
+                  'Pushed to $url (${response.statusCode}) at ${DateTime.now().toLocal()}';
+              _nowPlayingLastError = '';
+            });
+          }
+          return true;
+        }
+        if (mounted) {
+          setState(() {
+            _nowPlayingLastPushStatus =
+                'Push failed to $url (${response.statusCode})';
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _nowPlayingLastPushStatus = 'Push error to $url';
+          });
+        }
+        continue;
+      }
+    }
+
+    return false;
+  }
+
+  Future<void> _syncNowPlayingTick() async {
+    if (!Platform.isMacOS || _nowPlayingSyncInFlight) return;
+
+    _nowPlayingSyncInFlight = true;
+    try {
+      final metadata = await _readNowPlayingFromMac();
+      if (metadata == null) {
+        if (mounted) {
+          setState(() {
+            _nowPlayingLastDetected =
+                'No active song detected from Music/Spotify/browser';
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        final summary =
+            '${metadata['title'] ?? 'No track'} — ${metadata['artist'] ?? 'Unknown'} [${metadata['source'] ?? 'unknown'}]';
+        setState(() {
+          _nowPlayingLastDetected = summary;
+        });
+      }
+
+      final signature =
+          '${metadata['source']}|${metadata['title']}|${metadata['artist']}|${metadata['album']}';
+      if (signature == _lastNowPlayingSignature) return;
+
+      final pushed = await _postNowPlayingToPhone(metadata);
+      if (pushed) {
+        _lastNowPlayingSignature = signature;
+      } else if (mounted) {
+        setState(() {
+          _nowPlayingLastPushStatus = 'Detected metadata but push failed';
+        });
+      }
+    } finally {
+      _nowPlayingSyncInFlight = false;
+    }
+  }
+
+  void _startNowPlayingPolling() {
+    if (!Platform.isMacOS) return;
+    _nowPlayingPollTimer?.cancel();
+    _syncNowPlayingTick();
+    _nowPlayingPollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _syncNowPlayingTick();
+    });
   }
 
   @override
@@ -653,13 +1288,11 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     if (menuItem.key == 'open_dashboard') {
       if (mounted) {
         setState(() {
-          _showHelperDashboard = false;
+          _showHelperDashboard = true;
           _addressController.text = _activeTab.url;
         });
       }
-      unawaited(windowManager.setAlwaysOnTop(_isAlwaysOnTop));
-      windowManager.show();
-      windowManager.focus();
+      unawaited(_showHelperWindow());
     } else if (menuItem.key == 'exit_app') {
       exit(0);
     }
@@ -667,9 +1300,13 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
 
   @override
   void dispose() {
+    _nativeShareChannel.setMethodCallHandler(null);
     _addressController.dispose();
     _phoneEndpointController.dispose();
+    _homeUrlController.dispose();
+    _dashboardPasswordController.dispose();
     _statusRefreshTimer?.cancel();
+    _nowPlayingPollTimer?.cancel();
     _runtimeStatus.removeListener(_syncStatusFromRuntime);
     _pendingBrowserHandoffUrl.removeListener(_consumePendingBrowserHandoff);
     trayManager.removeListener(this);
@@ -767,8 +1404,62 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     });
   }
 
+  Future<void> _ensureRemoteFileTransferEnabled() async {
+    if (_helperSettings.remoteFileTransferEnabled) return;
+    await _updateFeatureSetting(
+      _helperSettings.copyWith(remoteFileTransferEnabled: true),
+    );
+    _showInfoSnack('Remote File Transfer was disabled. Enabled now.');
+  }
+
+  void _useLastPhoneIpForEndpoint() {
+    if (lastClientIp.isEmpty || lastClientIp == 'Unknown') {
+      _showInfoSnack('No recent phone IP found yet.', isError: true);
+      return;
+    }
+    final endpoint = 'http://$lastClientIp:8080';
+    setState(() {
+      _phoneUploadEndpoint = endpoint;
+      _phoneEndpointController.text = endpoint;
+      _phoneShareStatus = 'Using $endpoint';
+    });
+  }
+
+  Future<void> _pickFolderAndSendToPhone() async {
+    try {
+      await _ensureRemoteFileTransferEnabled();
+      final pickedFolder = await getDirectoryPath();
+      if (pickedFolder == null || pickedFolder.isEmpty) return;
+
+      final directory = Directory(pickedFolder);
+      if (!await directory.exists()) return;
+      final entries = directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map((file) => file.path)
+          .toList();
+
+      if (entries.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _phoneShareStatus = 'No files found in selected folder';
+        });
+        return;
+      }
+
+      await _sendFilesToPhone(entries);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phoneShareStatus = 'Folder picker failed: $e';
+      });
+      _showInfoSnack('Folder upload failed: $e', isError: true);
+    }
+  }
+
   Future<void> _pickFilesAndSendToPhone() async {
     try {
+      await _ensureRemoteFileTransferEnabled();
       final files = await openFiles();
       if (files.isEmpty) return;
 
@@ -785,7 +1476,115 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
       setState(() {
         _phoneShareStatus = 'File picker failed: $e';
       });
+      _showInfoSnack('File upload failed: $e', isError: true);
     }
+  }
+
+  Future<void> _handleIncomingSharedFiles(List<String> incomingPaths) async {
+    final paths = incomingPaths
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList();
+    if (paths.isEmpty || !mounted) return;
+
+    setState(() {
+      _showHelperDashboard = true;
+      _phoneShareStatus = 'Received ${paths.length} file(s) from macOS';
+      _dropStatus = 'Received ${paths.length} file(s) via Open/Share';
+    });
+
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      await _showHelperWindow();
+    }
+
+    try {
+      final endpoint = _normalizePhoneUploadEndpoint(_phoneUploadEndpoint);
+      if (endpoint.isNotEmpty) {
+        await _ensureRemoteFileTransferEnabled();
+        await _sendFilesToPhone(paths);
+      } else {
+        await _saveDroppedFiles(paths);
+        if (!mounted) return;
+        setState(() {
+          _phoneShareStatus =
+              'Files received. Set phone endpoint to forward to Hackie app.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phoneShareStatus = 'Incoming share failed: $e';
+      });
+      _showInfoSnack('Incoming share failed: $e', isError: true);
+    }
+  }
+
+  Future<void> _updateFeatureSetting(_HelperFeatureSettings next) async {
+    setState(() {
+      _helperSettings = next;
+    });
+    await _persistHelperSettings();
+  }
+
+  Future<void> _saveDefaultHomeUrl() async {
+    final raw = _homeUrlController.text.trim();
+    if (raw.isEmpty) {
+      _showInfoSnack('Default home URL cannot be empty', isError: true);
+      return;
+    }
+
+    final withScheme = raw.startsWith('http://') || raw.startsWith('https://')
+        ? raw
+        : 'https://$raw';
+    final parsed = Uri.tryParse(withScheme);
+    if (parsed == null || parsed.host.isEmpty) {
+      _showInfoSnack('Enter a valid URL, e.g. google.com', isError: true);
+      return;
+    }
+
+    await _updateFeatureSetting(
+      _helperSettings.copyWith(defaultHomeUrl: withScheme),
+    );
+    _showInfoSnack('Default home URL saved');
+  }
+
+  void _tryUnlockDashboard() {
+    if (_dashboardPasswordController.text.trim() == '2005') {
+      setState(() {
+        _dashboardUnlocked = true;
+        _dashboardUnlockError = null;
+      });
+      _showInfoSnack('Dashboard unlocked');
+      return;
+    }
+    setState(() {
+      _dashboardUnlockError = 'Wrong password';
+    });
+  }
+
+  void _lockDashboard() {
+    setState(() {
+      _dashboardUnlocked = false;
+      _showHelperDashboard = false;
+      _dashboardUnlockError = null;
+      _dashboardPasswordController.clear();
+    });
+  }
+
+  void _showInfoSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? const Color(0xFF8A2C2C)
+            : const Color(0xFF1E2B3C),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _consumePendingBrowserHandoff() {
@@ -808,7 +1607,8 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     final Uri targetUri;
     if (query.contains(' ') ||
         (!query.contains('.') && !query.startsWith('http'))) {
-      targetUri = Uri.parse(_buildSearchUrl(query));
+      final encoded = Uri.encodeComponent(query);
+      targetUri = Uri.parse('https://www.google.com/search?q=$encoded');
     } else if (query.startsWith('http://') || query.startsWith('https://')) {
       targetUri = Uri.parse(query);
     } else {
@@ -912,8 +1712,20 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
 
   Widget _buildBrowserControls() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-      color: const Color(0xFF151821),
+      margin: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1522),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.24),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
         children: [
           Row(
@@ -924,13 +1736,12 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                   onSubmitted: _submitAddress,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText:
-                        'Search ${_searchModeLabel(_searchMode)} or type URL',
+                    hintText: 'Search or enter URL',
                     hintStyle: TextStyle(color: Colors.grey.shade500),
                     filled: true,
-                    fillColor: const Color(0xFF0F0F13),
+                    fillColor: const Color(0xFF050B14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                     prefixIcon: const Icon(Icons.search, color: Colors.white70),
@@ -938,10 +1749,20 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Go',
+              FilledButton(
                 onPressed: () => _submitAddress(_addressController.text),
-                icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF5EEAD4),
+                  foregroundColor: const Color(0xFF03131A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                ),
+                child: const Icon(Icons.arrow_forward, size: 18),
               ),
             ],
           ),
@@ -951,81 +1772,69 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _buildModeChip('Web', _SearchMode.web),
-              _buildModeChip('AI', _SearchMode.ai),
-              _buildModeChip('Images', _SearchMode.images),
-              _buildModeChip('News', _SearchMode.news),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: Icons.restart_alt,
+                label: '${(_browserZoom * 100).round()}%',
                 onPressed: () {
                   setState(() {
                     _browserZoom = 1.0;
                   });
                   _applyBrowserZoom(_activeTab);
                 },
-                icon: const Icon(Icons.restart_alt, size: 18),
-                label: const Text('100%'),
               ),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: Icons.remove,
+                label: 'Zoom out',
                 onPressed: () => _setBrowserZoom(_browserZoom - 0.1),
-                icon: const Icon(Icons.remove, size: 18),
-                label: const Text('Zoom out'),
               ),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: Icons.add,
+                label: 'Zoom in',
                 onPressed: () => _setBrowserZoom(_browserZoom + 0.1),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Zoom in'),
               ),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: _isAlwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+                label: _isAlwaysOnTop ? 'Pinned' : 'Pin',
                 onPressed: () => _setAlwaysOnTop(!_isAlwaysOnTop),
-                icon: Icon(
-                  _isAlwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
-                  size: 18,
-                ),
-                label: Text(_isAlwaysOnTop ? 'Pinned' : 'Pin'),
               ),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: Icons.add,
+                label: 'New tab',
                 onPressed: _openNewTab,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('New tab'),
               ),
-              OutlinedButton.icon(
+              _buildMiniToolbarButton(
+                icon: _showBrowserToolbar
+                    ? Icons.keyboard_arrow_down
+                    : Icons.keyboard_arrow_up,
+                label: _showBrowserToolbar ? 'Hide controls' : 'Show controls',
                 onPressed: () {
                   setState(() {
                     _showBrowserToolbar = !_showBrowserToolbar;
                   });
                 },
-                icon: Icon(
-                  _showBrowserToolbar
-                      ? Icons.keyboard_arrow_down
-                      : Icons.keyboard_arrow_up,
-                  size: 18,
-                ),
-                label: Text(
-                  _showBrowserToolbar ? 'Hide controls' : 'Show controls',
-                ),
               ),
-              IconButton(
+              _buildMiniIconButton(
+                icon: Icons.arrow_back,
                 tooltip: 'Back',
                 onPressed: () async {
                   if (await _activeTab.controller.canGoBack()) {
                     await _activeTab.controller.goBack();
                   }
                 },
-                icon: const Icon(Icons.arrow_back, color: Colors.white70),
               ),
-              IconButton(
+              _buildMiniIconButton(
+                icon: Icons.arrow_forward,
                 tooltip: 'Forward',
                 onPressed: () async {
                   if (await _activeTab.controller.canGoForward()) {
                     await _activeTab.controller.goForward();
                   }
                 },
-                icon: const Icon(Icons.arrow_forward, color: Colors.white70),
               ),
-              IconButton(
+              _buildMiniIconButton(
+                icon: Icons.refresh,
                 tooltip: 'Reload',
                 onPressed: () => _activeTab.controller.reload(),
-                icon: const Icon(Icons.refresh, color: Colors.white70),
               ),
             ],
           ),
@@ -1034,19 +1843,45 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
     );
   }
 
-  Widget _buildModeChip(String label, _SearchMode mode) {
-    final selected = _searchMode == mode;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      selectedColor: Colors.blueAccent.withValues(alpha: 0.24),
-      onSelected: (_) => _setSearchMode(mode),
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : Colors.white70,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+  Widget _buildMiniToolbarButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.white.withValues(alpha: 0.02),
       ),
-      side: BorderSide(color: selected ? Colors.blueAccent : Colors.white24),
-      backgroundColor: const Color(0xFF0F0F13),
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+    );
+  }
+
+  Widget _buildMiniIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onPressed,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Icon(icon, size: 18, color: Colors.white70),
+        ),
+      ),
     );
   }
 
@@ -1066,6 +1901,32 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
             ),
           ),
           const Spacer(),
+          IconButton(
+            tooltip: 'Back',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            onPressed: () async {
+              if (await _activeTab.controller.canGoBack()) {
+                await _activeTab.controller.goBack();
+              }
+            },
+            icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 18),
+          ),
+          IconButton(
+            tooltip: 'Forward',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            onPressed: () async {
+              if (await _activeTab.controller.canGoForward()) {
+                await _activeTab.controller.goForward();
+              }
+            },
+            icon: const Icon(
+              Icons.arrow_forward,
+              color: Colors.white70,
+              size: 18,
+            ),
+          ),
           IconButton(
             tooltip: 'Show browser controls',
             padding: EdgeInsets.zero,
@@ -1284,28 +2145,118 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
   }
 
   Widget _buildHelperDashboard() {
+    if (!_dashboardUnlocked) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF060A13), Color(0xFF0C1729), Color(0xFF0E2236)],
+          ),
+        ),
+        child: Center(
+          child: Container(
+            width: 320,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xC20A1524),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.lock_outline,
+                  color: Color(0xFF5EEAD4),
+                  size: 36,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Dashboard Locked',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Enter password to continue',
+                  style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _dashboardPasswordController,
+                  obscureText: true,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Password',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: const Color(0xFF08101E),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ),
+                  onSubmitted: (_) => _tryUnlockDashboard(),
+                ),
+                if (_dashboardUnlockError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _dashboardUnlockError!,
+                    style: const TextStyle(
+                      color: Color(0xFFFF8C8C),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _tryUnlockDashboard,
+                    icon: const Icon(Icons.lock_open, size: 16),
+                    label: const Text('Unlock'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF5EEAD4),
+                      foregroundColor: const Color(0xFF06151B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF0B1118), Color(0xFF101D2A), Color(0xFF17283B)],
+          colors: [Color(0xFF060A13), Color(0xFF0C1729), Color(0xFF0E2236)],
         ),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 gradient: LinearGradient(
                   colors: [
-                    Colors.white.withValues(alpha: 0.07),
-                    Colors.white.withValues(alpha: 0.03),
+                    const Color(0xFF101C2E).withValues(alpha: 0.86),
+                    const Color(0xFF0A1423).withValues(alpha: 0.86),
                   ],
                 ),
               ),
@@ -1315,45 +2266,53 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                   Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: isConnected
-                              ? const Color(0xFF1D5C3A)
-                              : const Color(0xFF5C2D1D),
-                          borderRadius: BorderRadius.circular(10),
+                              ? const Color(0xFF0F6148)
+                              : const Color(0xFF69362A),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          isConnected ? Icons.wifi_tethering : Icons.wifi_off,
+                          isConnected ? Icons.hub : Icons.hub_outlined,
                           color: isConnected
-                              ? const Color(0xFF7FFFD4)
-                              : const Color(0xFFFFC38A),
+                              ? const Color(0xFF93F5D4)
+                              : const Color(0xFFFFCF9B),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          isConnected
-                              ? 'Helper link is live'
-                              : 'Waiting for phone link',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isConnected
+                                  ? 'Hackie Helper is connected'
+                                  : 'Waiting for phone connection',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Endpoint: $_helperIpAddress:8765',
+                              style: TextStyle(
+                                color: Colors.grey.shade300,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     'Desktop: $deviceName',
-                    style: TextStyle(color: Colors.grey.shade300, fontSize: 13),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Helper endpoint: $_helperIpAddress:8765',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
                   ),
                   Text(
                     'Last phone IP: $lastClientIp',
@@ -1366,15 +2325,215 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                color: const Color(0xAA0D1622),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                color: const Color(0xA30A1524),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Send Files To Phone',
+                    'Now Playing Debug',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Detected: $_nowPlayingLastDetected',
+                    style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Push: $_nowPlayingLastPushStatus',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                  if (_nowPlayingLastError.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Error: $_nowPlayingLastError',
+                      style: const TextStyle(
+                        color: Color(0xFFFF8C8C),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: _syncNowPlayingTick,
+                    icon: const Icon(Icons.music_note, size: 16),
+                    label: const Text('Test Metadata Sync Now'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF5EEAD4),
+                      foregroundColor: const Color(0xFF06151B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                color: const Color(0xA30A1524),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Customization',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enable or disable each helper capability.',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Clipboard Sync',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Sync clipboard bi-directionally',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    value: _helperSettings.clipboardSyncEnabled,
+                    onChanged: (v) => _updateFeatureSetting(
+                      _helperSettings.copyWith(clipboardSyncEnabled: v),
+                    ),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Remote File Transfer',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Allow file upload from connected devices',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    value: _helperSettings.remoteFileTransferEnabled,
+                    onChanged: (v) => _updateFeatureSetting(
+                      _helperSettings.copyWith(remoteFileTransferEnabled: v),
+                    ),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Remote Commands',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Allow safe read-only shell commands',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    value: _helperSettings.remoteCommandEnabled,
+                    onChanged: (v) => _updateFeatureSetting(
+                      _helperSettings.copyWith(remoteCommandEnabled: v),
+                    ),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Browser Handoff',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Allow phone to open URLs in helper browser',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    value: _helperSettings.browserHandoffEnabled,
+                    onChanged: (v) => _updateFeatureSetting(
+                      _helperSettings.copyWith(browserHandoffEnabled: v),
+                    ),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Notes Sync',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Keep shared notes bridge active',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    value: _helperSettings.noteSyncEnabled,
+                    onChanged: (v) => _updateFeatureSetting(
+                      _helperSettings.copyWith(noteSyncEnabled: v),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _homeUrlController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Default Home URL',
+                      labelStyle: TextStyle(color: Colors.grey.shade300),
+                      hintText: 'google.com',
+                      hintStyle: TextStyle(color: Colors.grey.shade500),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.03),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _saveDefaultHomeUrl,
+                          icon: const Icon(Icons.save, size: 16),
+                          label: const Text('Save Home URL'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF5EEAD4),
+                            foregroundColor: const Color(0xFF06151B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _homeUrlController.text = _defaultBrowserUrl;
+                          },
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Use Current'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                color: const Color(0xA30A1524),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Remote File Transfer',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -1394,11 +2553,11 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                       hintText: 'http://<phone-ip>:8080',
                       hintStyle: TextStyle(color: Colors.grey.shade500),
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.04),
+                      fillColor: Colors.white.withValues(alpha: 0.03),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.16),
+                          color: Colors.white.withValues(alpha: 0.12),
                         ),
                       ),
                     ),
@@ -1407,16 +2566,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
-                      onPressed: () {
-                        if (lastClientIp.isNotEmpty &&
-                            lastClientIp != 'Unknown') {
-                          setState(() {
-                            _phoneUploadEndpoint = 'http://$lastClientIp:8080';
-                            _phoneEndpointController.text =
-                                _phoneUploadEndpoint;
-                          });
-                        }
-                      },
+                      onPressed: _useLastPhoneIpForEndpoint,
                       icon: const Icon(Icons.auto_fix_high, size: 16),
                       label: const Text('Use last phone IP'),
                     ),
@@ -1434,28 +2584,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final pickedFolder = await getDirectoryPath();
-                            if (pickedFolder == null || pickedFolder.isEmpty) {
-                              return;
-                            }
-                            final directory = Directory(pickedFolder);
-                            if (!await directory.exists()) return;
-                            final entries = directory
-                                .listSync(recursive: true)
-                                .whereType<File>()
-                                .map((file) => file.path)
-                                .toList();
-                            if (entries.isEmpty) {
-                              if (!mounted) return;
-                              setState(() {
-                                _phoneShareStatus =
-                                    'No files found in selected folder';
-                              });
-                              return;
-                            }
-                            await _sendFilesToPhone(entries);
-                          },
+                          onPressed: _pickFolderAndSendToPhone,
                           icon: const Icon(Icons.create_new_folder),
                           label: const Text('Choose Folder'),
                         ),
@@ -1475,6 +2604,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                       });
                     },
                     onDragDone: (detail) async {
+                      await _ensureRemoteFileTransferEnabled();
                       setState(() {
                         _isDraggingFiles = false;
                       });
@@ -1498,39 +2628,26 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: _isDraggingFiles
-                              ? const Color(0xFF79D7FF)
-                              : Colors.white.withValues(alpha: 0.14),
+                              ? const Color(0xFF5EEAD4)
+                              : Colors.white.withValues(alpha: 0.12),
                           width: _isDraggingFiles ? 1.6 : 1,
                         ),
-                        gradient: LinearGradient(
-                          colors: _isDraggingFiles
-                              ? [
-                                  const Color(0x553A6D93),
-                                  const Color(0x334AA3D6),
-                                ]
-                              : [
-                                  Colors.white.withValues(alpha: 0.04),
-                                  Colors.white.withValues(alpha: 0.02),
-                                ],
-                        ),
+                        color: Colors.white.withValues(alpha: 0.02),
                       ),
                       child: Column(
                         children: [
                           Icon(
                             Icons.upload_file,
                             color: _isDraggingFiles
-                                ? const Color(0xFF90E4FF)
+                                ? const Color(0xFF5EEAD4)
                                 : Colors.white70,
-                            size: 34,
+                            size: 32,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           const Text(
                             'Drop files here to send to phone Downloads',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: TextStyle(color: Colors.white),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -1541,38 +2658,8 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                               fontSize: 12,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Supported: drag-and-drop, file chooser, folder chooser',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 11,
-                            ),
-                          ),
                         ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                color: const Color(0xAA0D1622),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.sync_alt, color: Color(0xFF79D7FF)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Clipboard sync is ${isConnected ? 'active' : 'waiting for device connection'}',
-                      style: const TextStyle(color: Colors.white70),
                     ),
                   ),
                 ],
@@ -1634,6 +2721,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _appNavigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F0F13),
@@ -1645,7 +2733,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
       home: Scaffold(
         appBar: AppBar(
           title: Text(
-            _showHelperDashboard ? 'Helper Dashboard' : 'Google Browser',
+            _showHelperDashboard ? 'Hackie Dashboard' : 'Hackie Browser',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
@@ -1656,11 +2744,23 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                 _showHelperDashboard ? Icons.travel_explore : Icons.tune,
               ),
               onPressed: () {
+                if (_showHelperDashboard) {
+                  setState(() {
+                    _showHelperDashboard = false;
+                  });
+                  return;
+                }
                 setState(() {
-                  _showHelperDashboard = !_showHelperDashboard;
+                  _showHelperDashboard = true;
                 });
               },
             ),
+            if (_showHelperDashboard)
+              IconButton(
+                tooltip: 'Lock dashboard',
+                icon: const Icon(Icons.lock_outline),
+                onPressed: _lockDashboard,
+              ),
             if (Platform.isMacOS || Platform.isWindows || Platform.isLinux)
               IconButton(
                 icon: const Icon(Icons.close),
