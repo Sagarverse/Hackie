@@ -56,10 +56,13 @@ class AutomationViewModel(
     val isTerminalScanning: StateFlow<Boolean> = _isTerminalScanning.asStateFlow()
 
     // Auto Clicker
+    enum class ClickTimeUnit { MS, SEC, MIN }
     private val _isAutoClicking = MutableStateFlow(false)
     val isAutoClicking: StateFlow<Boolean> = _isAutoClicking.asStateFlow()
     private val _autoClickInterval = MutableStateFlow(1000L)
     val autoClickInterval: StateFlow<Long> = _autoClickInterval.asStateFlow()
+    private val _autoClickUnit = MutableStateFlow(ClickTimeUnit.MS)
+    val autoClickUnit: StateFlow<ClickTimeUnit> = _autoClickUnit.asStateFlow()
     private val _autoClickLoops = MutableStateFlow(0)
     val autoClickLoops: StateFlow<Int> = _autoClickLoops.asStateFlow()
     private val _currentClickCount = MutableStateFlow(0)
@@ -425,12 +428,16 @@ class AutomationViewModel(
 
     // --- Auto Clicker ---
 
-    fun setAutoClickInterval(ms: Long) {
-        _autoClickInterval.value = ms.coerceAtLeast(10L)
+    fun setAutoClickInterval(interval: Long) {
+        _autoClickInterval.value = interval.coerceAtLeast(1)
     }
 
     fun setAutoClickLoops(count: Int) {
         _autoClickLoops.value = count.coerceAtLeast(0)
+    }
+
+    fun setAutoClickUnit(unit: ClickTimeUnit) {
+        _autoClickUnit.value = unit
     }
 
     fun startAutoClicker() {
@@ -441,12 +448,27 @@ class AutomationViewModel(
         autoClickJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val maxLoops = _autoClickLoops.value
+                val baseInterval = _autoClickInterval.value
+                val unit = _autoClickUnit.value
+                
+                val intervalMs = when(unit) {
+                    ClickTimeUnit.MS -> baseInterval
+                    ClickTimeUnit.SEC -> baseInterval * 1000
+                    ClickTimeUnit.MIN -> baseInterval * 60000
+                }
+
                 while (isActive && (maxLoops == 0 || _currentClickCount.value < maxLoops)) {
+                    // Click down
                     repository.sendMouseMove(0f, 0f, 1, 0)
-                    delay(40)
+                    delay(50)
+                    // Click up
                     repository.sendMouseMove(0f, 0f, 0, 0)
+                    
                     _currentClickCount.value++
-                    delay(_autoClickInterval.value)
+                    
+                    if (maxLoops == 0 || _currentClickCount.value < maxLoops) {
+                        delay(intervalMs.coerceAtLeast(10)) 
+                    }
                 }
             } finally {
                 _isAutoClicking.value = false
@@ -473,7 +495,7 @@ class AutomationViewModel(
                 when (cmd) {
                     "DEFAULTDELAY" -> defaultDelay = arg.toLongOrNull() ?: defaultDelay
                     "DELAY" -> delay(arg.toLongOrNull() ?: defaultDelay)
-                    "STRING" -> repository.sendText(arg)
+                    "STRING" -> repository.sendText(arg)?.join()
                     "ENTER" -> repository.sendKey(HidKeyCodes.KEY_ENTER)
                     "TAB" -> repository.sendKey(HidKeyCodes.KEY_TAB)
                     "SPACE" -> repository.sendKey(HidKeyCodes.KEY_SPACE)

@@ -962,6 +962,8 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 _remoteProcesses.value = list
+            } catch (e: Exception) {
+                Log.e("HelperViewModel", "Failed to fetch processes: ${e.message}")
             } finally {
                 _isRefreshingProcesses.value = false
             }

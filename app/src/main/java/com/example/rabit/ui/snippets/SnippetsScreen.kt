@@ -36,6 +36,7 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
     var snippets by remember { mutableStateOf(loadSnippets(prefs)) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var snippetToEdit by remember { mutableStateOf<TextSnippet?>(null) }
     var expandedSnippet by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -184,17 +185,43 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         }
                     }
                 }
-                items(filteredSnippets) { snippet ->
+                items(filteredSnippets.size) { index ->
+                    val snippet = filteredSnippets[index]
                     SnippetCard(
                         snippet = snippet,
                         isExpanded = expandedSnippet == snippet.name,
+                        showMoveUp = index > 0 && searchQuery.isBlank(),
+                        showMoveDown = index < filteredSnippets.size - 1 && searchQuery.isBlank(),
                         onExpandToggle = {
                             expandedSnippet = if (expandedSnippet == snippet.name) null else snippet.name
                         },
                         onPush = { viewModel.sendText(snippet.content) },
+                        onEdit = { snippetToEdit = snippet },
                         onDelete = {
                             snippets = snippets.filterNot { it.name == snippet.name }
                             saveSnippets(prefs, snippets)
+                        },
+                        onMoveUp = {
+                            if (index > 0) {
+                                val newList = snippets.toMutableList()
+                                val actualIdx = newList.indexOfFirst { it.name == snippet.name }
+                                if (actualIdx > 0) {
+                                    java.util.Collections.swap(newList, actualIdx, actualIdx - 1)
+                                    snippets = newList
+                                    saveSnippets(prefs, snippets)
+                                }
+                            }
+                        },
+                        onMoveDown = {
+                            if (index < snippets.size - 1) {
+                                val newList = snippets.toMutableList()
+                                val actualIdx = newList.indexOfFirst { it.name == snippet.name }
+                                if (actualIdx < newList.size - 1) {
+                                    java.util.Collections.swap(newList, actualIdx, actualIdx + 1)
+                                    snippets = newList
+                                    saveSnippets(prefs, snippets)
+                                }
+                            }
                         }
                     )
                 }
@@ -214,13 +241,18 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showAddDialog) {
-        var name by remember { mutableStateOf("") }
-        var content by remember { mutableStateOf("") }
+    if (showAddDialog || snippetToEdit != null) {
+        val isEdit = snippetToEdit != null
+        var name by remember { mutableStateOf(snippetToEdit?.name ?: "") }
+        var content by remember { mutableStateOf(snippetToEdit?.content ?: "") }
+        
         AlertDialog(
-            onDismissRequest = { showAddDialog = false },
+            onDismissRequest = { 
+                showAddDialog = false
+                snippetToEdit = null
+            },
             containerColor = Graphite,
-            title = { Text("New Snippet", color = Platinum) },
+            title = { Text(if (isEdit) "Edit Snippet" else "New Snippet", color = Platinum) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -253,16 +285,27 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 Button(
                     onClick = {
                         if (name.isNotBlank() && content.isNotBlank()) {
-                            snippets = snippets + TextSnippet(name, content)
+                            if (isEdit) {
+                                snippets = snippets.map { if (it.name == snippetToEdit?.name) TextSnippet(name, content) else it }
+                                if (expandedSnippet == snippetToEdit?.name && name != snippetToEdit?.name) {
+                                    expandedSnippet = name
+                                }
+                            } else {
+                                snippets = snippets + TextSnippet(name, content)
+                            }
                             saveSnippets(prefs, snippets)
                             showAddDialog = false
+                            snippetToEdit = null
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentGold)
                 ) { Text("Save", color = Obsidian, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Cancel", color = Silver) }
+                TextButton(onClick = { 
+                    showAddDialog = false
+                    snippetToEdit = null
+                }) { Text("Cancel", color = Silver) }
             }
         )
     }
@@ -272,9 +315,14 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 fun SnippetCard(
     snippet: TextSnippet,
     isExpanded: Boolean,
+    showMoveUp: Boolean,
+    showMoveDown: Boolean,
     onExpandToggle: () -> Unit,
     onPush: () -> Unit,
-    onDelete: () -> Unit
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -337,22 +385,40 @@ fun SnippetCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDelete) {
-                        Text("Delete", color = ErrorRed, fontSize = 13.sp)
+                    Row {
+                        if (showMoveUp) {
+                            IconButton(onClick = onMoveUp) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move Up", tint = Silver)
+                            }
+                        }
+                        if (showMoveDown) {
+                            IconButton(onClick = onMoveDown) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move Down", tint = Silver)
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = onPush,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Push to Mac", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onDelete) {
+                            Text("Delete", color = ErrorRed, fontSize = 13.sp)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        TextButton(onClick = onEdit) {
+                            Text("Edit", color = AccentGold, fontSize = 13.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onPush,
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Push to Mac", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

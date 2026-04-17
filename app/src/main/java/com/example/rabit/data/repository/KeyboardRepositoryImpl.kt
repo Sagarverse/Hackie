@@ -66,8 +66,8 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
         hidDeviceManager.sendConsumerKey(usageId)
     }
 
-    override fun sendText(text: String) {
-        hidDeviceManager.sendText(text)
+    override fun sendText(text: String): kotlinx.coroutines.Job? {
+        return hidDeviceManager.sendText(text)
     }
 
     override fun sendMouseMove(dx: Float, dy: Float, buttons: Int, wheel: Int) {

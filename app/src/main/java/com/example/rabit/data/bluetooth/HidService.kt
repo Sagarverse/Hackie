@@ -39,6 +39,24 @@ class HidService : Service() {
         const val ACTION_STOP_WEB_BRIDGE = "com.example.rabit.ACTION_STOP_WEB_BRIDGE"
         const val ACTION_UPDATE_PROXIMITY_SMART_LOCK = "com.example.rabit.ACTION_UPDATE_PROXIMITY_SMART_LOCK"
         const val ACTION_UPDATE_NOW_PLAYING = "com.example.rabit.ACTION_UPDATE_NOW_PLAYING"
+        const val ACTION_REFRESH_MAIN_NOTIFICATION = "com.example.rabit.REFRESH_MAIN_NOTIFICATION"
+        const val ACTION_SAVE_SNIPPET = "com.example.rabit.SAVE_SNIPPET"
+    }
+
+    private val unlockReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_USER_PRESENT) {
+                val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+                if (prefs.getBoolean("unlock_sync_enabled", false)) {
+                    if (hidDeviceManager.connectionState.value is HidDeviceManager.ConnectionState.Connected) {
+                        val pass = SecureStorage(applicationContext).getMacPassword() ?: ""
+                        if (pass.isNotEmpty()) {
+                            unlockMac(pass)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private lateinit var clipboard: ClipboardManager
@@ -88,6 +106,8 @@ class HidService : Service() {
         startForeground(1, buildNotification("Disconnected", "Bluetooth HID connection is inactive."))
         observeConnectionState()
         startClipboardObserver()
+        
+        registerReceiver(unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT))
         
         // Check if Web Bridge should auto-start from preferences
         val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
@@ -246,6 +266,21 @@ class HidService : Service() {
             "MEDIA_NEXT" -> sendConsumerKey(HidKeyCodes.MEDIA_NEXT)
             "MEDIA_VOL_UP" -> sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
             "MEDIA_VOL_DOWN" -> sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
+            "TOGGLE_UNLOCK_SYNC" -> {
+                val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+                val current = prefs.getBoolean("unlock_sync_enabled", false)
+                prefs.edit().putBoolean("unlock_sync_enabled", !current).apply()
+                updateNotification(notificationStateTitle, notificationStateText)
+            }
+            "REFRESH_MAIN_NOTIFICATION" -> {
+                updateNotification(notificationStateTitle, notificationStateText)
+            }
+            ACTION_SAVE_SNIPPET -> {
+                val text = intent.getStringExtra("text") ?: ""
+                saveSnippet(text)
+                val notificationManager = getSystemService(NotificationManager::class.java)
+                notificationManager.cancel(2)
+            }
             "STOP_APP" -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -262,25 +297,35 @@ class HidService : Service() {
             action = "PUSH_CLIPBOARD"
             putExtra("text", text)
         }
-        val pushPendingIntent = PendingIntent.getService(this, 0, pushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pushPendingIntent = PendingIntent.getService(this, 101, pushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val saveSnippetIntent = Intent(this, HidService::class.java).apply {
+            action = ACTION_SAVE_SNIPPET
+            putExtra("text", text)
+        }
+        val saveSnippetPendingIntent = PendingIntent.getService(this, 102, saveSnippetIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val toggleAutoPushIntent = Intent(this, HidService::class.java).apply {
             action = "TOGGLE_AUTO_PUSH"
         }
-        val toggleAutoPushPendingIntent = PendingIntent.getService(this, 2, toggleAutoPushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val toggleAutoPushPendingIntent = PendingIntent.getService(this, 103, toggleAutoPushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val dismissIntent = Intent(this, HidService::class.java).apply {
             action = "DISMISS_CLIPBOARD"
         }
-        val dismissPendingIntent = PendingIntent.getService(this, 1, dismissIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val dismissPendingIntent = PendingIntent.getService(this, 104, dismissIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val notification = NotificationCompat.Builder(this, clipboardChannelId)
             .setSmallIcon(android.R.drawable.ic_menu_set_as)
             .setContentTitle("Clipboard Detected")
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setFullScreenIntent(null, true) // High priority Heads-up popup
             .setAutoCancel(true)
             .addAction(android.R.drawable.ic_menu_send, "Push to Mac", pushPendingIntent)
+            .addAction(android.R.drawable.ic_menu_save, "Save", saveSnippetPendingIntent)
             .addAction(
                 if (isAutoPush) android.R.drawable.checkbox_on_background else android.R.drawable.checkbox_off_background,
                 if (isAutoPush) "Auto-Push: ON" else "Auto-Push: OFF",
@@ -291,6 +336,25 @@ class HidService : Service() {
 
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(2, notification)
+    }
+
+    private fun saveSnippet(text: String) {
+        val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+        val currentJson = prefs.getString("saved_snippets", "[]") ?: "[]"
+        try {
+            val arr = JSONArray(currentJson)
+            val newSnippet = JSONObject().apply {
+                put("id", System.currentTimeMillis().toString())
+                put("title", if (text.length > 20) text.take(17) + "..." else text)
+                put("content", text)
+                put("timestamp", System.currentTimeMillis())
+            }
+            arr.put(newSnippet)
+            prefs.edit().putString("saved_snippets", arr.toString()).apply()
+            Toast.makeText(this, "Snippet saved", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("HidService", "Failed to save snippet", e)
+        }
     }
     
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -337,17 +401,23 @@ class HidService : Service() {
             this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
-        val unlockIntent = Intent(this, HidService::class.java).apply { action = "UNLOCK_MAC" }
-        val unlockPending = PendingIntent.getService(this, 20, unlockIntent, PendingIntent.FLAG_IMMUTABLE)
+        val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+        val unlockSyncEnabled = prefs.getBoolean("unlock_sync_enabled", false)
+
+        val toggleSyncIntent = Intent(this, HidService::class.java).apply { action = "TOGGLE_UNLOCK_SYNC" }
+        val toggleSyncPending = PendingIntent.getService(this, 25, toggleSyncIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val syncIntent = Intent(this, com.example.rabit.ui.components.ClipboardSyncActivity::class.java)
         val syncPending = PendingIntent.getActivity(this, 22, syncIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val stopIntent = Intent(this, HidService::class.java).apply { action = "STOP_APP" }
-        val stopPending = PendingIntent.getService(this, 12, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+        val stopPending = PendingIntent.getService(this, 12, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val lockIntent = Intent(this, HidService::class.java).apply { action = "LOCK_MAC" }
         val lockPending = PendingIntent.getService(this, 10, lockIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val unlockIntent = Intent(this, HidService::class.java).apply { action = "UNLOCK_MAC" }
+        val unlockPending = PendingIntent.getService(this, 20, unlockIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Hackie Pro Hub: $title")
@@ -355,11 +425,12 @@ class HidService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_lock_lock, "Lock Mac", lockPending)
-            .addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
+            .addAction(android.R.drawable.ic_lock_lock, "Lock", lockPending)
             .addAction(android.R.drawable.ic_lock_idle_lock, "Unlock", unlockPending)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
+            .addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopPending)
             
         return builder.build()
     }
@@ -472,6 +543,9 @@ class HidService : Service() {
     fun unlockMac(password: String) = hidDeviceManager.unlockMac(password)
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(unlockReceiver)
+        } catch (e: Exception) {}
         proximitySmartLockManager.stop()
         RabitNetworkServer.nowPlayingReceiver = null
         getSystemService(NotificationManager::class.java).cancel(mediaNotificationId)

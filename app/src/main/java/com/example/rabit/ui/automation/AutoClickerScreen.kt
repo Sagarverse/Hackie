@@ -2,7 +2,7 @@ package com.example.rabit.ui.automation
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +32,11 @@ fun AutoClickerScreen(
     val isRunning by viewModel.isAutoClicking.collectAsState()
     val interval by viewModel.autoClickInterval.collectAsState()
     val loops by viewModel.autoClickLoops.collectAsState()
+    val unit by viewModel.autoClickUnit.collectAsState()
     val currentCount by viewModel.currentClickCount.collectAsState()
+
+    var intervalText by remember(interval) { mutableStateOf(interval.toString()) }
+    var loopsText by remember(loops) { mutableStateOf(loops.toString()) }
 
     Scaffold(
         containerColor = Obsidian,
@@ -51,7 +56,8 @@ fun AutoClickerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
@@ -59,34 +65,96 @@ fun AutoClickerScreen(
             StatusDisplay(isRunning, currentCount, loops)
 
             // Configuration Section
-            ConfigCard(
-                label = "Interval",
-                value = "${interval}ms",
-                icon = Icons.Default.Timer,
-                color = AccentTeal
-            ) {
-                Slider(
-                    value = interval.toFloat(),
-                    onValueChange = { viewModel.setAutoClickInterval(it.toLong()) },
-                    valueRange = 100f..5000f,
-                    steps = 49,
-                    colors = SliderDefaults.colors(thumbColor = AccentTeal, activeTrackColor = AccentTeal)
-                )
-            }
+            PremiumGlassCard {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("CONFIGURATION", color = Silver.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = intervalText,
+                            onValueChange = { 
+                                intervalText = it
+                                it.toLongOrNull()?.let { v -> viewModel.setAutoClickInterval(v) }
+                            },
+                            label = { Text("Interval") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Platinum,
+                                unfocusedTextColor = Platinum,
+                                focusedBorderColor = AccentTeal,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        
+                        // Unit Selector
+                        Row(
+                            modifier = Modifier
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Surface3)
+                                .border(0.5.dp, BorderColor, RoundedCornerShape(8.dp)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AutomationViewModel.ClickTimeUnit.values().forEach { u ->
+                                val isSelected = u == unit
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(50.dp)
+                                        .background(if (isSelected) AccentTeal else Color.Transparent)
+                                        .clickable { viewModel.setAutoClickUnit(u) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        u.name,
+                                        color = if (isSelected) Obsidian else Silver,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
 
-            ConfigCard(
-                label = "Loop Count",
-                value = if (loops == 0) "Infinite" else "$loops Clicks",
-                icon = Icons.Default.Loop,
-                color = AccentBlue
-            ) {
-                Slider(
-                    value = loops.toFloat(),
-                    onValueChange = { viewModel.setAutoClickLoops(it.toInt()) },
-                    valueRange = 0f..1000f,
-                    steps = 20,
-                    colors = SliderDefaults.colors(thumbColor = AccentBlue, activeTrackColor = AccentBlue)
-                )
+                    OutlinedTextField(
+                        value = loopsText,
+                        onValueChange = { 
+                            loopsText = it
+                            it.toIntOrNull()?.let { v -> viewModel.setAutoClickLoops(v) }
+                        },
+                        label = { Text("Loop Count (0 for Infinite)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Platinum,
+                            unfocusedTextColor = Platinum,
+                            focusedBorderColor = AccentBlue,
+                            unfocusedBorderColor = BorderColor
+                        )
+                    )
+
+                    // More Options
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Session Control", color = Silver.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        TextButton(
+                            onClick = { viewModel.stopAutoClicker(); loopsText = "0"; viewModel.setAutoClickLoops(0) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red.copy(alpha = 0.7f))
+                        ) {
+                            Icon(Icons.Default.Refresh, null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reset Loops", fontSize = 11.sp)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

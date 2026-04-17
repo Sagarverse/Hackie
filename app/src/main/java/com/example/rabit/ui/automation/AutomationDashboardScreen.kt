@@ -202,7 +202,7 @@ fun AutomationDashboardScreen(
                         title = "SYSTEM CONTROL",
                         icon = Icons.Default.Terminal,
                         macros = filteredSystem,
-                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onMacroClick = { handleMacro(it.command, viewModel, mainViewModel) },
                         enabled = isConnected
                     )
                 }
@@ -213,7 +213,7 @@ fun AutomationDashboardScreen(
                         title = "WEB & BROWSER",
                         icon = Icons.Default.Language,
                         macros = filteredWeb,
-                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onMacroClick = { handleMacro(it.command, viewModel, mainViewModel) },
                         enabled = isConnected
                     )
                 }
@@ -224,7 +224,7 @@ fun AutomationDashboardScreen(
                         title = "PRODUCTIVITY",
                         icon = Icons.Default.AutoMode,
                         macros = filteredProductivity,
-                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onMacroClick = { handleMacro(it.command, viewModel, mainViewModel) },
                         enabled = isConnected
                     )
                 }
@@ -235,7 +235,7 @@ fun AutomationDashboardScreen(
                         title = "CREATIVE STUDIO",
                         icon = Icons.Default.Palette,
                         macros = filteredCreative,
-                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onMacroClick = { handleMacro(it.command, viewModel, mainViewModel) },
                         enabled = isConnected
                     )
                 }
@@ -246,7 +246,7 @@ fun AutomationDashboardScreen(
                         title = "USER CUSTOM",
                         icon = Icons.Default.SettingsSuggest,
                         macros = filteredCustom,
-                        onMacroClick = { handleMacro(it.command, viewModel) },
+                        onMacroClick = { handleMacro(it.command, viewModel, mainViewModel) },
                         onDeleteClick = { macroItem -> 
                             customMacros.find { it: CustomMacro -> it.name == macroItem.name && it.command == macroItem.command }?.let {
                                 viewModel.deleteCustomMacro(it)
@@ -861,23 +861,46 @@ private fun filterMacros(list: List<MacroDefinition>, query: String): List<Macro
     }
 }
 
-private fun handleMacro(command: String, viewModel: AutomationViewModel) {
+private fun handleMacro(command: String, viewModel: AutomationViewModel, mainViewModel: MainViewModel) {
     if (command.startsWith("DUCKY:")) {
         viewModel.executeDuckyScript(command.substring(6).trim())
-    } else {
-        val mappedScript = when(command) {
-            "UNLOCK_CMD" -> "STRING password\nENTER" // Placeholder, user sets their password
-            "LOCK_CMD" -> "GUI CTRL Q"
-            "SPOT_CMD" -> "GUI SPACE"
-            "SHOT_CMD" -> "GUI SHIFT 4"
-            "TAB_CMD" -> "GUI T"
-            "RELOAD_CMD" -> "GUI R"
-            "FS_CMD" -> "GUI CTRL F"
-            "TERM_CMD" -> "GUI SPACE\nDELAY 200\nSTRING Terminal\nENTER"
-            "LAUNCH_SAFARI" -> "GUI SPACE\nDELAY 200\nSTRING Safari\nENTER"
-            "LAUNCH_SPOTIFY" -> "GUI SPACE\nDELAY 200\nSTRING Spotify\nENTER"
-            else -> command 
+        return
+    }
+
+    when (command) {
+        "UNLOCK_CMD" -> {
+            mainViewModel.unlockMac()
         }
-        viewModel.executeDuckyScript(mappedScript)
+        "LOCK_CMD" -> viewModel.executeMacro2Script("KEY(CMD+CTRL+Q)")
+        "SPOT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE)")
+        "SHOT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+4)")
+        "MUTE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+M)")
+        "SLEEP_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+POWER)")
+        "SAY_HELLO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER) && WAIT(500) && TEXT(say hello) && KEY(ENTER)")
+        "TOGGLE_DARK_MODE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER) && WAIT(500) && TEXT(osascript -e 'tell app \"System Events\" to tell appearance preferences to set dark mode to not dark mode') && KEY(ENTER)")
+        "INFO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(System Information) && KEY(ENTER)")
+        "FORCE_QUIT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+ESC)")
+
+        "TAB_CMD" -> viewModel.executeMacro2Script("KEY(CMD+T)")
+        "RELOAD_CMD" -> viewModel.executeMacro2Script("KEY(CMD+R)")
+        "HIST_CMD" -> viewModel.executeMacro2Script("KEY(CMD+Y)") 
+        "PRIV_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+N)") 
+        "BACK_CMD" -> viewModel.executeMacro2Script("KEY(CMD+[)")
+        "FS_CMD" -> viewModel.executeMacro2Script("KEY(CMD+CTRL+F)")
+
+        "MC_CMD" -> viewModel.executeMacro2Script("KEY(CTRL+UP)")
+        "SW_CMD" -> viewModel.executeMacro2Script("KEY(CMD+TAB)")
+        "HIDE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+H)")
+        "TERM_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER)")
+        "LAUNCH_SAFARI" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Safari) && KEY(ENTER)")
+        "LAUNCH_SPOTIFY" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Spotify) && KEY(ENTER)")
+
+        "PLAY_CMD" -> viewModel.executeMacro2Script("MEDIA(PLAY)")
+        "ZI_CMD" -> viewModel.executeMacro2Script("KEY(CMD+=)")
+        "ZO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+-)")
+        "RENDER_CMD" -> viewModel.executeMacro2Script("KEY(CMD+M)")
+        "EXPORT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+E)")
+
+        else -> viewModel.executeMacro2Script(command) 
     }
 }

@@ -59,6 +59,7 @@ class HidDeviceManager private constructor(private val context: Context) {
 
     private var mouseAccumX = 0f
     private var mouseAccumY = 0f
+    private var lastButtons = 0
 
     private val bluetoothStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -400,7 +401,10 @@ class HidDeviceManager private constructor(private val context: Context) {
         val outX = mouseAccumX.toInt()
         val outY = mouseAccumY.toInt()
         
-        if (outX != 0 || outY != 0 || buttons != 0 || wheel != 0) {
+        val buttonsChanged = buttons != lastButtons
+        
+        if (outX != 0 || outY != 0 || buttonsChanged || wheel != 0) {
+            lastButtons = buttons
             mouseAccumX -= outX
             mouseAccumY -= outY
             
@@ -414,7 +418,7 @@ class HidDeviceManager private constructor(private val context: Context) {
         }
     }
 
-    fun sendText(text: String) {
+    fun sendText(text: String): kotlinx.coroutines.Job? {
         textPushJob?.cancel()
         _isPushPaused.value = false
         _isTextPushing.value = true
@@ -439,6 +443,7 @@ class HidDeviceManager private constructor(private val context: Context) {
                 _isTextPushing.value = false
             }
         }
+        return textPushJob
     }
 
     fun pauseTextPush() {

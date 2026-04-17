@@ -139,7 +139,7 @@ fun ProcessItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    process.command.substringAfterLast("/"),
+                    process.command.ifBlank { "Unknown Process" }.substringAfterLast("/"),
                     color = Platinum,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,

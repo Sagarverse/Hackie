@@ -4,11 +4,11 @@ import android.app.Application
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.rabit.data.airplay.AirPlayStateBus
@@ -50,7 +50,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isTextPushing = repository.isTextPushing
     val knownWorkstations = repository.knownWorkstations
     val activeModifiers: StateFlow<Byte> = MutableStateFlow(0.toByte()).asStateFlow()
-    val savedDevices = repository.knownWorkstations
+    
+    // Combine saved workstations with bonded system devices
+    private val bluetoothAdapter: BluetoothAdapter? = application.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
+    val savedDevices: StateFlow<List<Workstation>> = combine(
+        repository.knownWorkstations,
+        flow {
+            while(true) {
+                val devices = try {
+                    bluetoothAdapter?.bondedDevices?.map { device ->
+                        Workstation(
+                            address = device.address,
+                            name = device.name ?: "Unknown Device",
+                            lastConnected = 0L
+                        )
+                    } ?: emptyList()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                emit(devices)
+                delay(5000)
+            }
+        }
+    ) { known, bonded ->
+        val merged = (known + bonded).distinctBy { it.address.lowercase() }
+        merged.sortedByDescending { it.lastConnected }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val activeApp: StateFlow<String> = MutableStateFlow("").asStateFlow()
 
     // Settings & Configuration
@@ -122,6 +148,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _proximityNearRssi = MutableStateFlow(prefs.getInt("proximity_near_rssi", -65))
     val proximityNearRssi = _proximityNearRssi.asStateFlow()
 
+    init {
+        // Handle Auto-Reconnect on startup
+        viewModelScope.launch {
+            if (_autoReconnectEnabled.value) {
+                // Wait for device list to populate (bonded devices take a few moments to load)
+                savedDevices.first { it.isNotEmpty() }
+                
+                // Attempt connection to the most recently used device
+                val target = savedDevices.value.firstOrNull()
+                target?.let { device ->
+                    Log.d("MainViewModel", "Auto-reconnecting to ${device.name} (${device.address})")
+                    bluetoothAdapter?.getRemoteDevice(device.address)?.let { btDevice ->
+                        repository.connect(btDevice)
+                    }
+                }
+            }
+        }
+    }
+
     private val _proximityFarRssi = MutableStateFlow(prefs.getInt("proximity_far_rssi", -85))
     val proximityFarRssi = _proximityFarRssi.asStateFlow()
 
@@ -142,6 +187,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _notificationSyncEnabled = MutableStateFlow(prefs.getBoolean("notification_sync_enabled", false))
     val notificationSyncEnabled = _notificationSyncEnabled.asStateFlow()
+
+    private val _unlockSyncEnabled = MutableStateFlow(prefs.getBoolean("unlock_sync_enabled", false))
+    val unlockSyncEnabled = _unlockSyncEnabled.asStateFlow()
 
     private val _autoPushEnabled = MutableStateFlow(prefs.getBoolean("auto_push_enabled", false))
     val autoPushEnabled = _autoPushEnabled.asStateFlow()
@@ -276,6 +324,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun stopScanning() = repository.stopScanning()
     fun connectToDevice(device: BluetoothDevice) = repository.connect(device)
     fun connect(device: BluetoothDevice) = repository.connect(device)
+    fun connectWithRetry(device: BluetoothDevice) = repository.connect(device) // Simplified for now
     fun disconnectKeyboard() = repository.disconnect()
 
     fun sendText(text: String) = repository.sendText(text)
@@ -519,6 +568,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setNotificationSyncEnabled(enabled: Boolean) {
         _notificationSyncEnabled.value = enabled
         prefs.edit().putBoolean("notification_sync_enabled", enabled).apply()
+    }
+
+    fun setUnlockSyncEnabled(enabled: Boolean) {
+        _unlockSyncEnabled.value = enabled
+        prefs.edit().putBoolean("unlock_sync_enabled", enabled).apply()
+        // Notify HidService to update notification actions
+        val intent = Intent(getApplication(), HidService::class.java).apply {
+            action = "REFRESH_MAIN_NOTIFICATION"
+        }
+        getApplication<Application>().startService(intent)
     }
 
     fun setProximityAutoUnlockEnabled(enabled: Boolean) {

@@ -25,7 +25,7 @@ interface KeyboardRepository {
     fun sendKey(keyCode: Byte, modifier: Byte = 0)
     fun setModifier(modifier: Byte, active: Boolean)
     fun sendConsumerKey(usageId: Short)
-    fun sendText(text: String)
+    fun sendText(text: String): kotlinx.coroutines.Job?
     fun sendMouseMove(dx: Float, dy: Float, buttons: Int = 0, wheel: Int = 0)
     fun sendDigitizerInput(x: Int, y: Int, isPressed: Boolean, inRange: Boolean)
     fun resetMouseAccumulator()

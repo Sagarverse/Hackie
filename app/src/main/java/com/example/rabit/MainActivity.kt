@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.rabit.ui.theme.Platinum
+import com.example.rabit.ui.theme.Obsidian
+import com.example.rabit.ui.theme.RabitTheme
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,10 +82,11 @@ class MainActivity : FragmentActivity() {
             RabitTheme {
                 BluetoothPermissions {
                     LaunchedEffect(Unit) {
+                        val serviceIntent = Intent(this@MainActivity, HidService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent)
+                            startForegroundService(serviceIntent)
                         } else {
-                            startService(intent)
+                            startService(serviceIntent)
                         }
                     }
 
@@ -239,22 +243,13 @@ fun AppNavigation(
                     PairingScreen(
                         viewModel = viewModel,
                         onConnected = { navController.navigate("keyboard") },
-                        onNavigateToKeyboard = { navController.navigate("keyboard") },
-                        onNavigateToSettings = { navController.navigate("settings") },
-                        onNavigateToAssistant = { if (featureAssistantVisible) navController.navigate("assistant") },
-                        onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") },
-                        onNavigateToInjector = { navController.navigate("injector") },
-                        onNavigateToAirPlayReceiver = { navController.navigate("airplay_receiver") },
-                        onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
-                        onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") },
-                        onNavigateToGlobalSearch = { navController.navigate("global_search") },
-                        onNavigateToSnippets = { if (featureSnippetsVisible) navController.navigate("snippets") },
-                        onNavigateToAutomation = { if (featureAutomationVisible) navController.navigate("automation") },
-                        onNavigateToProfile = { navController.navigate("profile") },
-                        onNavigateToCustomization = { navController.navigate("customization") },
-                        onNavigateToPasswordManager = { navController.navigate("password_manager") },
-                        onNavigateToHelper = { navController.navigate("helper") }
+                        onNavigateToSettings = { navController.navigate("settings") }
                     )
+                }
+                composable("media_deck") {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Media Deck Coming Soon", color = Platinum)
+                    }
                 }
                 composable("keyboard") {
                     KeyboardScreen(
@@ -383,14 +378,7 @@ fun AppNavigation(
                         automationViewModel = automationViewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToProfile = { navController.navigate("profile") },
-                        onNavigateToCustomization = { navController.navigate("customization") },
                         onNavigateToPasswordManager = { navController.navigate("password_manager") }
-                    )
-                }
-                composable("customization") {
-                    com.example.rabit.ui.settings.CustomizationScreen(
-                        viewModel = viewModel,
-                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("password_manager") {
