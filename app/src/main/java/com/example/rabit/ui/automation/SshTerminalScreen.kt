@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +59,16 @@ import com.example.rabit.ui.theme.BorderColor
 import com.example.rabit.ui.theme.Graphite
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
+import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.delay
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +91,8 @@ fun SshTerminalScreen(
     var commandInput by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
     var contentVisible by remember { mutableStateOf(false) }
+    
+    var showNsdScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         contentVisible = true
@@ -134,7 +147,12 @@ fun SshTerminalScreen(
                         focusedBorderColor = AccentBlue,
                         unfocusedBorderColor = BorderColor,
                         focusedTextColor = Platinum
-                    )
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = { showNsdScanner = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Auto-Detect SSH Hosts", tint = AccentBlue)
+                        }
+                    }
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -284,4 +302,114 @@ fun SshTerminalScreen(
         )
         }
     }
+    
+    if (showNsdScanner) {
+        SshNsdScannerDialog(
+            onDismiss = { showNsdScanner = false },
+            onSelectNode = { ip, port, username ->
+                hostInput = ip
+                viewModel.setSshHost(ip)
+                portInput = port.toString()
+                viewModel.setSshPort(port)
+                if (username.isNotEmpty() && userInput.isEmpty()) {
+                    userInput = username
+                    viewModel.setSshUser(username)
+                }
+                showNsdScanner = false
+            }
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun SshNsdScannerDialog(onDismiss: () -> Unit, onSelectNode: (String, Int, String) -> Unit) {
+    val context = LocalContext.current
+    val nsdManager = remember { context.getSystemService(Context.NSD_SERVICE) as NsdManager }
+    val discoveredNodes = remember { androidx.compose.runtime.mutableStateListOf<NsdServiceInfo>() }
+    var isScanning by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val listener = object : NsdManager.DiscoveryListener {
+            override fun onDiscoveryStarted(regType: String) {}
+            override fun onServiceFound(service: NsdServiceInfo) {
+                if (service.serviceType.contains("_ssh._tcp") || service.serviceType.contains("_sftp-ssh._tcp")) {
+                    nsdManager.resolveService(service, object : NsdManager.ResolveListener {
+                        override fun onResolveFailed(s: NsdServiceInfo, errorCode: Int) {}
+                        override fun onServiceResolved(s: NsdServiceInfo) {
+                            if (!discoveredNodes.any { it.serviceName == s.serviceName }) {
+                                discoveredNodes.add(s)
+                            }
+                        }
+                    })
+                }
+            }
+            override fun onServiceLost(service: NsdServiceInfo) {
+                discoveredNodes.removeAll { it.serviceName == service.serviceName }
+            }
+            override fun onDiscoveryStopped(serviceType: String) {}
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) { nsdManager.stopServiceDiscovery(this) }
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) { nsdManager.stopServiceDiscovery(this) }
+        }
+        
+        nsdManager.discoverServices("_ssh._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
+
+        onDispose {
+            try { nsdManager.stopServiceDiscovery(listener) } catch (e: Exception) {}
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        delay(6000)
+        isScanning = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Graphite,
+        title = {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Discovering SSH Hosts", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                if (isScanning) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AccentBlue, strokeWidth = 2.dp)
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+                if (discoveredNodes.isEmpty()) {
+                    Text(if (isScanning) "Scanning local network via mDNS..." else "No SSH hosts found. Ensure Remote Login is enabled.", color = Silver)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(discoveredNodes) { node ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2633)),
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    val ip = node.host?.hostAddress ?: ""
+                                    val port = node.port
+                                    // Guess username from Apple's default naming (e.g., "Sagar's MacBook Pro" -> "sagar")
+                                    val rawName = node.serviceName.split("'").firstOrNull()?.lowercase()?.replace(" ", "") ?: ""
+                                    val guessedUsername = if (rawName.contains("macbook") || rawName.contains("imac")) "" else rawName
+                                    onSelectNode(ip, port, guessedUsername)
+                                }
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(node.serviceName, color = Platinum, fontWeight = FontWeight.Bold)
+                                    Text("${node.host?.hostAddress ?: "Unknown IP"}:${node.port}", color = Silver, fontSize = 12.sp)
+                                    // small hint
+                                    Text("Tap to auto-fill", color = AccentBlue, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = AccentBlue)
+            }
+        }
+    )
 }
