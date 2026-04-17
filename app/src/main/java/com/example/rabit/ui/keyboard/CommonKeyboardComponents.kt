@@ -38,13 +38,13 @@ fun PremiumKey(label: String, modifier: Modifier, accent: Color, onPress: () -> 
 
     Box(
         modifier = modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isPressed) SoftGrey else KeyBackground)
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isPressed) Surface3 else KeyBackground)
             .border(
-                1.dp,
-                if (isPressed) accent.copy(alpha = 0.5f) else BorderColor,
-                RoundedCornerShape(10.dp)
+                0.5.dp,
+                if (isPressed) accent.copy(alpha = 0.4f) else BorderColor,
+                RoundedCornerShape(12.dp)
             )
             .clickable(interactionSource = interactionSource, indication = null) { onPress() },
         contentAlignment = Alignment.Center
@@ -53,7 +53,7 @@ fun PremiumKey(label: String, modifier: Modifier, accent: Color, onPress: () -> 
             text = label,
             color = if (isPressed) accent else accent.copy(alpha = 0.7f),
             fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.W600
         )
     }
 }
@@ -77,12 +77,12 @@ fun MouseButton(modifier: Modifier, text: String, onClick: () -> Unit) {
                     }
                 )
             },
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SoftGrey.copy(alpha = 0.6f)),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(20.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Surface2),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f)),
         contentPadding = PaddingValues(0.dp)
     ) {
-        Text(text, color = Platinum.copy(alpha = 0.9f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.W500)
     }
 }
 
@@ -99,14 +99,14 @@ fun WorkstationCard(
         modifier = Modifier
             .width(160.dp)
             .clickable(!isConnecting && !isConnected) { onConnect(workstation) },
-        color = if (isConnected) AccentBlue.copy(alpha = 0.1f) else SoftGrey.copy(alpha = 0.4f),
-        shape = RoundedCornerShape(20.dp),
+        color = if (isConnected) AccentBlue.copy(alpha = 0.08f) else Surface2,
+        shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isConnected) AccentBlue.copy(alpha = 0.5f) else BorderColor.copy(alpha = 0.1f)
+            0.5.dp,
+            if (isConnected) AccentBlue.copy(alpha = 0.3f) else BorderColor
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -115,14 +115,17 @@ fun WorkstationCard(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(if (isConnected) AccentBlue.copy(alpha = 0.2f) else Silver.copy(alpha = 0.05f), CircleShape),
+                        .background(
+                            if (isConnected) AccentBlue.copy(alpha = 0.12f) else Surface3,
+                            RoundedCornerShape(10.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (workstation.name.contains("Mac", true)) Icons.Default.LaptopMac else Icons.Default.Computer,
                         contentDescription = null,
-                        tint = if (isConnected) AccentBlue else Silver.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp)
+                        tint = if (isConnected) AccentBlue else TextTertiary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
@@ -135,18 +138,18 @@ fun WorkstationCard(
 
             Text(
                 workstation.name,
-                color = if (isConnected) AccentBlue else Platinum,
+                color = if (isConnected) AccentBlue else TextPrimary,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.W600,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
 
             Text(
-                workstation.address.take(12) + "...",
-                color = Silver.copy(alpha = 0.4f),
+                workstation.address.take(12) + "…",
+                color = TextTertiary,
                 fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.W400
             )
         }
     }
@@ -162,24 +165,24 @@ fun RemoteFileCard(file: RemoteFile, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val icon = if (file.isFolder) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile
-        val tint = if (file.isFolder) AccentBlue else Platinum.copy(alpha = 0.6f)
-        
+        val tint = if (file.isFolder) AccentBlue else TextTertiary
+
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(tint.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                .background(tint.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
+
+        Spacer(modifier = Modifier.height(6.dp))
+
         Text(
             file.name,
-            color = Platinum,
+            color = TextPrimary,
             fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.W500,
             maxLines = 2,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -197,22 +200,22 @@ fun SmallActionCard(
 ) {
     Surface(
         modifier = modifier.clickable { onClick() },
-        color = SoftGrey.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f))
+        color = Surface2,
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(28.dp).background(accent.copy(alpha = 0.1f), CircleShape),
+                modifier = Modifier.size(28.dp).background(accent.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(title, color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(title, color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.W600, letterSpacing = 0.5.sp)
         }
     }
 }

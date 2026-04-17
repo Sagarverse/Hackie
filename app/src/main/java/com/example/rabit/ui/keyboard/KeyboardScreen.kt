@@ -31,10 +31,8 @@ import com.example.rabit.ui.assistant.PulsingVoiceButton
 import com.example.rabit.ui.theme.*
 
 /**
- * KeyboardScreen - The professional "Infrastructure Hub" remote interface.
- * 
- * Manages high-level navigation between input modules (Keyboard, Trackpad, Macros, Hub).
- * Features lifecycle-aware state management for background sensors (Air Mouse).
+ * KeyboardScreen — Premium remote control interface.
+ * Manages input modules: Keyboard, Trackpad, Hub.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +64,7 @@ fun KeyboardScreen(
         }
     }
 
-    // Scoping: Disable Pad operations (Air Mouse) when leaving the "PAD" tab or screen
+    // Disable Air Mouse when leaving the PAD tab or screen
     LaunchedEffect(selectedTab) {
         if (selectedTab != 1) {
             viewModel.setAirMouseEnabled(false)
@@ -84,86 +82,95 @@ fun KeyboardScreen(
             .fillMaxSize()
             .padding(horizontal = 20.dp)
     ) {
-        // Compact connection status (global top bar is provided by RabitAppScaffold)
+        // ── Compact Header ──
         val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
+        val isOnline = deviceName != "OFFLINE"
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // Status dot + device name
             Box(
                 modifier = Modifier
                     .size(6.dp)
                     .background(
-                        if (deviceName != "OFFLINE") SuccessGreen else Color(0xFFD93030),
+                        if (isOnline) SuccessGreen else TextTertiary.copy(alpha = 0.5f),
                         CircleShape
                     )
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 deviceName.uppercase(),
-                color = Silver,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 2.sp
+                color = if (isOnline) TextSecondary else TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.W500,
+                letterSpacing = 1.5.sp,
+                modifier = Modifier.weight(1f)
             )
-        }
-        // Unified Premium Header with Disconnect and Settings access
-        PremiumHeader(
-            connectionState = connectionState,
-            onNavigateToSettings = onNavigateToSettings,
-            onDisconnect = onDisconnect
-        )
 
-        // Module Switcher (TabRow alternative for extreme responsiveness)
+            // Action buttons
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(Surface2, CircleShape)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(16.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = onDisconnect,
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(Surface2, CircleShape)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Disconnect", tint = TextSecondary, modifier = Modifier.size(14.dp))
+            }
+        }
+
+        // ── Module Switcher (clean underline style) ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .background(SoftGrey.copy(alpha=0.3f), RoundedCornerShape(12.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            val tabs = listOf(
-                "INPUT" to Icons.Default.Keyboard,
-                "PAD" to Icons.Default.TouchApp,
-                "HUB" to Icons.Default.FolderOpen
-            )
-            
-            tabs.forEachIndexed { index, (label, icon) ->
+            val tabs = listOf("Input", "Pad", "Hub")
+
+            tabs.forEachIndexed { index, label ->
                 val active = selectedTab == index
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (active) Graphite else Color.Transparent)
-                        .clickable { selectedTab = index },
-                    contentAlignment = Alignment.Center
+                        .clickable { selectedTab = index }
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(
-                            icon,
-                            contentDescription = null,
-                            tint = if (active) AccentBlue else Silver.copy(alpha=0.5f),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            label,
-                            color = if (active) Platinum else Silver.copy(alpha=0.5f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        label.uppercase(),
+                        color = if (active) TextPrimary else TextTertiary,
+                        fontSize = 11.sp,
+                        fontWeight = if (active) FontWeight.W700 else FontWeight.W500,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(if (active) AccentBlue else Color.Transparent)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Dynamic Module Container
+        // ── Dynamic Module Container ──
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
                 0 -> DualKeyboardTab(viewModel)
@@ -171,83 +178,19 @@ fun KeyboardScreen(
                 2 -> FileHubSection(viewModel, onNavigateToSnippets, onNavigateToAutomation, onNavigateToWebBridge)
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
+// PremiumHeader kept for backward compatibility but simplified
 @Composable
 fun PremiumHeader(
     connectionState: HidDeviceManager.ConnectionState,
     onNavigateToSettings: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                "CONTROL DECK",
-                color = Platinum,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 4.sp
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                "Remote infrastructure control interface.",
-                color = AccentBlue,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(
-                            if (deviceName != "OFFLINE") SuccessGreen else ErrorRed,
-                            CircleShape
-                        )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    deviceName.uppercase(),
-                    color = Silver,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 2.sp
-                )
-            }
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(
-                onClick = onNavigateToSettings,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(SoftGrey, CircleShape)
-                    .border(1.dp, BorderColor, CircleShape)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Platinum, modifier = Modifier.size(18.dp))
-            }
-            IconButton(
-                onClick = onDisconnect,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(SoftGrey, CircleShape)
-                    .border(1.dp, BorderColor, CircleShape)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "Disconnect", tint = Platinum, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
+    // No-op — header is now inline in KeyboardScreen
 }
 
 @Composable
@@ -255,13 +198,13 @@ fun DualKeyboardTab(viewModel: MainViewModel) {
     var isSystemMode by remember { mutableStateOf(false) }
 
     Column {
+        // Mode toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
-                .background(SoftGrey, RoundedCornerShape(20.dp))
-                .border(1.dp, BorderColor, RoundedCornerShape(20.dp))
-                .padding(4.dp)
+                .height(38.dp)
+                .background(Surface2, RoundedCornerShape(10.dp))
+                .padding(3.dp)
         ) {
             listOf("CUSTOM" to false, "SYSTEM" to true).forEach { (label, system) ->
                 val active = isSystemMode == system
@@ -269,29 +212,28 @@ fun DualKeyboardTab(viewModel: MainViewModel) {
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (active) Graphite else Color.Transparent)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (active) Surface3 else Color.Transparent)
                         .clickable { isSystemMode = system },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         label,
-                        color = if (active) AccentBlue else Silver,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        color = if (active) TextPrimary else TextTertiary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.W700,
                         letterSpacing = 1.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         if (isSystemMode) {
             MinimalSystemInput(viewModel)
         } else {
             val activeModifiers by viewModel.activeModifiers.collectAsState()
-
             PremiumKeyboardLayout(
                 activeModifiers = activeModifiers,
                 onModifierClick = { mod -> viewModel.toggleModifier(mod) },
@@ -326,20 +268,20 @@ fun MinimalSystemInput(viewModel: MainViewModel) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(130.dp),
-            placeholder = { Text("Native Keyboard Input...", color = Silver.copy(alpha = 0.3f)) },
+                .height(120.dp),
+            placeholder = { Text("Type here…", color = TextTertiary) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AccentBlue,
                 unfocusedBorderColor = BorderColor,
-                focusedTextColor = Platinum,
+                focusedTextColor = TextPrimary,
                 cursorColor = AccentBlue
             ),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             trailingIcon = {
                 val voiceState by viewModel.voiceState.collectAsState()
                 val voiceResult by viewModel.voiceResult.collectAsState()
-                
+
                 LaunchedEffect(voiceResult, voiceState) {
                     if (voiceResult.isNotBlank() && voiceState == VoiceState.SUCCESS) {
                         val updatedText = textFieldValue.text + (if (textFieldValue.text.isNotEmpty()) " " else "") + voiceResult
@@ -361,35 +303,35 @@ fun MinimalSystemInput(viewModel: MainViewModel) {
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text("BATCH SENDER", color = Silver, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Spacer(modifier = Modifier.height(8.dp))
+        Text("BATCH", color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.W700, letterSpacing = 1.2.sp)
+        Spacer(modifier = Modifier.height(6.dp))
 
         OutlinedTextField(
             value = batchText,
             onValueChange = { batchText = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(90.dp),
-            placeholder = { Text("Type long text and hit SEND", color = Silver.copy(alpha = 0.3f)) },
+                .height(80.dp),
+            placeholder = { Text("Paste long text and send", color = TextTertiary) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = SuccessGreen,
                 unfocusedBorderColor = BorderColor,
-                focusedTextColor = Platinum,
+                focusedTextColor = TextPrimary,
                 cursorColor = SuccessGreen
             ),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(14.dp)
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = { viewModel.sendText(batchText); batchText = "" }) {
-                Text("SEND TO MAC", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("SEND", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.W700)
             }
             TextButton(onClick = { textFieldValue = TextFieldValue(""); batchText = "" }) {
-                Text("RESET", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("RESET", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.W600)
             }
         }
     }
@@ -411,9 +353,9 @@ fun PremiumKeyboardLayout(
         listOf("Ctrl", "Opt", "Cmd", "Space", "Enter")
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { label ->
                     val code = when(label) {
                         "Bksp" -> HidKeyCodes.KEY_BACKSPACE
@@ -433,7 +375,7 @@ fun PremiumKeyboardLayout(
                     PremiumKey(
                         label = label,
                         modifier = Modifier.weight(if (label == "Space") 2.5f else if (label.length > 1) 1.3f else 1f),
-                        accent = if (isSelected) SuccessGreen else if (isMod) AccentBlue else Platinum,
+                        accent = if (isSelected) SuccessGreen else if (isMod) AccentBlue else TextPrimary,
                         onPress = {
                             if (isMod) onModifierClick(code) else onKeyPress(code)
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)

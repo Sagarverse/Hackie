@@ -131,44 +131,8 @@ fun SettingsScreen(
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.Transparent,
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, BorderStrong.copy(alpha = 0.45f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .background(GlassCardGradient)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("SYSTEM CONTROL CENTER", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
-                    Text("Tune connection behavior, security posture, and automation intelligence in one place.", color = Silver, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = { Text(if (autoReconnect) "Auto Reconnect: ON" else "Auto Reconnect: OFF") },
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledContainerColor = AccentBlue.copy(alpha = 0.14f),
-                                disabledLabelColor = Platinum
-                            )
-                        )
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = { Text(if (proximityAutoUnlockEnabled) "Proximity: Active" else "Proximity: Idle") },
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledContainerColor = SoftGrey.copy(alpha = 0.45f),
-                                disabledLabelColor = Platinum
-                            )
-                        )
-                    }
-                }
-            }
 
             GeminiApiSettingsSection(viewModel = geminiSettingsViewModel)
             

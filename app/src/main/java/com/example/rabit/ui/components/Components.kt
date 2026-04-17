@@ -27,23 +27,21 @@ import com.example.rabit.ui.theme.*
 @Composable
 fun PremiumGlassCard(
     modifier: Modifier = Modifier,
-    backgroundColor: Color = Graphite.copy(alpha = 0.72f),
+    backgroundColor: Color = Surface1,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(18.dp), clip = false)
-            .clip(RoundedCornerShape(18.dp))
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .border(1.dp, BorderStrong.copy(alpha = 0.55f), RoundedCornerShape(18.dp)),
-        color = Color.Transparent
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        color = backgroundColor,
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor),
+        shadowElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier
-                .background(GlassCardGradient)
-                .padding(16.dp),
+            modifier = Modifier.padding(16.dp),
             content = content
         )
     }
@@ -61,8 +59,8 @@ fun VibrantGradientButton(
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
         contentPadding = PaddingValues(),
         modifier = modifier
-            .height(54.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(50.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(gradient),
     ) {
         Box(
@@ -72,8 +70,8 @@ fun VibrantGradientButton(
             Text(
                 text = text,
                 color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.W700,
                 letterSpacing = 0.3.sp
             )
         }
@@ -83,20 +81,20 @@ fun VibrantGradientButton(
 @Composable
 fun PremiumSectionHeader(title: String) {
     Row(
-        modifier = Modifier.padding(start = 10.dp, bottom = 8.dp, top = 14.dp),
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp, top = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(width = 22.dp, height = 4.dp)
-                .background(AccentBlue.copy(alpha = 0.8f), RoundedCornerShape(99.dp))
+                .size(5.dp)
+                .background(AccentBlue.copy(alpha = 0.6f), CircleShape)
         )
         Text(
             text = title.uppercase(),
-            color = Silver.copy(alpha = 0.92f),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
+            color = TextTertiary,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.W700,
             letterSpacing = 1.2.sp
         )
     }
@@ -104,7 +102,6 @@ fun PremiumSectionHeader(title: String) {
 
 /**
  * Floating control bar for pause/resume/stop during text push operations.
- * Appears at the bottom of the screen when text is being pushed over Bluetooth.
  */
 @Composable
 fun PushControlBar(
@@ -129,11 +126,11 @@ fun PushControlBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = if (isPaused) PausedAmber.copy(alpha = 0.15f) else AccentBlue.copy(alpha = 0.15f),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isPaused) Surface3 else AccentBlue.copy(alpha = 0.08f),
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isPaused) PausedAmber.copy(alpha = 0.4f) else AccentBlue.copy(alpha = 0.4f)
+            0.5.dp,
+            if (isPaused) BorderStrong else AccentBlue.copy(alpha = 0.3f)
         )
     ) {
         Row(
@@ -144,10 +141,9 @@ fun PushControlBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Animated typing indicator
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(6.dp)
                         .background(
                             if (isPaused) PausedAmber else SuccessGreen.copy(alpha = pulseAlpha),
                             CircleShape
@@ -156,45 +152,43 @@ fun PushControlBar(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     if (isPaused) "PAUSED" else "TYPING…",
-                    color = if (isPaused) PausedAmber else Platinum,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    color = if (isPaused) TextSecondary else TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.W700,
                     letterSpacing = 1.sp
                 )
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Pause / Resume button
                 FilledIconButton(
                     onClick = { if (isPaused) onResume() else onPause() },
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(36.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = if (isPaused) SuccessGreen else PausedAmber
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                         contentDescription = if (isPaused) "Resume" else "Pause",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
-                // Stop button
                 FilledIconButton(
                     onClick = onStop,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(36.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = AccentBlue.copy(alpha = 0.8f)
+                        containerColor = Surface4
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         Icons.Default.Stop,
                         contentDescription = "Stop",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        tint = TextPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -203,7 +197,7 @@ fun PushControlBar(
 }
 
 /**
- * Icon with colored background circle — used in settings for iOS-style icon indicators.
+ * Icon with colored background — settings icon indicator.
  */
 @Composable
 fun SettingsIconBadge(
@@ -214,22 +208,21 @@ fun SettingsIconBadge(
 ) {
     Box(
         modifier = modifier
-            .size(32.dp)
-            .background(backgroundColor.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
-            .border(0.8.dp, backgroundColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
+            .size(30.dp)
+            .background(backgroundColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             icon,
             contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(18.dp)
+            tint = backgroundColor,
+            modifier = Modifier.size(16.dp)
         )
     }
 }
 
 /**
- * Device type badge with icon and label for the pairing screen.
+ * Device type badge with icon and label.
  */
 @Composable
 fun DeviceTypeBadge(
@@ -248,18 +241,8 @@ fun DeviceTypeBadge(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = color,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            label,
-            color = color,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(14.dp))
+        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.W500)
     }
 }
 
@@ -267,9 +250,6 @@ enum class DeviceType {
     MAC, ANDROID, WINDOWS, UNKNOWN
 }
 
-/**
- * Determine device type from Bluetooth device name heuristics.
- */
 fun guessDeviceType(name: String): DeviceType {
     val lower = name.lowercase()
     return when {
@@ -290,7 +270,7 @@ fun guessDeviceType(name: String): DeviceType {
 }
 
 /**
- * Connection quality indicator pill that shows signal quality.
+ * Connection quality indicator pill.
  */
 @Composable
 fun ConnectionQualityIndicator(
@@ -302,31 +282,31 @@ fun ConnectionQualityIndicator(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
-            .background(SuccessGreen.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-            .border(0.5.dp, SuccessGreen.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+            .background(SuccessGreen.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+            .border(0.5.dp, SuccessGreen.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(8.dp)
+                .size(6.dp)
                 .background(SuccessGreen, CircleShape)
         )
         Text(
             if (deviceName.isNotBlank()) deviceName else "Connected",
             color = SuccessGreen,
             fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.W600,
             maxLines = 1
         )
     }
 }
 
 /**
- * Step indicator for the pairing flow: BT On → Scanning → Select → Connected
+ * Step indicator for the pairing flow.
  */
 @Composable
 fun ConnectionStepIndicator(
-    currentStep: Int, // 0=BT Off, 1=BT On/Ready, 2=Scanning, 3=Connected
+    currentStep: Int,
     modifier: Modifier = Modifier
 ) {
     val steps = listOf("Enable BT", "Scan", "Select", "Connected")
@@ -340,8 +320,8 @@ fun ConnectionStepIndicator(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Graphite.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            .border(0.5.dp, BorderColor.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            .background(Surface1, RoundedCornerShape(14.dp))
+            .border(0.5.dp, BorderColor, RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -352,7 +332,7 @@ fun ConnectionStepIndicator(
             val color = when {
                 isCompleted -> SuccessGreen
                 isCurrent -> AccentBlue
-                else -> Silver.copy(alpha = 0.3f)
+                else -> TextTertiary.copy(alpha = 0.3f)
             }
 
             Column(
@@ -361,13 +341,13 @@ fun ConnectionStepIndicator(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(32.dp)
                         .background(
-                            color.copy(alpha = if (isCurrent) 0.2f else if (isCompleted) 0.15f else 0.08f),
+                            color.copy(alpha = if (isCurrent) 0.12f else if (isCompleted) 0.08f else 0.04f),
                             CircleShape
                         )
                         .then(
-                            if (isCurrent) Modifier.border(1.5.dp, color, CircleShape) else Modifier
+                            if (isCurrent) Modifier.border(1.dp, color.copy(alpha = 0.4f), CircleShape) else Modifier
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -375,7 +355,7 @@ fun ConnectionStepIndicator(
                         stepIcons[index],
                         contentDescription = label,
                         tint = color,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -383,19 +363,18 @@ fun ConnectionStepIndicator(
                     label,
                     color = color,
                     fontSize = 9.sp,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    fontWeight = if (isCurrent) FontWeight.W700 else FontWeight.W500,
                     maxLines = 1
                 )
             }
 
-            // Connector line between steps
             if (index < steps.size - 1) {
                 Box(
                     modifier = Modifier
-                        .height(1.5.dp)
+                        .height(1.dp)
                         .width(16.dp)
                         .background(
-                            if (isCompleted) SuccessGreen.copy(alpha = 0.5f) else BorderColor.copy(alpha = 0.2f),
+                            if (isCompleted) SuccessGreen.copy(alpha = 0.3f) else BorderColor.copy(alpha = 0.2f),
                             RoundedCornerShape(1.dp)
                         )
                 )
@@ -405,7 +384,7 @@ fun ConnectionStepIndicator(
 }
 
 /**
- * Premium device card for the redesigned pairing screen.
+ * Premium device card for pairing screen.
  */
 @Composable
 fun AnimatedDeviceCard(
@@ -428,10 +407,10 @@ fun AnimatedDeviceCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = if (isConnecting) iconColor.copy(alpha = 0.06f) else Graphite.copy(alpha = 0.6f),
+        color = if (isConnecting) iconColor.copy(alpha = 0.04f) else Surface1,
         border = androidx.compose.foundation.BorderStroke(
-            if (isConnecting) 1.dp else 0.5.dp,
-            if (isConnecting) iconColor.copy(alpha = 0.4f) else BorderColor.copy(alpha = 0.3f)
+            0.5.dp,
+            if (isConnecting) iconColor.copy(alpha = 0.3f) else BorderColor
         )
     ) {
         Row(
@@ -445,34 +424,34 @@ fun AnimatedDeviceCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .background(iconColor.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                        .size(40.dp)
+                        .background(iconColor.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+                    Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
                 }
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             name,
-                            color = Platinum,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.W600,
                             maxLines = 1
                         )
                         if (isBonded) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = AccentGold.copy(alpha = 0.15f)
+                                color = AccentGold.copy(alpha = 0.1f)
                             ) {
                                 Text(
                                     "PAIRED",
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     color = AccentGold,
                                     fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.W700
                                 )
                             }
                         }
@@ -480,15 +459,15 @@ fun AnimatedDeviceCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         subtitle,
-                        color = if (isConnecting) iconColor else Silver,
+                        color = if (isConnecting) iconColor else TextSecondary,
                         fontSize = 12.sp,
-                        fontWeight = if (isConnecting) FontWeight.Medium else FontWeight.Normal
+                        fontWeight = if (isConnecting) FontWeight.W500 else FontWeight.W400
                     )
                 }
             }
             if (isConnecting) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     color = iconColor,
                     strokeWidth = 2.dp
                 )
@@ -496,8 +475,8 @@ fun AnimatedDeviceCard(
                 Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = Silver.copy(alpha = 0.4f),
-                    modifier = Modifier.size(20.dp)
+                    tint = TextTertiary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -505,8 +484,7 @@ fun AnimatedDeviceCard(
 }
 
 /**
- * Quick-connect card for the last connected device. Shows at the top of the pairing screen
- * for instant reconnection.
+ * Quick-connect card for the last connected device.
  */
 @Composable
 fun QuickConnectCard(
@@ -537,37 +515,29 @@ fun QuickConnectCard(
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = iconColor.copy(alpha = 0.06f),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            iconColor.copy(alpha = 0.3f)
-        )
+        shape = RoundedCornerShape(14.dp),
+        color = iconColor.copy(alpha = 0.04f),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, iconColor.copy(alpha = 0.2f))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(iconColor.copy(alpha = 0.2f), iconColor.copy(alpha = 0.05f))
-                        ),
-                        RoundedCornerShape(14.dp)
-                    ),
+                    .size(44.dp)
+                    .background(iconColor.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
             }
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     deviceName,
-                    color = Platinum,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.W600,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(2.dp))
@@ -575,44 +545,44 @@ fun QuickConnectCard(
                     Icon(
                         Icons.Default.History,
                         contentDescription = null,
-                        tint = Silver.copy(alpha = 0.5f),
-                        modifier = Modifier.size(12.dp)
+                        tint = TextTertiary,
+                        modifier = Modifier.size(11.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         "Last connected $timeAgo",
-                        color = Silver.copy(alpha = 0.6f),
-                        fontSize = 12.sp
+                        color = TextTertiary,
+                        fontSize = 11.sp
                     )
                 }
             }
             if (isConnecting) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                     color = iconColor,
-                    strokeWidth = 2.5.dp
+                    strokeWidth = 2.dp
                 )
             } else {
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = iconColor.copy(alpha = 0.15f)
+                    shape = RoundedCornerShape(8.dp),
+                    color = iconColor.copy(alpha = 0.08f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Default.FlashOn,
                             contentDescription = null,
                             tint = iconColor,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             "Connect",
                             color = iconColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.W600
                         )
                     }
                 }
@@ -625,7 +595,7 @@ fun QuickConnectCard(
 fun BluetoothDisabledBanner(onEnableClick: () -> Unit) {
     DarkSkeuoCard(
         modifier = Modifier.fillMaxWidth(),
-        borderColor = Color(0xFF3A4A5F).copy(alpha = 0.3f)
+        borderColor = BorderColor
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -633,19 +603,19 @@ fun BluetoothDisabledBanner(onEnableClick: () -> Unit) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(Color(0xFFD9B443).copy(alpha = 0.1f), CircleShape),
+                    .size(36.dp)
+                    .background(WarningYellow.copy(alpha = 0.08f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.BluetoothDisabled, null, tint = Color(0xFFD9B443), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.BluetoothDisabled, null, tint = WarningYellow, modifier = Modifier.size(18.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Bluetooth is Off", color = Color(0xFFF5F8FF), fontWeight = FontWeight.Bold)
-                Text("Enable it to discover nearby computers", color = Color(0xFFA9B3C2), fontSize = 11.sp)
+                Text("Bluetooth is Off", color = TextPrimary, fontWeight = FontWeight.W600, fontSize = 14.sp)
+                Text("Enable to discover nearby computers", color = TextSecondary, fontSize = 11.sp)
             }
             TextButton(onClick = onEnableClick) {
-                Text("ENABLE", color = Color(0xFFD9B443), fontWeight = FontWeight.Black)
+                Text("ENABLE", color = WarningYellow, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
     }
