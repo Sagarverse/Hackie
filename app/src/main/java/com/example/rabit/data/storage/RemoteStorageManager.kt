@@ -21,6 +21,8 @@ import java.net.URLEncoder
 import java.util.Properties
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
+import android.hardware.usb.UsbDevice
+import com.example.rabit.data.adb.UsbAdbManager
 
 /**
  * RemoteStorageManager — Singleton that mediates between the SAF DocumentsProvider
@@ -79,11 +81,34 @@ object RemoteStorageManager {
                 runCatching { adbClient?.connectWifi(adbIp, adbPort) }
             }
         }
+    }
 
-        // Try establishing SSH/SFTP; ok if it fails — we'll retry lazily
-        ensureSshConnected()
-        isMounted = true
-        Log.i(TAG, "Remote storage mounted (ssh=${sshHost.isNotBlank()}, helper=${helperBaseUrl.isNotBlank()})")
+    fun connectUsb(context: Context, device: UsbDevice, onResult: (Boolean) -> Unit) {
+        val usbAdbManager = UsbAdbManager(context)
+        usbAdbManager.requestPermission(device) { granted ->
+            if (granted) {
+                GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val socket = usbAdbManager.openDevice(device)
+                        if (socket != null) {
+                            val crypto = com.example.rabit.data.adb.RabitAdbCrypto.getCrypto(context)
+                            val client = com.example.rabit.data.adb.RabitAdbClient(crypto)
+                            client.connectSocket(socket)
+                            adbClient = client
+                            isMounted = true
+                            onResult(true)
+                        } else {
+                            onResult(false)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "USB ADB connection failed", e)
+                        onResult(false)
+                    }
+                }
+            } else {
+                onResult(false)
+            }
+        }
     }
 
     fun unmount() {

@@ -16,13 +16,25 @@ class RabitAdbClient(private val crypto: AdbCrypto) {
     companion object {
         private const val TAG = "RabitAdbClient"
     }
-
     suspend fun connectWifi(ip: String, port: Int) = withContext(Dispatchers.IO) {
         try {
             socket = Socket(ip, port)
             connection = AdbConnection.create(socket!!, crypto)
             connection!!.connect()
             Log.i(TAG, "Connected to ADB at $ip:$port")
+        } catch (e: Exception) {
+            Log.e(TAG, "ADB Connection failed: ${e.message}")
+            disconnect()
+            throw e
+        }
+    }
+
+    suspend fun connectSocket(customSocket: Socket) = withContext(Dispatchers.IO) {
+        try {
+            socket = customSocket
+            connection = AdbConnection.create(socket!!, crypto)
+            connection!!.connect()
+            Log.i(TAG, "Connected to ADB via custom socket (USB)")
         } catch (e: Exception) {
             Log.e(TAG, "ADB Connection failed: ${e.message}")
             disconnect()

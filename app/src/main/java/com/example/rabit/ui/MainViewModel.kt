@@ -1008,6 +1008,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val config = Properties().apply { put("StrictHostKeyChecking", "no") }
                 session.setConfig(config)
                 session.connect(10_000)
+                
+                // Track as successful host/user pair
+                saveSshHistory(_sshHost.value, _sshUser.value)
 
                 val channel = session.openChannel("shell") as ChannelShell
                 channel.setPty(true)
@@ -1976,7 +1979,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun reconnectLastSavedDevice() {
         if (!_autoReconnectEnabled.value) return
-        val target = _savedDevices.value.firstOrNull() ?: return
+        
+        val lastAddress = prefs.getString("last_connected_device_address", null)
+        val target = if (lastAddress != null) {
+            _savedDevices.value.find { it.address == lastAddress }
+        } else {
+            _savedDevices.value.firstOrNull()
+        }
+        
+        if (target == null) return
+        
         val bluetoothManager = getApplication<Application>().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val bluetoothAdapter = bluetoothManager.adapter
         val bonded = findBondedDeviceByNameOrAddress(bluetoothAdapter, target.name, target.address)
@@ -2646,6 +2658,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (existing.size > 10) existing.removeAt(existing.size - 1) // Keep max 10
         _savedDevices.value = existing
         saveSavedDevices(existing)
+        
+        // Track as last connected
+        prefs.edit().putString("last_connected_device_address", address).apply()
     }
 
     fun removeSavedDevice(device: SavedDevice) {
@@ -2751,6 +2766,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _autoReconnectEnabled.value = enabled
         if (enabled && connectionState.value is HidDeviceManager.ConnectionState.Disconnected) {
             reconnectLastSavedDevice()
+        }
+    }
+
+    fun saveSshHistory(host: String, user: String) {
+        val history = prefs.getString("ssh_history_json", "{}") ?: "{}"
+        try {
+            val json = JSONObject(history)
+            json.put(host, user)
+            prefs.edit().putString("ssh_history_json", json.toString()).apply()
+            
+            // Also update global defaults
+            prefs.edit().putString("ssh_host", host).apply()
+            prefs.edit().putString("ssh_user", user).apply()
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to save SSH history", e)
+        }
+    }
+
+    fun getGuessedSshUser(host: String): String {
+        val history = prefs.getString("ssh_history_json", "{}") ?: "{}"
+        return try {
+            val json = JSONObject(history)
+            json.optString(host, prefs.getString("ssh_user", "") ?: "")
+        } catch (e: Exception) {
+            ""
         }
     }
 

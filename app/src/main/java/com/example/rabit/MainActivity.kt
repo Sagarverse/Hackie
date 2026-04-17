@@ -372,6 +372,12 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("adb_manager") {
+                    com.example.rabit.ui.automation.AdbManagerScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToFiles = { navController.navigate("remote_explorer") }
+                    )
+                }
                 composable("profile") {
                     ProfileScreen(onBack = { navController.popBackStack() })
                 }

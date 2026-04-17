@@ -115,12 +115,15 @@ fun PairingScreen(
     
     // Connect to a saved device by address
     fun connectToSavedDevice(address: String) {
-        val bonded = bluetoothAdapter?.bondedDevices?.firstOrNull { it.address == address }
-        if (bonded != null) {
+        val bluetoothDevice = try {
+            bluetoothAdapter?.getRemoteDevice(address)
+        } catch (e: Exception) { null }
+
+        if (bluetoothDevice != null) {
             viewModel.stopScanning()
-            connectingDeviceAddress = bonded.address
+            connectingDeviceAddress = bluetoothDevice.address
             connectionError = null
-            viewModel.connect(bonded)
+            viewModel.connect(bluetoothDevice)
         }
     }
     Box(modifier = Modifier.fillMaxSize().background(Obsidian)) {

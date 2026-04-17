@@ -90,6 +90,18 @@ dependencies {
     implementation(libs.mediapipe.genai)
     implementation(libs.zxing.core)
     implementation("io.coil-kt:coil-compose:2.6.0")
+    
+    // ADB TLS PSK Encryption
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
+    implementation("org.bouncycastle:bcpkix-jdk15to18:1.77")
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.77")
+    
+    // QR Code Scanning
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-view:1.3.1")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
     // WebRTC for P2P Hosting
     implementation("io.github.webrtc-sdk:android:125.6422.07")
 

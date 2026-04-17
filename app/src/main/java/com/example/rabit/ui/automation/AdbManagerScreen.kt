@@ -24,12 +24,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.hardware.usb.UsbDevice
+import com.example.rabit.data.adb.UsbAdbManager
 import com.example.rabit.data.storage.RemoteStorageManager
+import com.example.rabit.data.storage.adb_tls.AdbTlsPairingManager
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
+import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +52,25 @@ fun AdbManagerScreen(
     var adbIp by remember { mutableStateOf(prefs.getString("adb_ip", "") ?: "") }
     var adbPort by remember { mutableStateOf((prefs.getInt("adb_port", 5555)).toString()) }
     var isConnecting by remember { mutableStateOf(false) }
+    
+    var showPairDialog by remember { mutableStateOf(false) }
+    var showQrScanner by remember { mutableStateOf(false) }
+    var pairingHost by remember { mutableStateOf("") }
+    var pairingPort by remember { mutableStateOf("") }
+    var pairingCode by remember { mutableStateOf("") }
+    var isPairing by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    
+    val usbAdbManager = remember { UsbAdbManager(context) }
+    var usbDevices by remember { mutableStateOf<List<UsbDevice>>(emptyList()) }
+    var isScanningUsb by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) showQrScanner = true
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -131,6 +157,34 @@ fun AdbManagerScreen(
                 )
             )
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showPairDialog = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Platinum)
+                ) {
+                    Text("Pair with Code")
+                }
+                
+                OutlinedButton(
+                    onClick = {
+                        val permission = Manifest.permission.CAMERA
+                        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+                            showQrScanner = true
+                        } else {
+                            cameraPermissionLauncher.launch(permission)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Platinum)
+                ) {
+                    Text("Scan QR Code")
+                }
+            }
+
             Button(
                 onClick = {
                     isConnecting = true
@@ -183,6 +237,152 @@ fun AdbManagerScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Open ADB Storage in Files App")
             }
+
+            // USB OTG Section
+            HorizontalDivider(color = Silver.copy(alpha = 0.2f), thickness = 1.dp)
+            Text("USB OTG Connection", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            
+            Button(
+                onClick = {
+                    isScanningUsb = true
+                    usbDevices = usbAdbManager.findAdbDevices()
+                    isScanningUsb = false
+                    if (usbDevices.isEmpty()) {
+                        Toast.makeText(context, "No ADB devices found. Check cable & USB Debugging.", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))
+            ) {
+                if (isScanningUsb) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                } else {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = Platinum)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Scan for USB Devices", color = Platinum)
+                }
+            }
+
+            usbDevices.forEach { device ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E)),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        isConnecting = true
+                        RemoteStorageManager.connectUsb(context, device) { success ->
+                            isConnecting = false
+                            if (success) {
+                                Toast.makeText(context, "Connected to ${device.productName} via USB!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "USB Connection Failed", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(device.productName ?: "Unknown Device", color = Platinum, fontWeight = FontWeight.Bold)
+                            Text("ID: ${device.deviceId} | Vendor: ${device.vendorId}", color = Silver, fontSize = 12.sp)
+                        }
+                        Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF34C759))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showPairDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isPairing) showPairDialog = false },
+            title = { Text("Wireless Pairing") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Step: Wireless Debugging > Pair device with pairing code", fontSize = 12.sp, color = Silver)
+                    OutlinedTextField(
+                        value = pairingHost,
+                        onValueChange = { pairingHost = it },
+                        label = { Text("IP Address") }
+                    )
+                    OutlinedTextField(
+                        value = pairingPort,
+                        onValueChange = { pairingPort = it },
+                        label = { Text("Pairing Port") }
+                    )
+                    OutlinedTextField(
+                        value = pairingCode,
+                        onValueChange = { pairingCode = it },
+                        label = { Text("Pairing Code") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isPairing = true
+                        scope.launch {
+                            val result = AdbTlsPairingManager.pairDevice(
+                                context,
+                                pairingHost,
+                                pairingPort.toIntOrNull() ?: 0,
+                                pairingCode
+                            )
+                            isPairing = false
+                            if (result.isSuccess) {
+                                Toast.makeText(context, "Paired Successfully!", Toast.LENGTH_SHORT).show()
+                                showPairDialog = false
+                                // Auto fill the connection fields with the pair host
+                                adbIp = pairingHost
+                            } else {
+                                Toast.makeText(context, "Pairing Failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    enabled = !isPairing && pairingHost.isNotEmpty() && pairingPort.isNotEmpty() && pairingCode.isNotEmpty()
+                ) {
+                    if (isPairing) CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    else Text("Pair")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPairDialog = false }, enabled = !isPairing) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showQrScanner) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            AdbPairingScanner(
+                onQrScanned = { qr ->
+                    val data = AdbTlsPairingManager.parseQrCode(qr)
+                    if (data != null) {
+                        // For standard Google QR codes, we still need the dynamic IP/Port discovered via mDNS
+                        // since the QR code only contains the service name and password.
+                        // However, some custom QR codes might provide ip:port.
+                        // For now, let's notify the user or try to auto-fill if possible.
+                        Toast.makeText(context, "QR Detected. Service: ${data.first}. Enter IP/Port manually to pair.", Toast.LENGTH_LONG).show()
+                        pairingCode = data.third
+                        showQrScanner = false
+                        showPairDialog = true
+                    }
+                }
+            )
+            IconButton(
+                onClick = { showQrScanner = false },
+                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            ) {
+                Icon(Icons.Default.Save, contentDescription = "Close", tint = Color.White)
+            }
+            Text(
+                "Scan the Wireless Debugging QR Code",
+                color = Color.White,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp)
+            )
         }
     }
 }

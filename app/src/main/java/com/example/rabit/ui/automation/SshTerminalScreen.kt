@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -90,6 +92,24 @@ fun SshTerminalScreen(
     var passInput by remember(pass) { mutableStateOf(pass) }
     var commandInput by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val scannedTerminals by viewModel.scannedTerminals.collectAsState()
+
+    LaunchedEffect(hostInput) {
+        if (hostInput.isNotBlank()) {
+            val guessedUser = viewModel.getGuessedSshUser(hostInput)
+            if (guessedUser.isNotBlank() && userInput.isEmpty()) {
+                userInput = guessedUser
+                viewModel.setSshUser(guessedUser)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (hostInput.isBlank()) {
+            viewModel.scanTerminalDevices()
+        }
+    }
+
     var contentVisible by remember { mutableStateOf(false) }
     
     var showNsdScanner by remember { mutableStateOf(false) }
@@ -133,6 +153,44 @@ fun SshTerminalScreen(
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Native SSH Terminal", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                 Text("Status: $status", color = Silver, fontSize = 12.sp)
+
+                // Nearby Suggestions
+                AnimatedVisibility(
+                    visible = scannedTerminals.any { it.protocol == "SSH" } && !connected,
+                    enter = fadeIn() + slideInVertically(),
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        Text(
+                            "NEARBY DISCOVERIES",
+                            color = AccentBlue,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(scannedTerminals.filter { it.protocol == "SSH" }) { node ->
+                                AssistChip(
+                                    onClick = {
+                                        hostInput = node.ip
+                                        viewModel.setSshHost(node.ip)
+                                        portInput = node.port.toString()
+                                        viewModel.setSshPort(node.port)
+                                    },
+                                    label = { Text(node.ip) },
+                                    leadingIcon = { Icon(Icons.Default.Terminal, null, modifier = Modifier.size(14.dp)) },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = AccentBlue.copy(alpha = 0.1f),
+                                        labelColor = Platinum
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AccentBlue.copy(alpha = 0.3f))
+                                )
+                            }
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = hostInput,
