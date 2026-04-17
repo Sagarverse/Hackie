@@ -98,6 +98,8 @@ object HidKeyCodes {
     // Display Brightness (Consumer Page)
     const val BRIGHTNESS_UP: Short = 0x006F
     const val BRIGHTNESS_DOWN: Short = 0x0070
+    const val MEDIA_BRIGHT_UP: Short = BRIGHTNESS_UP
+    const val MEDIA_BRIGHT_DOWN: Short = BRIGHTNESS_DOWN
     
     // Telephony Keys (Usage Page 0x0C)
     const val CALL_ANSWER: Short = 0x01B1.toShort()

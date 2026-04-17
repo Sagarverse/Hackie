@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rabit.ui.components.PremiumGlassCard
 import com.example.rabit.ui.theme.*
 
 @Composable
@@ -66,12 +67,7 @@ fun GeminiApiSettingsSection(viewModel: GeminiSettingsViewModel) {
         viewModel.setGgufPath(uri)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Graphite, RoundedCornerShape(12.dp))
-            .padding(16.dp)
-    ) {
+    PremiumGlassCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

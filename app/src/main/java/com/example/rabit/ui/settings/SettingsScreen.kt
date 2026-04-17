@@ -45,11 +45,14 @@ import com.example.rabit.data.secure.EncryptionManager
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.*
+import com.example.rabit.ui.automation.AutomationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: MainViewModel,
+    viewModel: MainViewModel, 
+    settingsViewModel: SettingsViewModel,
+    automationViewModel: AutomationViewModel,
     onBack: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToCustomization: () -> Unit,
@@ -249,7 +252,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Upload,
                     iconColor = AccentBlue,
                     onClick = {
-                        val json = viewModel.exportMacrosJson()
+                        val json = automationViewModel.exportMacrosJson()
                         clipboardManager.setText(AnnotatedString(json))
                         Toast.makeText(context, "Macros copied to clipboard", Toast.LENGTH_SHORT).show()
                     }
@@ -583,7 +586,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    if (viewModel.importMacrosJson(importJson)) {
+                    if (automationViewModel.importMacrosJson(importJson)) {
                         Toast.makeText(context, "Macros imported!", Toast.LENGTH_SHORT).show()
                         showImportDialog = false
                     } else {

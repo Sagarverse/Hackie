@@ -39,4 +39,6 @@ interface KeyboardRepository {
         preTypeDelayMs: Long = 1500L,
         postTypeDelayMs: Long = 800L
     )
+    fun executeKeyCombo(combo: String)
+    fun executeSpecialKey(key: String)
 }

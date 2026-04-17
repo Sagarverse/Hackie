@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.MainViewModel
+
 import com.example.rabit.ui.theme.AccentBlue
 import com.example.rabit.ui.theme.BorderColor
 import com.example.rabit.ui.theme.ErrorRed
@@ -51,7 +51,7 @@ import com.example.rabit.ui.theme.SuccessGreen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WakeOnLanScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val mac by viewModel.wolMacAddress.collectAsState()
@@ -117,7 +117,7 @@ fun WakeOnLanScreen(
                     value = macInput,
                     onValueChange = {
                         macInput = it
-                        viewModel.setWolMacAddress(it)
+                        viewModel.updateWolMac(it)
                     },
                     label = { Text("Target MAC Address") },
                     placeholder = { Text("AA:BB:CC:DD:EE:FF") },
@@ -134,7 +134,7 @@ fun WakeOnLanScreen(
                     value = broadcastInput,
                     onValueChange = {
                         broadcastInput = it
-                        viewModel.setWolBroadcastIp(it)
+                        viewModel.updateWolBroadcast(it)
                     },
                     label = { Text("Broadcast IP") },
                     placeholder = { Text("255.255.255.255") },

@@ -32,7 +32,10 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.data.voice.VoiceState
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.PulsingVoiceButton
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.*
+import androidx.compose.runtime.collectAsState
 
 // ════════════════════════════════════════════════════════════════════
 // ── Main Assistant Screen (Slim Orchestrator)
@@ -650,58 +653,3 @@ fun MacroGenieModal(
 }
 
 
-@Composable
-fun PulsingVoiceButton(
-    state: com.example.rabit.data.voice.VoiceState,
-    onClick: () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "voicePulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (state == com.example.rabit.data.voice.VoiceState.LISTENING) 1.25f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = AssistantMotion.PULSE_DOT, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = if (state == com.example.rabit.data.voice.VoiceState.LISTENING) 0.8f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = AssistantMotion.PULSE_DOT, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-
-    Box(contentAlignment = Alignment.Center) {
-        if (state == com.example.rabit.data.voice.VoiceState.LISTENING) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
-                    .background(AccentBlue.copy(alpha = pulseAlpha), CircleShape)
-            )
-        }
-        
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .size(40.dp)
-                .background(
-                    if (state == com.example.rabit.data.voice.VoiceState.LISTENING) AccentBlue.copy(alpha = 0.2f) 
-                    else Color.Transparent, 
-                    CircleShape
-                )
-        ) {
-            Icon(
-                if (state == com.example.rabit.data.voice.VoiceState.LISTENING) Icons.Default.Mic 
-                else Icons.Default.MicNone,
-                contentDescription = "Voice Input",
-                tint = if (state == com.example.rabit.data.voice.VoiceState.LISTENING) AccentBlue else Silver,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}

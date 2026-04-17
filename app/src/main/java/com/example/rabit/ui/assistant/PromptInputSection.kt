@@ -36,6 +36,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.rabit.ui.theme.*
 import com.example.rabit.data.voice.VoiceState
+import com.example.rabit.ui.components.PulsingVoiceButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.scale

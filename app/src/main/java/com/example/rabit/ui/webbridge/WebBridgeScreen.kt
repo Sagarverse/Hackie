@@ -44,6 +44,7 @@ import com.example.rabit.data.network.RabitNetworkServer
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.components.QrCodeGenerator
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.GlassCard
 import java.io.File
 import android.net.Uri
 import android.content.Context
@@ -52,7 +53,7 @@ import android.database.Cursor
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebBridgeScreen(
-    viewModel: MainViewModel,
+    viewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
     onBack: () -> Unit
 ) {
     val isRunning by viewModel.isWebBridgeRunning.collectAsState(initial = RabitNetworkServer.isRunning)
@@ -85,69 +86,11 @@ fun WebBridgeScreen(
         uris.forEach { viewModel.addSharedFile(it) }
     }
 
-    // Connect Server Providers
-    SideEffect {
-        RabitNetworkServer.sharedFilesProvider = {
-            sharedFiles.map { uri ->
-                var name = "unknown"
-                var size = 0L
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                    if (cursor.moveToFirst()) {
-                        if (nameIdx != -1) name = cursor.getString(nameIdx)
-                        if (sizeIdx != -1) size = cursor.getLong(sizeIdx)
-                    }
-                }
-                RabitNetworkServer.SharedFile(
-                    id = uri.toString().hashCode().toString(),
-                    name = name,
-                    size = size,
-                    type = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                )
-            }
-        }
-        
-        RabitNetworkServer.fileDownloadProvider = { id ->
-            sharedFiles.find { it.toString().hashCode().toString() == id }
-        }
-
-        val clipSvc = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        RabitNetworkServer.clipboardProvider = {
-            clipSvc.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-        }
-        RabitNetworkServer.clipboardReceiver = { text ->
-            if (text.isNotEmpty()) {
-                val clip = android.content.ClipData.newPlainText("Hackie Universal", text)
-                clipSvc.setPrimaryClip(clip)
-            }
-        }
-    }
+    // Connect Server Providers - Now handled in WebBridgeViewModel init
+    // SideEffect block removed as logic migrated to ViewModel
 
     Scaffold(
-        containerColor = Color.Transparent,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "WEB BRIDGE",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 2.sp,
-                            color = Platinum
-                        )
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        }
+        containerColor = Color.Transparent
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().background(Obsidian)) {
             // High-End Mesh Gradient Background
@@ -373,7 +316,7 @@ fun WebBridgeScreen(
                     var assetTab by remember { mutableStateOf(0) } // 0: Shared (Outgoing), 1: Received (Incoming)
                     
                     Surface(
-                        color = Color.White.withAlpha(0.05f),
+                        color = Color.White.copy(alpha = 0.05f),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -382,7 +325,7 @@ fun WebBridgeScreen(
                                 val selected = assetTab == index
                                 Surface(
                                     onClick = { assetTab = index },
-                                    color = if (selected) AccentBlue.withAlpha(0.2f) else Color.Transparent,
+                                    color = if (selected) AccentBlue.copy(alpha = 0.2f) else Color.Transparent,
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -494,7 +437,7 @@ private fun DeviceSessionItem(session: RabitNetworkServer.TrustedSession, onRevo
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                color = AccentBlue.withAlpha(0.1f),
+                color = AccentBlue.copy(alpha = 0.1f),
                 shape = CircleShape,
                 modifier = Modifier.size(40.dp)
             ) {
@@ -628,17 +571,7 @@ private fun PremiumMeshBackground() {
     }
 }
 
-@Composable
-private fun GlassCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier,
-        color = Color.White.withAlpha(0.04f),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, Color.White.withAlpha(0.08f))
-    ) {
-        content()
-    }
-}
+
 
 @Composable
 private fun SophisticatedStatusIndicator(active: Boolean) {
@@ -665,7 +598,7 @@ private fun SophisticatedStatusIndicator(active: Boolean) {
         
         Surface(
             modifier = Modifier.size(48.dp),
-            color = if (active) SuccessGreen.copy(alpha = 0.2f) else Platinum.withAlpha(0.05f),
+            color = if (active) SuccessGreen.copy(alpha = 0.2f) else Platinum.copy(alpha = 0.05f),
             shape = CircleShape,
             border = BorderStroke(2.dp, if (active) SuccessGreen else Silver.copy(alpha = 0.2f))
         ) {
@@ -684,9 +617,9 @@ private fun SophisticatedStatusIndicator(active: Boolean) {
 @Composable
 private fun DiscoveryToggle(selected: String, onSelect: (String) -> Unit) {
     Surface(
-        color = Color.White.withAlpha(0.05f),
+        color = Color.White.copy(alpha = 0.05f),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.withAlpha(0.1f))
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
     ) {
         Row(modifier = Modifier.padding(2.dp)) {
             listOf("LAN", "P2P").forEach { mode ->
@@ -719,7 +652,7 @@ private fun SophisticatedLinkCard(
     Surface(
         color = Color.Black.copy(alpha = 0.2f),
         shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Color.White.withAlpha(0.05f))
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -763,5 +696,3 @@ private fun SophisticatedLinkCard(
     }
 }
 
-// Add withAlpha helper for older Compose versions if needed
-private fun Color.withAlpha(alpha: Float) = this.copy(alpha = alpha)

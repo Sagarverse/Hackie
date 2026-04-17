@@ -65,6 +65,7 @@ import com.example.rabit.ui.theme.Silver
 @Composable
 fun AirPlayReceiverScreen(
     viewModel: MainViewModel,
+    webBridgeViewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
     onBack: () -> Unit
 ) {
     val enabled by viewModel.airPlayReceiverEnabled.collectAsState()
@@ -77,13 +78,13 @@ fun AirPlayReceiverScreen(
     val clientPorts by viewModel.airPlayClientPorts.collectAsState()
     val packetStats by viewModel.airPlayPacketStats.collectAsState()
     val alacCapability by viewModel.airPlayAlacCapability.collectAsState()
-    val wifiAudioStatus by viewModel.wifiAudioStatus.collectAsState()
-    val wifiAudioActive by viewModel.wifiAudioStreamActive.collectAsState()
-    val localIp by viewModel.localIp.collectAsState()
-    val webBridgeRunning by viewModel.isWebBridgeRunning.collectAsState()
-    val webBridgePin by viewModel.webBridgePin.collectAsState()
-    val webBridgeSelfTestStatus by viewModel.webBridgeSelfTestStatus.collectAsState()
-    val webBridgeSelfTestInProgress by viewModel.webBridgeSelfTestInProgress.collectAsState()
+    val wifiAudioStatus by webBridgeViewModel.wifiAudioStatus.collectAsState()
+    val wifiAudioActive by webBridgeViewModel.wifiAudioStreamActive.collectAsState()
+    val localIp by webBridgeViewModel.localIp.collectAsState()
+    val webBridgeRunning by webBridgeViewModel.isWebBridgeRunning.collectAsState()
+    val webBridgePin by webBridgeViewModel.webBridgePin.collectAsState()
+    val webBridgeSelfTestStatus by webBridgeViewModel.webBridgeSelfTestStatus.collectAsState()
+    val webBridgeSelfTestInProgress by webBridgeViewModel.webBridgeSelfTestInProgress.collectAsState()
     val autoFallbackEnabled by viewModel.airPlayAutoFallbackEnabled.collectAsState()
     val codecFallbackRequired =
         !status.contains("ALAC decode active", ignoreCase = true) && (
@@ -223,7 +224,7 @@ fun AirPlayReceiverScreen(
                         fontSize = 12.sp
                     )
                     Button(
-                        onClick = { if (!webBridgeRunning) viewModel.startWebBridge() },
+                        onClick = { if (!webBridgeRunning) webBridgeViewModel.startWebBridge() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
                     ) {
@@ -236,7 +237,7 @@ fun AirPlayReceiverScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Button(
-                        onClick = { viewModel.runWebBridgeConnectivitySelfTest() },
+                        onClick = { webBridgeViewModel.runWebBridgeConnectivitySelfTest() },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = webBridgeRunning && !webBridgeSelfTestInProgress,
                         colors = ButtonDefaults.buttonColors(containerColor = Graphite)

@@ -16,13 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
 import kotlinx.coroutines.delay
 
 @Composable
 fun SystemStatsScreen(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
     onBack: () -> Unit
 ) {
     val stats by viewModel.systemStats.collectAsState()
@@ -55,10 +55,10 @@ fun SystemStatsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (connected && stats != null) {
+        if (connected) {
             StatGauge(
                 label = "CPU Load",
-                value = stats!!.cpuLoad,
+                value = stats.cpuLoad,
                 max = 4.0f, // Assuming 4 core load reference
                 suffix = " load"
             )
@@ -67,7 +67,7 @@ fun SystemStatsScreen(
             
             StatGauge(
                 label = "Memory Pressure",
-                value = stats!!.memUsage,
+                value = stats.memUsage,
                 max = 100f,
                 suffix = "%"
             )
@@ -86,7 +86,7 @@ fun SystemStatsScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text("System Uptime", color = Silver, fontSize = 12.sp)
-                        Text(stats!!.uptime, color = Platinum, fontWeight = FontWeight.SemiBold)
+                        Text(stats.uptime, color = Platinum, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

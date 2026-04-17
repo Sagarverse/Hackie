@@ -25,9 +25,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.hardware.usb.UsbDevice
-import com.example.rabit.data.adb.UsbAdbManager
-import com.example.rabit.data.storage.RemoteStorageManager
 import com.example.rabit.data.storage.adb_tls.AdbTlsPairingManager
+import com.example.rabit.data.storage.RemoteStorageManager
+import com.example.rabit.ui.automation.AutomationViewModel
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
 import androidx.compose.material.icons.filled.Search
@@ -43,7 +43,7 @@ import androidx.core.content.ContextCompat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbManagerScreen(
-    usbAdbManager: UsbAdbManager,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit,
     onNavigateToFiles: () -> Unit,
     onNavigateToMirror: () -> Unit = {}
@@ -64,7 +64,6 @@ fun AdbManagerScreen(
 
     val scope = rememberCoroutineScope()
     
-    val usbAdbManager = remember { UsbAdbManager(context) }
     var usbDevices by remember { mutableStateOf<List<UsbDevice>>(emptyList()) }
     var isScanningUsb by remember { mutableStateOf(false) }
 
@@ -257,7 +256,7 @@ fun AdbManagerScreen(
             Button(
                 onClick = {
                     isScanningUsb = true
-                    usbDevices = usbAdbManager.findAdbDevices()
+                    usbDevices = viewModel.usbAdbManager.findAdbDevices()
                     isScanningUsb = false
                     if (usbDevices.isEmpty()) {
                         Toast.makeText(context, "No ADB devices found. Check cable & USB Debugging.", Toast.LENGTH_SHORT).show()

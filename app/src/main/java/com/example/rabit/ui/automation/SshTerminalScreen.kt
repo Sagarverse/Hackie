@@ -72,10 +72,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import kotlinx.coroutines.delay
 import android.util.Log
 
+import com.example.rabit.ui.helper.HelperViewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SshTerminalScreen(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
+    automationViewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val host by viewModel.sshHost.collectAsState()
@@ -92,7 +95,7 @@ fun SshTerminalScreen(
     var passInput by remember(pass) { mutableStateOf(pass) }
     var commandInput by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
-    val scannedTerminals by viewModel.scannedTerminals.collectAsState()
+    val scannedTerminals by automationViewModel.scannedTerminals.collectAsState()
 
     LaunchedEffect(hostInput) {
         if (hostInput.isNotBlank()) {
@@ -106,7 +109,7 @@ fun SshTerminalScreen(
 
     LaunchedEffect(Unit) {
         if (hostInput.isBlank()) {
-            viewModel.scanTerminalDevices()
+            automationViewModel.scanTerminalDevices()
         }
     }
 

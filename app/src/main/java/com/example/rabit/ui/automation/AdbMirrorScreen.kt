@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AdbMirrorScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current

@@ -27,13 +27,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.domain.model.RemoteFile
-import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteExplorerScreen(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -316,7 +316,7 @@ fun RemoteExplorerScreen(
                                 file = rFile,
                                 viewModel = viewModel,
                                 onClick = {
-                                    if (rFile.isFolder) viewModel.navigateRemote(rFile.path)
+                                    if (rFile.isDirectory) viewModel.navigateRemote(rFile.path)
                                 }
                             )
                         }
@@ -330,12 +330,12 @@ fun RemoteExplorerScreen(
 @Composable
 private fun RemoteFileItem(
     file: RemoteFile,
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
     val fileIcon = when {
-        file.isFolder -> Icons.Default.Folder
+        file.isDirectory -> Icons.Default.Folder
         file.extension in listOf("jpg", "jpeg", "png", "gif", "webp", "bmp") -> Icons.Default.Image
         file.extension in listOf("mp4", "avi", "mkv", "mov") -> Icons.Default.VideoFile
         file.extension in listOf("mp3", "wav", "ogg", "flac", "aac") -> Icons.Default.AudioFile
@@ -347,7 +347,7 @@ private fun RemoteFileItem(
     }
 
     val iconColor = when {
-        file.isFolder -> AccentBlue
+        file.isDirectory -> AccentBlue
         file.extension in listOf("jpg", "jpeg", "png", "gif", "webp") -> Color(0xFFE879F9)
         file.extension in listOf("mp4", "avi", "mkv", "mov") -> Color(0xFF60A5FA)
         file.extension in listOf("mp3", "wav", "ogg") -> AccentGold
@@ -386,7 +386,7 @@ private fun RemoteFileItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (!file.isFolder) {
+                if (!file.isDirectory) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (file.size > 0) {
                             Text(
@@ -408,7 +408,7 @@ private fun RemoteFileItem(
                 }
             }
             
-            if (!file.isFolder) {
+            if (!file.isDirectory) {
                 IconButton(onClick = { viewModel.downloadRemoteFile(file, context) }) {
                     Icon(Icons.Default.Download, null, tint = SuccessGreen.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                 }

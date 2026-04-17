@@ -17,13 +17,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.MainViewModel
+import com.example.rabit.domain.model.RemoteProcess
+import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProcessManagerScreen(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
     onBack: () -> Unit
 ) {
     val processes by viewModel.remoteProcesses.collectAsState()
@@ -122,7 +123,7 @@ fun ProcessManagerScreen(
 
 @Composable
 fun ProcessItem(
-    process: MainViewModel.RemoteProcess,
+    process: RemoteProcess,
     onKill: () -> Unit
 ) {
     Card(

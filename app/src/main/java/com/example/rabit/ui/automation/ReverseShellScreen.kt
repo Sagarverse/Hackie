@@ -31,7 +31,7 @@ import com.example.rabit.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReverseShellScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val lines by viewModel.reverseShellLines.collectAsState()

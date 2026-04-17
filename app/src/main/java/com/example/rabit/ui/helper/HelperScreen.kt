@@ -87,13 +87,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
-import com.example.rabit.ui.MainViewModel
+import com.example.rabit.domain.model.RemoteFile
+import com.example.rabit.ui.helper.HelperViewModel
+import com.example.rabit.ui.components.PremiumGlassCard
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HelperScreen(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
     onBack: () -> Unit
 ) {
     val isConnected by viewModel.isHelperConnected.collectAsState()
@@ -139,7 +141,7 @@ fun HelperScreen(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                PremiumGlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -208,7 +210,7 @@ fun HelperScreen(
                     )
                 )
 
-                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                PremiumGlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
@@ -293,7 +295,7 @@ fun HelperScreen(
                     )
                 )
 
-                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                PremiumGlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         OutlinedTextField(
                             value = terminalCommand,
@@ -347,7 +349,7 @@ fun HelperScreen(
                     )
                 )
 
-                DarkSkeuoCard(modifier = Modifier.fillMaxWidth()) {
+                PremiumGlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Lan, null, tint = WarningYellow, modifier = Modifier.size(20.dp))
@@ -385,19 +387,7 @@ fun HelperScreen(
     }
 }
 
-@Composable
-private fun DarkSkeuoCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier,
-        color = CardBackground,
-        shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
-    }
-}
+
 
 @Composable
 private fun ConnectionIndicator(active: Boolean) {
@@ -438,7 +428,7 @@ private fun ConnectionIndicator(active: Boolean) {
 }
 
 @Composable
-private fun RemoteFileItem(file: com.example.rabit.ui.HelperRemoteFile, onClick: () -> Unit) {
+private fun RemoteFileItem(file: RemoteFile, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -475,9 +465,26 @@ private fun SettingToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(title, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).background(MintTeal.copy(alpha = 0.1f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = MintTeal, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(subtitle, color = Silver, fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = MintTeal)
+        )
     }
 }
 

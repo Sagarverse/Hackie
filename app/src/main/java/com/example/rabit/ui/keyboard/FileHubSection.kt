@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.domain.model.RemoteFile
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.helper.HelperViewModel
+import com.example.rabit.ui.webbridge.WebBridgeViewModel
 
 /**
  * FileHubSection - P2P file management utility.
@@ -30,7 +32,8 @@ import com.example.rabit.ui.theme.*
  */
 @Composable
 fun FileHubSection(
-    viewModel: MainViewModel,
+    viewModel: HelperViewModel,
+    webBridgeViewModel: WebBridgeViewModel,
     onNavigateToSnippets: () -> Unit,
     onNavigateToAutomation: () -> Unit,
     onNavigateToWebBridge: () -> Unit
@@ -39,7 +42,7 @@ fun FileHubSection(
     val remoteFiles by viewModel.remoteFiles.collectAsState(initial = emptyList())
     val isRemoteLoading by viewModel.isRemoteLoading.collectAsState(initial = false)
     val currentRemotePath by viewModel.currentRemotePath.collectAsState(initial = "/")
-    val p2pStatus by viewModel.p2pStatus.collectAsState(initial = "Disconnected")
+    val p2pStatus by webBridgeViewModel.p2pStatus.collectAsState(initial = "Disconnected")
 
     Surface(
         modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 500.dp),
@@ -89,7 +92,7 @@ fun FileHubSection(
                         IconButton(
                             onClick = { 
                                 val parent = currentRemotePath.substringBeforeLast("/").ifEmpty { "/" }
-                                viewModel.fetchRemoteFiles(parent) 
+                                viewModel.navigateRemote(parent) 
                             },
                             modifier = Modifier.size(32.dp).background(Obsidian.copy(alpha=0.5f), CircleShape)
                         ) {
@@ -97,7 +100,7 @@ fun FileHubSection(
                         }
                     }
                     IconButton(
-                        onClick = { viewModel.fetchRemoteFiles(currentRemotePath) },
+                        onClick = { viewModel.refreshRemoteFiles() },
                         modifier = Modifier.size(32.dp).background(Obsidian.copy(alpha=0.5f), CircleShape)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = AccentBlue, modifier = Modifier.size(16.dp))
@@ -118,7 +121,7 @@ fun FileHubSection(
             } else if (remoteFiles.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { viewModel.fetchRemoteFiles("/") }) {
+                        IconButton(onClick = { viewModel.navigateRemote("/") }) {
                             Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Silver.copy(alpha=0.2f), modifier = Modifier.size(48.dp))
                         }
                         Text("No files found or Hub idle", color = Silver.copy(alpha=0.4f), fontSize = 13.sp)
@@ -134,8 +137,8 @@ fun FileHubSection(
                     items(remoteFiles.size) { index ->
                         val file = remoteFiles[index]
                         RemoteFileCard(file = file) {
-                            if (file.isFolder) {
-                                viewModel.fetchRemoteFiles(file.path)
+                            if (file.isDirectory) {
+                                viewModel.navigateRemote(file.path)
                             } else {
                                 android.widget.Toast.makeText(context, "Ready to stream: ${file.name}", android.widget.Toast.LENGTH_SHORT).show()
                             }

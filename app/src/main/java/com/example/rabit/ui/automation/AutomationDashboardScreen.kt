@@ -22,16 +22,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rabit.domain.model.CustomMacro
+import com.example.rabit.domain.model.EmergencyAction
 import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.data.bluetooth.HidDeviceManager
-import com.example.rabit.ui.CustomMacro
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutomationDashboardScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
+    mainViewModel: MainViewModel,
     onBack: () -> Unit,
     onNavigateToWakeOnLan: () -> Unit = {},
     onNavigateToSshTerminal: () -> Unit = {},
@@ -41,9 +43,8 @@ fun AutomationDashboardScreen(
 ) {
     val customMacros by viewModel.customMacros.collectAsState()
     val emergencyStatus by viewModel.emergencyStatus.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState<HidDeviceManager.ConnectionState>()
+    val connectionState by mainViewModel.connectionState.collectAsState<HidDeviceManager.ConnectionState>()
     val isConnected = connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected
-    val macUnlocked by viewModel.macUnlocked.collectAsState()
     val isScanning by viewModel.isTerminalScanning.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -124,37 +125,9 @@ fun AutomationDashboardScreen(
                     .padding(padding)
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = { Text("Custom: ${customMacros.size}") },
-                            leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledContainerColor = AccentBlue.copy(alpha = 0.16f),
-                                disabledLabelColor = Platinum,
-                                disabledLeadingIconContentColor = AccentBlue
-                            )
-                        )
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = { Text("Ready") },
-                            leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledContainerColor = AccentBlue.copy(alpha = 0.16f),
-                                disabledLabelColor = Platinum,
-                                disabledLeadingIconContentColor = AccentBlue
-                            )
-                        )
-                    }
-                }
+
                 item {
                     OutlinedTextField(
                         value = searchQuery,
@@ -188,24 +161,7 @@ fun AutomationDashboardScreen(
                         )
                     }
                 }
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Graphite.copy(alpha = 0.45f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = null, tint = Silver)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("How to use Automation", color = Platinum, fontWeight = FontWeight.Bold)
-                            }
-                            Text("• Tap any macro to send keyboard shortcuts directly to your connected Mac.", color = Silver, fontSize = 12.sp)
-                            Text("• Requires an active Bluetooth HID connection.", color = Silver, fontSize = 12.sp)
-                            Text("• Add custom commands using keys like CMD, ALT, SHIFT.", color = Silver, fontSize = 12.sp)
-                        }
-                    }
-                }
+
 
                 if (searchQuery.isBlank()) {
                     item {
@@ -221,7 +177,7 @@ fun AutomationDashboardScreen(
                             TerminalLabSection(
                                 onScan = { onNavigateTo("terminal_scanner") },
                                 onUnlockSsh = {
-                                    viewModel.unlockMacSshViaHid()
+                                    viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(400) && TEXT(Terminal) && KEY(ENTER) && WAIT(1500) && TEXT(ssh local-mac) && KEY(ENTER)")
                                     showTerminalLab = false
                                 }
                             )
@@ -237,7 +193,7 @@ fun AutomationDashboardScreen(
                 }
 
                 item {
-                    IntegratedShortcutPanel(viewModel = viewModel, query = searchQuery)
+                    IntegratedShortcutPanel(automationViewModel = viewModel, mainViewModel = mainViewModel, query = searchQuery)
                 }
 
                 // ─── SYSTEM CORE ───
@@ -419,7 +375,7 @@ fun AutomationDashboardScreen(
 @Composable
 private fun EmergencyControlPanel(
     status: String,
-    onAction: (MainViewModel.EmergencyAction) -> Unit
+    onAction: (EmergencyAction) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -441,13 +397,13 @@ private fun EmergencyControlPanel(
                     EmergencyButton(
                         label = "Lock",
                         icon = Icons.Default.Lock,
-                        onClick = { onAction(MainViewModel.EmergencyAction.LOCK_MACHINE) },
+                        onClick = { onAction(EmergencyAction.LOCK_MACHINE) },
                         modifier = Modifier.weight(1f)
                     )
                     EmergencyButton(
                         label = "Kill Internet",
                         icon = Icons.Default.WifiOff,
-                        onClick = { onAction(MainViewModel.EmergencyAction.KILL_INTERNET_ADAPTER) },
+                        onClick = { onAction(EmergencyAction.KILL_INTERNET_ADAPTER) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -455,20 +411,20 @@ private fun EmergencyControlPanel(
                     EmergencyButton(
                         label = "Stop Audio",
                         icon = Icons.AutoMirrored.Filled.VolumeOff,
-                        onClick = { onAction(MainViewModel.EmergencyAction.STOP_AUDIO) },
+                        onClick = { onAction(EmergencyAction.STOP_AUDIO) },
                         modifier = Modifier.weight(1f)
                     )
                     EmergencyButton(
                         label = "Clear Clipboard",
                         icon = Icons.Default.ContentPasteOff,
-                        onClick = { onAction(MainViewModel.EmergencyAction.CLEAR_CLIPBOARD) },
+                        onClick = { onAction(EmergencyAction.CLEAR_CLIPBOARD) },
                         modifier = Modifier.weight(1f)
                     )
                 }
                 EmergencyButton(
                     label = "Close Sensitive Apps",
                     icon = Icons.Default.NoAccounts,
-                    onClick = { onAction(MainViewModel.EmergencyAction.CLOSE_SENSITIVE_APPS) },
+                    onClick = { onAction(EmergencyAction.CLOSE_SENSITIVE_APPS) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -609,7 +565,7 @@ private fun ToolCard(
 }
 
 @Composable
-private fun IntegratedShortcutPanel(viewModel: MainViewModel, query: String) {
+private fun IntegratedShortcutPanel(automationViewModel: AutomationViewModel, mainViewModel: MainViewModel, query: String) {
     val categories = remember { buildIntegratedShortcutCategories() }
     val normalized = query.trim().lowercase()
     val filteredCategories = if (normalized.isBlank()) {
@@ -658,9 +614,9 @@ private fun IntegratedShortcutPanel(viewModel: MainViewModel, query: String) {
                                     .fillMaxWidth()
                                     .clickable {
                                         if (shortcut.consumerCode != null) {
-                                            viewModel.sendConsumerKey(shortcut.consumerCode)
+                                            mainViewModel.sendConsumerKey(shortcut.consumerCode)
                                         } else {
-                                            viewModel.sendKeyCombination(shortcut.codes)
+                                            mainViewModel.sendKeyCombination(shortcut.codes)
                                         }
                                     },
                                 shape = RoundedCornerShape(12.dp),
@@ -835,48 +791,6 @@ fun MacroGridItem(
     }
 }
 
-private fun handleMacro(command: String, viewModel: MainViewModel) {
-    when (command) {
-        "UNLOCK_CMD" -> viewModel.unlockMac()
-        "LOCK_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_CTRL, HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_Q))
-        "SPOT_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_SPACE))
-        "SHOT_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_SHIFT, HidKeyCodes.KEY_4))
-        "MUTE_CMD" -> viewModel.sendSystemShortcut(MainViewModel.SystemShortcut.MUTE)
-        "SLEEP_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_ALT, HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_POWER))
-        "INFO_CMD" -> {
-             viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_SPACE))
-             viewModel.sendText("About This Mac")
-             viewModel.sendKey(HidKeyCodes.KEY_ENTER)
-        }
-        "FORCE_QUIT_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_ALT, HidKeyCodes.KEY_ESC))
-        "TAB_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_T))
-        "RELOAD_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_R))
-        "HIST_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_Y))
-        "PRIV_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_SHIFT, HidKeyCodes.KEY_N))
-        "BACK_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_LEFT_BRACKET))
-        "FS_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_CTRL, HidKeyCodes.KEY_F))
-        "MC_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_CTRL, HidKeyCodes.KEY_UP))
-        "SW_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_TAB))
-        "HIDE_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.MODIFIER_LEFT_ALT, HidKeyCodes.KEY_H))
-        "TERM_CMD" -> viewModel.launchMacApp("Terminal")
-        "PLAY_CMD" -> viewModel.sendSystemShortcut(MainViewModel.SystemShortcut.PLAY_PAUSE)
-        "ZI_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_EQUAL))
-        "ZO_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_MINUS))
-        "RENDER_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_R))
-        "EXPORT_CMD" -> viewModel.sendKeyCombination(listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_E))
-        "LAUNCH_SAFARI" -> viewModel.launchMacApp("Safari")
-        "LAUNCH_SPOTIFY" -> viewModel.launchMacApp("Spotify")
-        "SAY_HELLO_CMD" -> viewModel.sendSshCommand("say 'Hackie has taken control'")
-        "TOGGLE_DARK_MODE_CMD" -> viewModel.sendSshCommand("osascript -e 'tell application \"System Events\" to tell appearance preferences to set dark mode to not dark mode'")
-        else -> {
-            if (command.contains("&&")) {
-                viewModel.sendMacro(command)
-            } else {
-                viewModel.sendText(command)
-            }
-        }
-    }
-}
 
 data class MacroDefinition(val name: String, val icon: ImageVector, val color: Color, val command: String)
 
@@ -944,5 +858,26 @@ private fun filterMacros(list: List<MacroDefinition>, query: String): List<Macro
     if (q.isBlank()) return list
     return list.filter {
         it.name.lowercase().contains(q) || it.command.lowercase().contains(q)
+    }
+}
+
+private fun handleMacro(command: String, viewModel: AutomationViewModel) {
+    if (command.startsWith("DUCKY:")) {
+        viewModel.executeDuckyScript(command.substring(6).trim())
+    } else {
+        val mappedScript = when(command) {
+            "UNLOCK_CMD" -> "STRING password\nENTER" // Placeholder, user sets their password
+            "LOCK_CMD" -> "GUI CTRL Q"
+            "SPOT_CMD" -> "GUI SPACE"
+            "SHOT_CMD" -> "GUI SHIFT 4"
+            "TAB_CMD" -> "GUI T"
+            "RELOAD_CMD" -> "GUI R"
+            "FS_CMD" -> "GUI CTRL F"
+            "TERM_CMD" -> "GUI SPACE\nDELAY 200\nSTRING Terminal\nENTER"
+            "LAUNCH_SAFARI" -> "GUI SPACE\nDELAY 200\nSTRING Safari\nENTER"
+            "LAUNCH_SPOTIFY" -> "GUI SPACE\nDELAY 200\nSTRING Spotify\nENTER"
+            else -> command 
+        }
+        viewModel.executeDuckyScript(mappedScript)
     }
 }

@@ -164,8 +164,8 @@ fun RemoteFileCard(file: RemoteFile, onClick: () -> Unit) {
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val icon = if (file.isFolder) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile
-        val tint = if (file.isFolder) AccentBlue else TextTertiary
+        val icon = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile
+        val tint = if (file.isDirectory) AccentBlue else TextTertiary
 
         Box(
             modifier = Modifier

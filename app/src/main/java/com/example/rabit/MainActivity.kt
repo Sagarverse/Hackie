@@ -59,6 +59,17 @@ import com.example.rabit.ui.theme.RabitTheme
 class MainActivity : FragmentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private val assistantViewModel: AssistantViewModel by viewModels()
+    private val settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel by viewModels()
+    private val webBridgeViewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel by viewModels()
+    private val helperViewModel: com.example.rabit.ui.helper.HelperViewModel by viewModels()
+    private val automationViewModel: com.example.rabit.ui.automation.AutomationViewModel by viewModels {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                val repository = com.example.rabit.data.repository.KeyboardRepositoryImpl(applicationContext)
+                return com.example.rabit.ui.automation.AutomationViewModel(application, repository) as T
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +100,7 @@ class MainActivity : FragmentActivity() {
                     
                     val biometricEnabled by viewModel.biometricLockEnabled.collectAsState()
                     com.example.rabit.ui.components.BiometricGuard(isEnabled = biometricEnabled) {
-                        AppNavigation(viewModel, assistantViewModel)
+                        AppNavigation(viewModel, assistantViewModel, settingsViewModel, webBridgeViewModel, automationViewModel, helperViewModel)
                     }
                 }
             }
@@ -107,11 +118,11 @@ class MainActivity : FragmentActivity() {
         when (intent.action) {
             Intent.ACTION_SEND -> {
                 val uri = intent.parcelableExtraCompat<android.net.Uri>(Intent.EXTRA_STREAM)
-                uri?.let { viewModel.addSharedFile(it) }
+                uri?.let { webBridgeViewModel.addSharedFile(it) }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = intent.parcelableArrayListExtraCompat<android.net.Uri>(Intent.EXTRA_STREAM)
-                uris?.forEach { viewModel.addSharedFile(it) }
+                uris?.forEach { webBridgeViewModel.addSharedFile(it) }
             }
         }
     }
@@ -136,7 +147,14 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
-fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewModel) {
+fun AppNavigation(
+    viewModel: MainViewModel,
+    assistantViewModel: AssistantViewModel,
+    settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel,
+    webBridgeViewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
+    automationViewModel: com.example.rabit.ui.automation.AutomationViewModel,
+    helperViewModel: com.example.rabit.ui.helper.HelperViewModel
+) {
     val navController = rememberNavController()
     val startDest = if (viewModel.onboardingCompleted) "home" else "onboarding"
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -148,7 +166,7 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
     val featureShortcutsVisible by viewModel.featureShortcutsVisible.collectAsState()
     val featureWakeOnLanVisible by viewModel.featureWakeOnLanVisible.collectAsState()
     val featureSshTerminalVisible by viewModel.featureSshTerminalVisible.collectAsState()
-    val webBridgeEnabled by viewModel.webBridgeEnabled.collectAsState()
+    val webBridgeEnabled by webBridgeViewModel.isWebBridgeRunning.collectAsState()
     val bluetoothState by viewModel.connectionState.collectAsState()
     val isBluetoothConnected = bluetoothState is HidDeviceManager.ConnectionState.Connected
 
@@ -241,6 +259,8 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 composable("keyboard") {
                     KeyboardScreen(
                         viewModel = viewModel,
+                        helperViewModel = helperViewModel,
+                        webBridgeViewModel = webBridgeViewModel,
                         onDisconnect = { 
                             viewModel.disconnectKeyboard()
                             navController.navigate("pairing") { popUpTo(0) } 
@@ -254,33 +274,37 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("web_bridge") {
                     com.example.rabit.ui.webbridge.WebBridgeScreen(
-                        viewModel = viewModel,
+                        viewModel = webBridgeViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("automation") {
                     AutomationDashboardScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
+                        mainViewModel = viewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
-                        onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") }
+                        onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") },
+                        onNavigateTo = { route -> navController.navigate(route) }
                     )
                 }
                 composable("airplay_receiver") {
                     com.example.rabit.ui.airplay.AirPlayReceiverScreen(
                         viewModel = viewModel,
+                        webBridgeViewModel = webBridgeViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("wake_on_lan") {
                     com.example.rabit.ui.automation.WakeOnLanScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("ssh_terminal") {
                     com.example.rabit.ui.automation.SshTerminalScreen(
-                        viewModel = viewModel,
+                        viewModel = helperViewModel,
+                        automationViewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -304,56 +328,59 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("adb_mirror") {
                     com.example.rabit.ui.automation.AdbMirrorScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("injector") {
                     com.example.rabit.ui.automation.InjectorScreen(
                         viewModel = viewModel,
+                        automationViewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("auto_clicker") {
                     com.example.rabit.ui.automation.AutoClickerScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("process_manager") {
                     com.example.rabit.ui.automation.ProcessManagerScreen(
-                        viewModel = viewModel,
+                        viewModel = helperViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("system_stats") {
                     com.example.rabit.ui.automation.SystemStatsScreen(
-                        viewModel = viewModel,
+                        viewModel = helperViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("remote_explorer") {
                     com.example.rabit.ui.automation.RemoteExplorerScreen(
-                        viewModel = viewModel,
+                        viewModel = helperViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("reverse_shell") {
                     com.example.rabit.ui.automation.ReverseShellScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("terminal_scanner") {
                     com.example.rabit.ui.automation.TerminalScannerScreen(
-                        viewModel = viewModel,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() },
                         onConnect = { _, _, _ -> navController.popBackStack() }
                     )
                 }
                 composable("settings") {
                     SettingsScreen(
-                        viewModel,
+                        viewModel = viewModel,
+                        settingsViewModel = settingsViewModel,
+                        automationViewModel = automationViewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToProfile = { navController.navigate("profile") },
                         onNavigateToCustomization = { navController.navigate("customization") },
@@ -368,19 +395,20 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("password_manager") {
                     PasswordManagerScreen(
+                        settingsViewModel = settingsViewModel,
                         viewModel = viewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("helper") {
                     com.example.rabit.ui.helper.HelperScreen(
-                        viewModel = viewModel,
+                        viewModel = helperViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("adb_manager") {
                     com.example.rabit.ui.automation.AdbManagerScreen(
-                        usbAdbManager = viewModel.usbAdbManager,
+                        viewModel = automationViewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToFiles = { navController.navigate("remote_explorer") },
                         onNavigateToMirror = { navController.navigate("adb_mirror") }
@@ -439,12 +467,14 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                                 "action_media_play_pause" -> viewModel.sendMediaPlayPause()
                                 "action_media_vol_up" -> viewModel.sendMediaVolumeUp()
                                 "action_media_vol_down" -> viewModel.sendMediaVolumeDown()
-                                "action_now_playing" -> viewModel.requestNowPlayingFromHost()
-                                "action_wol_send" -> if (featureWakeOnLanVisible) viewModel.sendWakeOnLan()
+                                "action_now_playing" -> {
+                                    // Metadata is now reactive in WebBridgeViewModel
+                                }
+                                "action_wol_send" -> if (featureWakeOnLanVisible) automationViewModel.sendWakeOnLan()
                                 "action_disconnect_keyboard" -> viewModel.disconnectKeyboard()
                                 "action_web_bridge_toggle" -> {
                                     if (featureWebBridgeVisible) {
-                                        if (webBridgeEnabled) viewModel.stopWebBridge() else viewModel.startWebBridge()
+                                        if (webBridgeEnabled) webBridgeViewModel.stopWebBridge() else webBridgeViewModel.startWebBridge()
                                     }
                                 }
                             }

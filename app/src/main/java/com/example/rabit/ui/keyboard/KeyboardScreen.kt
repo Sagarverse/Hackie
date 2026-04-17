@@ -27,8 +27,12 @@ import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.data.voice.VoiceState
 import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.assistant.PulsingVoiceButton
+import com.example.rabit.ui.helper.HelperViewModel
+import com.example.rabit.ui.webbridge.WebBridgeViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.PulsingVoiceButton
+import kotlinx.coroutines.flow.*
+import androidx.compose.runtime.collectAsState
 
 /**
  * KeyboardScreen — Premium remote control interface.
@@ -38,6 +42,8 @@ import com.example.rabit.ui.theme.*
 @Composable
 fun KeyboardScreen(
     viewModel: MainViewModel,
+    helperViewModel: HelperViewModel,
+    webBridgeViewModel: WebBridgeViewModel,
     onDisconnect: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToAssistant: () -> Unit,
@@ -175,7 +181,7 @@ fun KeyboardScreen(
             when (selectedTab) {
                 0 -> DualKeyboardTab(viewModel)
                 1 -> TrackpadSection(viewModel)
-                2 -> FileHubSection(viewModel, onNavigateToSnippets, onNavigateToAutomation, onNavigateToWebBridge)
+                2 -> FileHubSection(helperViewModel, webBridgeViewModel, onNavigateToSnippets, onNavigateToAutomation, onNavigateToWebBridge)
             }
         }
 

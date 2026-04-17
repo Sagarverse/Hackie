@@ -52,6 +52,7 @@ data class InjectorRunEntry(
 @Composable
 fun InjectorScreen(
     viewModel: MainViewModel,
+    automationViewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -220,7 +221,7 @@ fun InjectorScreen(
                     }
                     if (payload.isBlank()) return@Button
                     isInjecting = true
-                    viewModel.executeDuckyScript(payload)
+                    automationViewModel.executeDuckyScript(payload)
                     val updated = listOf(
                         InjectorRunEntry(
                             ts = System.currentTimeMillis(),

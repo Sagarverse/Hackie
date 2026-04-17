@@ -25,13 +25,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rabit.domain.model.TerminalDevice
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TerminalScannerScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit,
     onConnect: (String, Int, String) -> Unit
 ) {
@@ -182,8 +183,8 @@ private fun TerminalHeader(text: String, isScanning: Boolean, onStartScan: () ->
 
 @Composable
 private fun DiscoveredDeviceItem(
-    device: MainViewModel.TerminalDevice,
-    viewModel: MainViewModel,
+    device: TerminalDevice,
+    viewModel: AutomationViewModel,
     onConnect: (String, Int, String) -> Unit
 ) {
     Surface(
@@ -237,7 +238,7 @@ private fun DiscoveredDeviceItem(
                 if (device.protocol == "SSH" || device.protocol == "ADB") {
                     IconButton(
                         onClick = {
-                            viewModel.connectRemoteStorage(device.protocol, device.ip, device.port)
+                            // Logic will be handled via onConnect or future RemoteStorageViewModel
                             onConnect(device.ip, device.port, "EXPLORE") 
                         },
                         modifier = Modifier.background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp))

@@ -25,7 +25,7 @@ import com.example.rabit.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutoClickerScreen(
-    viewModel: MainViewModel,
+    viewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
     val isRunning by viewModel.isAutoClicking.collectAsState()

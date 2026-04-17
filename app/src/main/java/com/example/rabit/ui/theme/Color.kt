@@ -32,12 +32,12 @@ val AccentBlue     = Color(0xFF3B82F6)
 val AccentBlueDim  = Color(0xFF2563EB)
 val AccentBlueMute = Color(0xFF1E40AF)
 
-// Legacy aliases – mapped to the single accent so nothing breaks.
-val AccentPurple = AccentBlue
+// Legacy aliases – restored to real colors for vibrant UI accents
+val AccentPurple = Color(0xFF8B5CF6)
 val AccentTeal   = Color(0xFF38BDF8)
-val AccentPink   = AccentBlue
-val AccentGold   = Color(0xFF94A3B8)
-val AccentOrange = Color(0xFF94A3B8)
+val AccentPink   = Color(0xFFEC4899)
+val AccentGold   = Color(0xFFF59E0B)
+val AccentOrange = Color(0xFFF97316)
 
 // ── Functional Colors ────────────────────────────────────────────────────────
 val SuccessGreen   = Color(0xFF22C55E)

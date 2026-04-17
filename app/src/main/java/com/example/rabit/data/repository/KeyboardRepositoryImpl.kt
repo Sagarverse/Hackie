@@ -4,7 +4,9 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import com.example.rabit.data.bluetooth.BluetoothScanner
 import com.example.rabit.data.bluetooth.HidDeviceManager
+import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.domain.repository.KeyboardRepository
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 
 class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
@@ -100,5 +102,51 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
         postTypeDelayMs: Long
     ) {
         hidDeviceManager.unlockMac(password, pressEnterBefore, pressEnterAfter, preTypeDelayMs, postTypeDelayMs)
+    }
+
+    override fun executeKeyCombo(combo: String) {
+        val parts = combo.split("+").map { it.trim().uppercase() }
+        var mod = 0
+        var key: Byte = 0
+        
+        parts.forEach { part ->
+            when (part) {
+                "CTRL" -> mod = mod or HidKeyCodes.MODIFIER_LEFT_CTRL.toInt()
+                "GUI", "CMD", "WIN" -> mod = mod or HidKeyCodes.MODIFIER_LEFT_GUI.toInt()
+                "ALT", "OPT" -> mod = mod or HidKeyCodes.MODIFIER_LEFT_ALT.toInt()
+                "SHIFT" -> mod = mod or HidKeyCodes.MODIFIER_LEFT_SHIFT.toInt()
+                else -> {
+                    // Try to get key code from Char if it's single char, or from HidKeyCodes
+                    if (part.length == 1) {
+                        key = HidKeyCodes.getHidCode(part[0]).keyCode
+                    } else {
+                        // Handle special keys like ENTER, SPACE in combos
+                        when (part) {
+                            "ENTER" -> key = HidKeyCodes.KEY_ENTER
+                            "SPACE" -> key = HidKeyCodes.KEY_SPACE
+                            "TAB" -> key = HidKeyCodes.KEY_TAB
+                            "ESC" -> key = HidKeyCodes.KEY_ESC
+                            "Q" -> key = HidKeyCodes.KEY_Q // Common for lock combo
+                        }
+                    }
+                }
+            }
+        }
+        if (key != 0.toByte() || mod != 0) {
+            hidDeviceManager.sendKeyPress(key, mod.toByte(), useSticky = false)
+        }
+    }
+
+    override fun executeSpecialKey(key: String) {
+        when (key.uppercase()) {
+            "VOL_UP" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
+            "VOL_DOWN" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
+            "MUTE" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_MUTE)
+            "PLAY", "PLAY_PAUSE" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_PLAY_PAUSE)
+            "NEXT" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_NEXT)
+            "PREV" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_PREVIOUS)
+            "BRIGHT_UP" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_UP)
+            "BRIGHT_DOWN" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_DOWN)
+        }
     }
 }
