@@ -204,6 +204,14 @@ class HidDeviceManager private constructor(private val context: Context) {
         
         scope.launch(Dispatchers.IO) {
             ensureHidProfileReady()
+            
+            connectedDevice?.let { activeDev ->
+                if (activeDev.address != device.address) {
+                    hidDevice?.disconnect(activeDev)
+                    delay(600) // brief delay to let OS tear down the L2CAP link
+                }
+            }
+
             if (device.bondState != BluetoothDevice.BOND_BONDED) {
                 pendingBondAddress = device.address
                 pendingConnectRetries = 3
@@ -242,8 +250,16 @@ class HidDeviceManager private constructor(private val context: Context) {
         _connectionState.value = ConnectionState.Connecting
         
         reconnectJob?.cancel()
-        reconnectJob = scope.launch {
+        reconnectJob = scope.launch(Dispatchers.IO) {
             ensureHidProfileReady()
+
+            connectedDevice?.let { activeDev ->
+                if (activeDev.address != device.address) {
+                    hidDevice?.disconnect(activeDev)
+                    delay(600)
+                }
+            }
+
             if (device.bondState != BluetoothDevice.BOND_BONDED) {
                 pendingBondAddress = device.address
                 pendingConnectRetries = maxRetries
