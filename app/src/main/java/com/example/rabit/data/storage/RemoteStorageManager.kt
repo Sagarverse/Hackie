@@ -19,6 +19,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Properties
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope
 
 /**
  * RemoteStorageManager — Singleton that mediates between the SAF DocumentsProvider
@@ -49,6 +51,10 @@ object RemoteStorageManager {
     @Volatile var helperBaseUrl: String = ""
     @Volatile var helperPin: String = ""
 
+    @Volatile var adbIp: String = ""
+    @Volatile var adbPort: Int = 5555
+    @Volatile var adbClient: com.example.rabit.data.adb.RabitAdbClient? = null
+
     private var cacheDir: File? = null
 
     // ---------- lifecycle ----------
@@ -61,8 +67,18 @@ object RemoteStorageManager {
         sshPassword = prefs.getString("ssh_password", "") ?: ""
         helperBaseUrl = prefs.getString("helper_base_url", "") ?: ""
         helperPin = prefs.getString("helper_pin", "") ?: ""
+        adbIp = prefs.getString("adb_ip", "") ?: ""
+        adbPort = prefs.getInt("adb_port", 5555)
 
         cacheDir = File(context.cacheDir, CACHE_DIR_NAME).also { it.mkdirs() }
+
+        if (adbIp.isNotBlank()) {
+            val crypto = com.example.rabit.data.adb.RabitAdbCrypto.getCrypto(context)
+            adbClient = com.example.rabit.data.adb.RabitAdbClient(crypto)
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { adbClient?.connectWifi(adbIp, adbPort) }
+            }
+        }
 
         // Try establishing SSH/SFTP; ok if it fails — we'll retry lazily
         ensureSshConnected()
@@ -74,13 +90,15 @@ object RemoteStorageManager {
         isMounted = false
         runCatching { sftpChannel?.disconnect() }
         runCatching { sshSession?.disconnect() }
+        runCatching { adbClient?.disconnect() }
         sftpChannel = null
         sshSession = null
+        adbClient = null
         Log.i(TAG, "Remote storage unmounted")
     }
 
     val isConnected: Boolean
-        get() = isSshReady() || helperBaseUrl.isNotBlank()
+        get() = isSshReady() || helperBaseUrl.isNotBlank() || (adbClient != null && adbIp.isNotBlank())
 
     // ---------- SSH helpers ----------
 
@@ -149,6 +167,11 @@ object RemoteStorageManager {
      * List files in a remote directory.
      */
     fun listFiles(path: String): List<RemoteFileEntry> {
+        // Try ADB first
+        if (adbClient != null) {
+            val list = runCatching { kotlinx.coroutines.runBlocking { listFilesAdb(path) } }.getOrNull()
+            if (list != null && list.isNotEmpty()) return list
+        }
         // Try SSH/SFTP first
         if (ensureSshConnected()) {
             return listFilesSftp(path)
@@ -223,6 +246,10 @@ object RemoteStorageManager {
      * Get metadata for a single file.
      */
     fun statFile(remotePath: String): RemoteFileEntry? {
+        if (adbClient != null) {
+            val entry = runCatching { kotlinx.coroutines.runBlocking { statFileAdb(remotePath) } }.getOrNull()
+            if (entry != null) return entry
+        }
         if (ensureSshConnected()) {
             return statFileSftp(remotePath)
         }
@@ -257,6 +284,11 @@ object RemoteStorageManager {
     fun readFile(remotePath: String): File? {
         val cacheFile = getCacheFile(remotePath)
 
+        // Try ADB
+        if (adbClient != null) {
+            val f = runCatching { readFileAdb(remotePath, cacheFile) }.getOrNull()
+            if (f != null) return f
+        }
         // Try SFTP
         if (ensureSshConnected()) {
             return readFileSftp(remotePath, cacheFile)
@@ -308,6 +340,10 @@ object RemoteStorageManager {
      * Write bytes from a local file back to the remote.
      */
     fun writeFile(remotePath: String, localFile: File): Boolean {
+        if (adbClient != null) {
+            val success = runCatching { writeFileAdb(remotePath, localFile) }.getOrNull()
+            if (success == true) return true
+        }
         if (ensureSshConnected()) {
             return writeFileSftp(remotePath, localFile)
         }
@@ -359,6 +395,10 @@ object RemoteStorageManager {
      * Delete a remote file or directory.
      */
     fun deleteFile(remotePath: String): Boolean {
+        if (adbClient != null) {
+            val success = runCatching { deleteFileAdb(remotePath) }.getOrNull()
+            if (success == true) return true
+        }
         if (ensureSshConnected()) {
             return deleteFileSftp(remotePath)
         }
@@ -406,6 +446,10 @@ object RemoteStorageManager {
     fun createFile(parentPath: String, name: String, isDirectory: Boolean): String? {
         val fullPath = if (parentPath.endsWith("/")) "$parentPath$name" else "$parentPath/$name"
 
+        if (adbClient != null) {
+            val success = runCatching { createFileAdb(fullPath, isDirectory) }.getOrNull()
+            if (success == true) return fullPath
+        }
         if (ensureSshConnected()) {
             return createFileSftp(fullPath, isDirectory)
         }
@@ -463,6 +507,10 @@ object RemoteStorageManager {
         val parent = oldPath.substringBeforeLast("/").ifEmpty { "/" }
         val newPath = if (parent.endsWith("/")) "$parent$newName" else "$parent/$newName"
 
+        if (adbClient != null) {
+            val success = runCatching { renameFileAdb(oldPath, newPath) }.getOrNull()
+            if (success == true) return newPath
+        }
         if (ensureSshConnected()) {
             return renameFileSftp(oldPath, newPath)
         }
@@ -503,6 +551,122 @@ object RemoteStorageManager {
             Log.w(TAG, "Helper rename failed: ${e.message}")
             null
         }
+    }
+
+    // ---------- ADB helpers ----------
+
+    private suspend fun listFilesAdb(path: String): List<RemoteFileEntry> {
+        val client = adbClient ?: return emptyList()
+        val safePath = if (path.isBlank() || path == "/") "/sdcard" else path.replace("'", "'\\''")
+        
+        val cmd = "for f in '$safePath'/.* '$safePath'/*; do stat -c '%A|%s|%Y|%n' \"\$f\" 2>/dev/null; done"
+        val out = client.executeCommand(cmd)
+        
+        val entries = mutableListOf<RemoteFileEntry>()
+        val lines = out.trim().split("\n")
+        
+        for (line in lines) {
+            val p = line.split("|")
+            if (p.size >= 4) {
+                val perms = p[0]
+                val size = p[1].toLongOrNull() ?: 0L
+                val time = (p[2].toLongOrNull() ?: 0L) * 1000L
+                val fullPath = line.substring(line.indexOf('|', line.indexOf('|', line.indexOf('|') + 1) + 1) + 1).trim()
+                val name = fullPath.substringAfterLast("/")
+                
+                if (name == "." || name == "..") continue
+                if (name == "*") continue // unresolved glob
+                
+                val isDir = perms.startsWith("d")
+                entries.add(
+                    RemoteFileEntry(
+                        name = name,
+                        path = "$safePath/$name".replace("//", "/"),
+                        isDirectory = isDir,
+                        size = size,
+                        lastModified = time,
+                        mimeType = if (isDir) "vnd.android.document/directory" else guessMimeType(name)
+                    )
+                )
+            }
+        }
+        return entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+    }
+
+    private suspend fun statFileAdb(remotePath: String): RemoteFileEntry? {
+        val client = adbClient ?: return null
+        val safePath = remotePath.replace("'", "'\\''")
+        val cmd = "stat -c '%A|%s|%Y|%n' '$safePath' 2>/dev/null"
+        val out = client.executeCommand(cmd)
+        val p = out.trim().split("|")
+        if (p.size >= 4) {
+            val perms = p[0]
+            val size = p[1].toLongOrNull() ?: 0L
+            val time = (p[2].toLongOrNull() ?: 0L) * 1000L
+            val name = remotePath.substringAfterLast("/")
+            val isDir = perms.startsWith("d")
+            return RemoteFileEntry(
+                name = name,
+                path = remotePath,
+                isDirectory = isDir,
+                size = size,
+                lastModified = time,
+                mimeType = if (isDir) "vnd.android.document/directory" else guessMimeType(name)
+            )
+        }
+        return null
+    }
+
+    private fun readFileAdb(remotePath: String, cacheFile: File): File? {
+        val client = adbClient ?: return null
+        return try {
+            val safePath = remotePath.replace("'", "'\\''")
+            val bytes = kotlinx.coroutines.runBlocking { client.downloadFileBytes(safePath) }
+            cacheFile.parentFile?.mkdirs()
+            FileOutputStream(cacheFile).use { it.write(bytes) }
+            cacheFile
+        } catch (e: Exception) {
+            Log.e(TAG, "ADB readFile failed", e)
+            null
+        }
+    }
+
+    private fun writeFileAdb(remotePath: String, localFile: File): Boolean {
+        val client = adbClient ?: return false
+        return try {
+            val safePath = remotePath.replace("'", "'\\''")
+            val bytes = FileInputStream(localFile).readBytes()
+            kotlinx.coroutines.runBlocking { client.uploadFileBytes(safePath, bytes) }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "ADB writeFile failed", e)
+            false
+        }
+    }
+
+    private fun deleteFileAdb(remotePath: String): Boolean {
+        val client = adbClient ?: return false
+        val safePath = remotePath.replace("'", "'\\''")
+        val cmd = "rm -rf '$safePath'"
+        kotlinx.coroutines.runBlocking { client.executeCommand(cmd) }
+        return true
+    }
+
+    private fun createFileAdb(fullPath: String, isDirectory: Boolean): Boolean {
+        val client = adbClient ?: return false
+        val safePath = fullPath.replace("'", "'\\''")
+        val cmd = if (isDirectory) "mkdir -p '$safePath'" else "touch '$safePath'"
+        val out = kotlinx.coroutines.runBlocking { client.executeCommand(cmd) }
+        return !out.contains("Permission denied")
+    }
+
+    private fun renameFileAdb(oldPath: String, newPath: String): Boolean {
+        val client = adbClient ?: return false
+        val safeOld = oldPath.replace("'", "'\\''")
+        val safeNew = newPath.replace("'", "'\\''")
+        val cmd = "mv '$safeOld' '$safeNew'"
+        val out = kotlinx.coroutines.runBlocking { client.executeCommand(cmd) }
+        return !out.contains("Permission denied") && !out.contains("No such file")
     }
 
     // ---------- Cache helpers ----------

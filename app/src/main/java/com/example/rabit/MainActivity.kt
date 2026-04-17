@@ -461,7 +461,7 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
             showTopBar = currentRoute.split("?").first() !in listOf(
                 "helper", "remote_explorer", "reverse_shell", "terminal_scanner", 
                 "auto_clicker", "web_bridge", "airplay_receiver", "profile", 
-                "assistant", "injector", "password_manager"
+                "assistant", "injector", "password_manager", "adb_manager"
             ),
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,

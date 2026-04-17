@@ -84,6 +84,8 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.kotlinx.serialization.json)
     implementation("com.jcraft:jsch:0.1.55")
+    implementation("com.tananaev:adblib:1.3")
+    implementation("commons-codec:commons-codec:1.16.0")
     
     implementation(libs.mediapipe.genai)
     implementation(libs.zxing.core)

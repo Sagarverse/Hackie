@@ -218,6 +218,17 @@ fun RabitAppScaffold(
                     )
 
                     DrawerItem(
+                        label = "ADB Storage Manager",
+                        subLabel = "Mount Android filesystems",
+                        icon = Icons.Default.PhoneAndroid,
+                        isSelected = currentRoute == "adb_manager",
+                        onClick = {
+                            onNavigate("adb_manager")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerItem(
                         label = "Process Manager",
                         subLabel = "Monitor & kill remote processes",
                         icon = Icons.Default.Memory,
