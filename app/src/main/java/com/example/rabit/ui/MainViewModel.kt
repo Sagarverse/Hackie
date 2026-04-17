@@ -40,6 +40,9 @@ import com.example.rabit.data.repository.KeyboardRepositoryImpl
 import com.example.rabit.data.secure.SecureStorage
 import com.example.rabit.data.sensors.GyroscopeAirMouse
 import com.example.rabit.data.sensors.SpatialPointerManager
+import com.example.rabit.data.adb.RabitAdbClient
+import com.example.rabit.data.adb.RabitAdbCrypto
+import com.example.rabit.data.adb.UsbAdbManager
 import com.example.rabit.data.voice.VoiceAssistantManager
 import com.example.rabit.data.voice.VoiceState
 import com.example.rabit.domain.model.HidKeyCodes
@@ -111,6 +114,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
     private val noteDatabase = NoteDatabase.getDatabase(application)
     private val noteDao = noteDatabase.noteDao()
+    
+    val adbClient = RabitAdbClient(RabitAdbCrypto.getCrypto(application))
+    val usbAdbManager = UsbAdbManager(application)
 
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> = repository.connectionState
     val scannedDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices

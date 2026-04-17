@@ -43,8 +43,10 @@ import androidx.core.content.ContextCompat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbManagerScreen(
+    usbAdbManager: UsbAdbManager,
     onBack: () -> Unit,
-    onNavigateToFiles: () -> Unit
+    onNavigateToFiles: () -> Unit,
+    onNavigateToMirror: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
@@ -236,6 +238,16 @@ fun AdbManagerScreen(
                 Icon(Icons.Default.FolderOpen, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Open ADB Storage in Files App")
+            }
+
+            Button(
+                onClick = onNavigateToMirror,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5856D6))
+            ) {
+                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = Platinum)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Wireless Screen Mirror", color = Platinum)
             }
 
             // USB OTG Section

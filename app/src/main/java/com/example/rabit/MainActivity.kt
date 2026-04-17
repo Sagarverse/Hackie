@@ -302,6 +302,12 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                         }
                     )
                 }
+                composable("adb_mirror") {
+                    com.example.rabit.ui.automation.AdbMirrorScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("injector") {
                     com.example.rabit.ui.automation.InjectorScreen(
                         viewModel = viewModel,
@@ -374,8 +380,10 @@ fun AppNavigation(viewModel: MainViewModel, assistantViewModel: AssistantViewMod
                 }
                 composable("adb_manager") {
                     com.example.rabit.ui.automation.AdbManagerScreen(
+                        usbAdbManager = viewModel.usbAdbManager,
                         onBack = { navController.popBackStack() },
-                        onNavigateToFiles = { navController.navigate("remote_explorer") }
+                        onNavigateToFiles = { navController.navigate("remote_explorer") },
+                        onNavigateToMirror = { navController.navigate("adb_mirror") }
                     )
                 }
                 composable("profile") {

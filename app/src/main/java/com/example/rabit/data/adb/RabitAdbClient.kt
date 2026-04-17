@@ -113,4 +113,9 @@ class RabitAdbClient(private val crypto: AdbCrypto) {
             throw e
         }
     }
+
+    suspend fun openStream(command: String): AdbStream = withContext(Dispatchers.IO) {
+        val conn = connection ?: throw IllegalStateException("ADB Not Connected")
+        conn.open("shell:$command")
+    }
 }
