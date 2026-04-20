@@ -3,7 +3,6 @@ package com.example.rabit.ui.assistant
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -13,9 +12,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -77,9 +74,6 @@ fun ChatBubble(message: ChatMessage, viewModel: AssistantViewModel, mainViewMode
     val scope = rememberCoroutineScope()
     var showCopied by remember { mutableStateOf(false) }
     val isError = !isUser && message.content.startsWith("Error:")
-
-    val isSpeaking by viewModel.isSpeaking.collectAsState()
-    var feedbackState by remember { mutableStateOf(0) } // 0: none, 1: like, -1: dislike
 
     Column(
         modifier = Modifier
@@ -206,7 +200,7 @@ fun ChatBubble(message: ChatMessage, viewModel: AssistantViewModel, mainViewMode
                             )
                         }
 
-                        // Action Row for AI responses
+                        // Keep action row minimal for smoother list performance.
                         if (!isUser && message.content.isNotBlank() && !isError) {
                             Spacer(modifier = Modifier.height(12.dp))
                             HorizontalDivider(
@@ -215,20 +209,10 @@ fun ChatBubble(message: ChatMessage, viewModel: AssistantViewModel, mainViewMode
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
-                                modifier = Modifier
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(vertical = 2.dp),
+                                modifier = Modifier.padding(vertical = 2.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Listen
-                                ActionPill(
-                                    icon = if (isSpeaking) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                                    label = if (isSpeaking) "Stop" else "Listen",
-                                    tint = AccentTeal.copy(alpha = 0.8f),
-                                    bgColor = AccentTeal.copy(alpha = 0.12f),
-                                    onClick = { viewModel.speakText(message.content) }
-                                )
                                 // Copy with feedback
                                 ActionPill(
                                     icon = if (showCopied) Icons.Default.Check else Icons.Default.ContentCopy,
@@ -255,21 +239,6 @@ fun ChatBubble(message: ChatMessage, viewModel: AssistantViewModel, mainViewMode
                                     onClick = {
                                         performHapticTick(context)
                                         mainViewModel.sendText(message.content)
-                                    }
-                                )
-                                // Share
-                                ActionPill(
-                                    icon = Icons.Default.Share,
-                                    label = "Share",
-                                    tint = Silver.copy(alpha = 0.7f),
-                                    bgColor = SoftGrey.copy(alpha = 0.1f),
-                                    onClick = {
-                                        val sendIntent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, message.content)
-                                            type = "text/plain"
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, null))
                                     }
                                 )
                             }

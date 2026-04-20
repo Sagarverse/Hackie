@@ -133,12 +133,18 @@ class HidDeviceManager private constructor(private val context: Context) {
                     }
                     
                     isManuallyDisconnected = false
-                    scope.launch { 
-                        delay(300) // Reduced from 1000ms for faster initialization
-                        sendReportInternal(1, ByteArray(8)) 
+                    scope.launch {
+                        // Force all HID report types to neutral so hosts do not keep stale
+                        // consumer/media usages after reconnect (prevents phantom next-track).
+                        delay(250)
+                        sendNeutralReports()
+                        // Some hosts settle HID channels asynchronously; send a second neutral pulse.
+                        delay(550)
+                        sendNeutralReports()
                     } 
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    resetConsumerDebounceState()
                     connectedDevice = null
                     _connectionState.value = ConnectionState.Disconnected
                 }
@@ -295,8 +301,25 @@ class HidDeviceManager private constructor(private val context: Context) {
         reconnectJob?.cancel()
         connectionTimeoutJob?.cancel()
         textPushJob?.cancel()
+        runCatching { sendNeutralReports() }
+        resetConsumerDebounceState()
         connectedDevice?.let { hidDevice?.disconnect(it) }
         _connectionState.value = ConnectionState.Disconnected
+    }
+
+    private fun sendNeutralReports() {
+        sendReportInternal(1, ByteArray(8)) // Keyboard release
+        // Do not auto-send consumer release on reconnect; some hosts treat
+        // unsolicited consumer reports as media toggles.
+        sendReportInternal(3, ByteArray(4)) // Mouse neutral
+        sendReportInternal(4, ByteArray(5)) // Digitizer neutral
+    }
+
+    private fun resetConsumerDebounceState() {
+        synchronized(consumerKeyLock) {
+            lastConsumerUsageId = 0
+            lastConsumerSentAtMs = 0L
+        }
     }
 
     private fun sendReportInternal(id: Int, data: ByteArray) {
@@ -582,7 +605,7 @@ class HidDeviceManager private constructor(private val context: Context) {
             0x2A.toByte(), 0xFF.toByte(), 0x03.toByte(), // USAGE_MAXIMUM (1023)
             0x75.toByte(), 0x10.toByte(), //   REPORT_SIZE (16)
             0x95.toByte(), 0x01.toByte(), //   REPORT_COUNT (1)
-            0x81.toByte(), 0x00.toByte(), //   INPUT (Data,Ary,Abs)
+            0x81.toByte(), 0x02.toByte(), //   INPUT (Data,Var,Abs)
             0xC0.toByte(),                // END_COLLECTION
 
             // Mouse (ID 3)

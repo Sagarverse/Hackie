@@ -36,12 +36,12 @@ fun PremiumGlassCard(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         color = backgroundColor,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor),
-        shadowElevation = 2.dp
+        shadowElevation = 1.dp
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             content = content
         )
     }
@@ -59,8 +59,8 @@ fun VibrantGradientButton(
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
         contentPadding = PaddingValues(),
         modifier = modifier
-            .height(50.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(52.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(gradient),
     ) {
         Box(
@@ -70,9 +70,9 @@ fun VibrantGradientButton(
             Text(
                 text = text,
                 color = Color.White,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
-                letterSpacing = 0.3.sp
+                letterSpacing = 0.5.sp
             )
         }
     }

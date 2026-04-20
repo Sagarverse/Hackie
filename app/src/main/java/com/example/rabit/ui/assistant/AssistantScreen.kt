@@ -1,47 +1,47 @@
 package com.example.rabit.ui.assistant
 
-import android.content.Intent
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import com.example.rabit.data.voice.VoiceState
-import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.PulsingVoiceButton
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.*
-import androidx.compose.runtime.collectAsState
+import com.example.rabit.ui.components.LocalOpenGlobalDrawer
+import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.theme.ChatSurface
+import com.example.rabit.ui.theme.*
 
-// ════════════════════════════════════════════════════════════════════
-// ── Main Assistant Screen (Slim Orchestrator)
-// ════════════════════════════════════════════════════════════════════
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantScreen(
     viewModel: AssistantViewModel,
@@ -53,38 +53,24 @@ fun AssistantScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val messages by viewModel.messages.collectAsState()
-    val modelName by viewModel.selectedModelName.collectAsState()
-    val scope = rememberCoroutineScope()
+    val selectedModelName by viewModel.selectedModelName.collectAsState()
+    val connectionState by viewModel.deviceConnectionState.collectAsState()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val context = LocalContext.current
-    val leftDrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    var rightPanelOpen by remember { mutableStateOf(false) }
+    val openGlobalDrawer = LocalOpenGlobalDrawer.current
 
-    BackHandler(enabled = rightPanelOpen || leftDrawerState.isOpen) {
-        when {
-            rightPanelOpen -> rightPanelOpen = false
-            leftDrawerState.isOpen -> scope.launch { leftDrawerState.close() }
-        }
-    }
-
-    // Auto-scroll to bottom on new messages
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.scrollToItem(messages.size - 1)
         }
     }
-
-    val deviceConnectionState by viewModel.deviceConnectionState.collectAsState()
-    val featureWebBridgeVisible by mainViewModel.featureWebBridgeVisible.collectAsState()
-    val featureAutomationVisible by mainViewModel.featureAutomationVisible.collectAsState()
-    val featureAssistantVisible by mainViewModel.featureAssistantVisible.collectAsState()
-    val featureSnippetsVisible by mainViewModel.featureSnippetsVisible.collectAsState()
-    val featureWakeOnLanVisible by mainViewModel.featureWakeOnLanVisible.collectAsState()
-    val featureSshTerminalVisible by mainViewModel.featureSshTerminalVisible.collectAsState()
 
     var showPromptLibrary by remember { mutableStateOf(false) }
     var showHardwareMonitor by remember { mutableStateOf(false) }
     var showMacroGenie by remember { mutableStateOf(false) }
+    
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
 
     // Auto-Push logic — fires haptic when pushing
     LaunchedEffect(uiState) {
@@ -109,171 +95,73 @@ fun AssistantScreen(
     }
 
     ModalNavigationDrawer(
-        drawerState = leftDrawerState,
+        drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = ChatSurface,
-                modifier = Modifier.width(300.dp)
+                drawerContentColor = Platinum,
+                modifier = Modifier.width(320.dp)
             ) {
-                AssistantLeftPanelContent(
-                    featureWebBridgeVisible = featureWebBridgeVisible,
-                    featureAutomationVisible = featureAutomationVisible,
-                    featureAssistantVisible = featureAssistantVisible,
-                    featureSnippetsVisible = featureSnippetsVisible,
-                    featureWakeOnLanVisible = featureWakeOnLanVisible,
-                    featureSshTerminalVisible = featureSshTerminalVisible,
-                    onNavigate = {
-                        onNavigate(it)
-                        scope.launch { leftDrawerState.close() }
-                    }
+                AssistantDrawerContent(
+                    viewModel = viewModel,
+                    onPromptLibraryClick = { showPromptLibrary = true; coroutineScope.launch { drawerState.close() } },
+                    onHardwareMonitorClick = { showHardwareMonitor = true; coroutineScope.launch { drawerState.close() } },
+                    onMacroGenieClick = { showMacroGenie = true; coroutineScope.launch { drawerState.close() } }
                 )
             }
         }
     ) {
-        val hidConnectionState by mainViewModel.connectionState.collectAsState()
-
         Scaffold(
             containerColor = ChatSurface,
             topBar = {
                 PremiumChatTopBar(
-                    modelName = modelName,
+                    modelName = selectedModelName,
                     isThinking = uiState is AssistantUiState.Loading,
-                    connectionState = hidConnectionState,
-                    onLeftPanelClick = { scope.launch { leftDrawerState.open() } },
-                    onRightPanelClick = { rightPanelOpen = true },
+                    connectionState = connectionState,
+                    onLeftPanelClick = { coroutineScope.launch { drawerState.open() } },
+                    onRightPanelClick = { showHardwareMonitor = true },
                     onClearChat = { viewModel.clearConversation() },
                     onNewChat = { viewModel.clearConversation() },
                     onExportChat = { viewModel.exportChatHistory(context) },
-                    onSettingsClick = { onNavigateToSettings() }
+                    onSettingsClick = onNavigateToSettings
                 )
             }
         ) { padding ->
-            val modelLoadState by viewModel.modelLoadState.collectAsState()
-            val modelCopyProgress by viewModel.modelCopyProgress.collectAsState()
-            val modelLastError by viewModel.modelLastError.collectAsState()
+        val modelLoadState by viewModel.modelLoadState.collectAsState()
+        val modelCopyProgress by viewModel.modelCopyProgress.collectAsState()
+        val modelLastError by viewModel.modelLastError.collectAsState()
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                // Model Status (Visible during loading or errors)
-                LocalModelStatusBar(
-                    state = modelLoadState,
-                    progress = modelCopyProgress,
-                    error = modelLastError,
-                    onDismiss = { viewModel.clearModelError() }
-                )
-
-                Box(modifier = Modifier.weight(1f)) {
-                    if (messages.isEmpty()) {
-                        PremiumWelcomeScreen(viewModel)
-                    } else {
-                        androidx.compose.foundation.lazy.LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(messages, key = { it.id }) { message ->
-                                AnimatedMessageEntry(message, viewModel, mainViewModel)
-                            }
-                        }
-
-                        // Scroll to bottom FAB
-                        val isScrolledUp = listState.canScrollForward
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(end = 16.dp, bottom = 16.dp)
-                        ) {
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = isScrolledUp,
-                                enter = fadeIn(animationSpec = tween(AssistantMotion.FAB_FADE_IN)) + scaleIn(animationSpec = spring(dampingRatio = AssistantMotion.SPRING_ENTRY_DAMPING, stiffness = AssistantMotion.SPRING_ENTRY_STIFFNESS)),
-                                exit = fadeOut(animationSpec = tween(AssistantMotion.FAB_FADE_OUT)) + scaleOut(animationSpec = spring(dampingRatio = AssistantMotion.SPRING_EXIT_DAMPING, stiffness = AssistantMotion.SPRING_EXIT_STIFFNESS))
-                            ) {
-                                SmallFloatingActionButton(
-                                    onClick = { scope.launch { listState.animateScrollToItem(messages.size - 1) } },
-                                    containerColor = AccentBlue.copy(alpha = 0.5f),
-                                    contentColor = Platinum,
-                                    shape = CircleShape,
-                                    modifier = Modifier.border(0.5.dp, BorderColor.copy(alpha = 0.4f), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Scroll to Bottom", modifier = Modifier.size(24.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(1.dp))
-
-                // Sticky Bottom Input Area
-                PremiumInputArea(viewModel, mainViewModel)
-            }
-        }
-
-        AnimatedVisibility(
-            visible = rightPanelOpen,
-            enter = fadeIn(tween(AssistantMotion.PANEL_FADE_IN)) + slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(AssistantMotion.PANEL_ENTER, easing = FastOutSlowInEasing)),
-            exit = fadeOut(tween(AssistantMotion.PANEL_FADE_OUT)) + slideOutHorizontally(targetOffsetX = { it / 3 }, animationSpec = tween(AssistantMotion.PANEL_EXIT, easing = FastOutSlowInEasing))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
-            val blocker = remember { MutableInteractionSource() }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .clickable { rightPanelOpen = false }
-            ) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Column(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .fillMaxHeight()
-                            .background(GlassCardGradient)
-                            .border(0.8.dp, BorderStrong.copy(alpha = 0.5f), RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                            .clickable(
-                                interactionSource = blocker,
-                                indication = null
-                            ) { }
+            LocalModelStatusBar(
+                state = modelLoadState,
+                progress = modelCopyProgress,
+                error = modelLastError,
+                onDismiss = { viewModel.clearModelError() }
+            )
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (messages.isEmpty()) {
+                    PremiumWelcomeScreen(viewModel)
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    "Assistant Tools",
-                                    color = Platinum,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    "Prompts, diagnostics, and macro utilities",
-                                    color = Silver.copy(alpha = 0.72f),
-                                    fontSize = 11.sp
-                                )
-                            }
-                            IconButton(onClick = { rightPanelOpen = false }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close tools panel", tint = Silver)
-                            }
+                        items(messages, key = { it.id }) { message ->
+                            ChatBubble(message, viewModel, mainViewModel)
                         }
-                        HorizontalDivider(color = BorderColor.copy(alpha = 0.22f))
-                        AssistantDrawerContent(
-                            viewModel = viewModel,
-                            messageCount = messages.size,
-                            onPromptLibraryClick = { showPromptLibrary = true; rightPanelOpen = false },
-                            onHardwareMonitorClick = { showHardwareMonitor = true; rightPanelOpen = false },
-                            onMacroGenieClick = { showMacroGenie = true; rightPanelOpen = false }
-                        )
                     }
                 }
             }
+            PremiumInputArea(viewModel, mainViewModel)
         }
+    }
     }
 
     if (showPromptLibrary) {

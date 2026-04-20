@@ -62,8 +62,6 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     private val _helperBaseUrl = MutableStateFlow(prefs.getString("helper_base_url", "") ?: "")
     val helperBaseUrl = _helperBaseUrl.asStateFlow()
 
-    private val _helperPin = MutableStateFlow(prefs.getString("helper_pin", "") ?: "")
-    val helperPin = _helperPin.asStateFlow()
 
     private val _isHelperConnected = MutableStateFlow(false)
     val isHelperConnected = _isHelperConnected.asStateFlow()
@@ -234,11 +232,6 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
         _helperConnectionStatus.value = if (normalized.isBlank()) "Disconnected" else "Endpoint saved"
     }
 
-    fun setHelperPin(pin: String) {
-        _helperPin.value = pin
-        prefs.edit().putString("helper_pin", pin).apply()
-        com.example.rabit.data.storage.RemoteStorageManager.helperPin = pin
-    }
 
     fun resetHelperConnectionAndRescan() {
         _helperBaseUrl.value = ""

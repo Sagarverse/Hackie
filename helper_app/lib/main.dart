@@ -406,15 +406,8 @@ Future<void> _startDirectHelperServer() async {
       final path = request.uri.path;
 
       final isPublicEndpoint = path == '/health' || path == '/info';
-      if (!isPublicEndpoint && _helperSettings.authPin.isNotEmpty) {
-        final providedPin = request.headers.value('x-auth-pin') ?? '';
-        if (providedPin != _helperSettings.authPin) {
-          request.response.statusCode = HttpStatus.forbidden;
-          request.response.write(jsonEncode({'success': false, 'error': 'Invalid Auth PIN'}));
-          await request.response.close();
-          return;
-        }
-      }
+      // PIN check removed for remote file access and connectivity
+
 
       if (request.method == 'GET' && path == '/health') {
         request.response.headers.contentType = ContentType.json;
@@ -558,13 +551,13 @@ Future<void> _startDirectHelperServer() async {
         final name =
             request.uri.queryParameters['name'] ??
             'hackie_file_${DateTime.now().millisecondsSinceEpoch}';
-        final downloads = Platform.environment['HOME'] != null
-            ? Directory('${Platform.environment['HOME']}/Downloads')
+        final targetDir = Platform.environment['HOME'] != null
+            ? Directory('${Platform.environment['HOME']}/Desktop')
             : Directory.systemTemp;
-        if (!downloads.existsSync()) {
-          downloads.createSync(recursive: true);
+        if (!targetDir.existsSync()) {
+          targetDir.createSync(recursive: true);
         }
-        final file = File('${downloads.path}${Platform.pathSeparator}$name');
+        final file = File('${targetDir.path}${Platform.pathSeparator}$name');
         final sink = file.openWrite();
         await request.cast<List<int>>().pipe(sink);
         await sink.flush();
@@ -2565,65 +2558,7 @@ class _GoogleServiceAppState extends State<GoogleServiceApp>
                 ),
                 const SizedBox(height: 20),
 
-                // Auth PIN Card
-                _buildSkeuoCard(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withAlpha(40),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
-                            ),
-                            child: const Icon(Icons.password, color: Color(0xFF818CF8), size: 24),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Pairing Auth PIN',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Enter on phone to connect',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: Text(
-                          _helperSettings.authPin,
-                          style: const TextStyle(
-                            color: Color(0xFF5EEAD4),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 20,
-                            letterSpacing: 4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
+
                 
                 // File Transfer Card
                 _buildSkeuoCard(

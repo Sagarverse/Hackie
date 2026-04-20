@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,14 +62,20 @@ fun WebBridgeScreen(
     val isRunning by viewModel.isWebBridgeRunning.collectAsState(initial = RabitNetworkServer.isRunning)
     val currentPin by viewModel.webBridgePin.collectAsState(initial = RabitNetworkServer.currentPin)
     val localIp by viewModel.localIp.collectAsState(initial = "0.0.0.0")
+    val friendlyLanUrl by viewModel.localFriendlyUrl.collectAsState(initial = RabitNetworkServer.friendlyLanHttpUrl)
     val context = LocalContext.current
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val clipboardManager = LocalClipboardManager.current
     val sharedFiles by viewModel.sharedFiles.collectAsState()
-    val p2pEnabled by viewModel.p2pEnabled.collectAsState("false".toBoolean())
+    val p2pEnabled by viewModel.p2pEnabled.collectAsState(initial = false)
     val p2pStatus by viewModel.p2pStatus.collectAsState("Disconnected")
     val p2pPeerId by viewModel.p2pPeerId.collectAsState(initial = "")
-    val localUrl = if (localIp.isNotEmpty() && localIp != "0.0.0.0")
-        "http://$localIp:${RabitNetworkServer.PORT}" else "Identifying network..."
+    val ipLanUrl = if (localIp.isNotEmpty() && localIp != "0.0.0.0")
+        "http://$localIp:${RabitNetworkServer.PORT}" else null
+    val localUrl = when {
+        !friendlyLanUrl.isNullOrBlank() -> friendlyLanUrl!!
+        ipLanUrl != null -> ipLanUrl
+        else -> "Identifying network..."
+    }
     val gatewayBaseUrl = "https://hackie-sagar.web.app"
     val p2pUrl = if (!p2pPeerId.isNullOrEmpty()) "$gatewayBaseUrl/bridge?id=$p2pPeerId" else gatewayBaseUrl
 
@@ -76,6 +85,8 @@ fun WebBridgeScreen(
 
     LaunchedEffect(isRunning) {
         if (isRunning) {
+            viewModel.refreshWebBridgeData()
+            delay(1200)
             viewModel.refreshWebBridgeData()
         }
     }
@@ -284,15 +295,30 @@ fun WebBridgeScreen(
 
                             Spacer(modifier = Modifier.height(20.dp))
 
-                            SophisticatedLinkCard(
-                                title = if (qrMode == "LAN") "Direct Network" else "Global Secure Relay",
-                                url = if (qrMode == "LAN") localUrl else p2pUrl,
-                                p2pStatus = if (qrMode == "P2P") p2pStatus else null,
-                                onCopy = { 
-                                    val url = if (qrMode == "LAN") localUrl else p2pUrl
-                                    clipboardManager.setText(AnnotatedString(url))
+                            if (qrMode == "LAN") {
+                                LanLocalWebUrlsCard(
+                                    friendlyUrl = friendlyLanUrl,
+                                    ipUrl = ipLanUrl,
+                                    clipboardManager = clipboardManager
+                                )
+                                if (isRunning && (friendlyLanUrl != null || ipLanUrl != null)) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        "Uses http on your LAN (browsers do not trust https to .local without extra setup). Your PIN still gates access.",
+                                        color = Silver.copy(alpha = 0.45f),
+                                        fontSize = 11.sp,
+                                        lineHeight = 14.sp,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
-                            )
+                            } else {
+                                SophisticatedLinkCard(
+                                    title = "Global Secure Relay",
+                                    url = p2pUrl,
+                                    p2pStatus = p2pStatus,
+                                    onCopy = { clipboardManager.setText(AnnotatedString(p2pUrl)) }
+                                )
+                            }
                         }
                     }
                     
@@ -643,6 +669,99 @@ private fun DiscoveryToggle(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
+private fun LanLocalWebUrlsCard(
+    friendlyUrl: String?,
+    ipUrl: String?,
+    clipboardManager: ClipboardManager
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.2f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Wifi, null, tint = AccentBlue.copy(alpha = 0.85f), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Local web (same Wi‑Fi)",
+                    color = Platinum,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            LanUrlRow(
+                label = "Easy name — mDNS (.local)",
+                value = friendlyUrl,
+                emptyHint = "Starting… (or blocked on guest Wi‑Fi)",
+                clipboardManager = clipboardManager
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = Platinum.copy(alpha = 0.08f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            LanUrlRow(
+                label = "Direct IP — IPv4 address",
+                value = ipUrl,
+                emptyHint = "Identifying network…",
+                clipboardManager = clipboardManager
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanUrlRow(
+    label: String,
+    value: String?,
+    emptyHint: String,
+    clipboardManager: ClipboardManager
+) {
+    val display = value?.takeIf { it.isNotBlank() } ?: emptyHint
+    val canCopy = !value.isNullOrBlank()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            color = Silver.copy(alpha = 0.55f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.3.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                display,
+                color = if (canCopy) Silver.copy(alpha = 0.95f) else Silver.copy(alpha = 0.45f),
+                fontSize = 12.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = {
+                    if (canCopy) clipboardManager.setText(AnnotatedString(value!!))
+                },
+                enabled = canCopy,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "Copy",
+                    tint = if (canCopy) AccentBlue else Silver.copy(alpha = 0.25f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SophisticatedLinkCard(
     title: String,
     url: String,
@@ -676,7 +795,7 @@ private fun SophisticatedLinkCard(
                 url,
                 color = Silver.copy(alpha = 0.9f),
                 fontSize = 12.sp,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodySmall
             )

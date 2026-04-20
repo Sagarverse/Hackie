@@ -9,284 +9,408 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg-a: #071026;
-      --bg-b: #111827;
-      --card: rgba(255, 255, 255, 0.08);
-      --card-2: rgba(255, 255, 255, 0.05);
-      --border: rgba(255, 255, 255, 0.18);
+      --bg-a: #050a14;
+      --bg-b: #0d1420;
+      --card: rgba(255, 255, 255, 0.04);
+      --card-hover: rgba(255, 255, 255, 0.07);
+      --border: rgba(255, 255, 255, 0.1);
+      --border-bright: rgba(255, 255, 255, 0.18);
       --txt: #ecf2ff;
-      --muted: #9cb1d7;
-      --accent: #1fb6ff;
-      --accent-2: #24f1c7;
+      --muted: #7a8eb0;
+      --accent: #2e6bff;
+      --accent-2: #00d4aa;
       --ok: #22c55e;
       --danger: #fb7185;
-      --shadow: 0 14px 42px rgba(0, 0, 0, 0.34);
+      --warn: #f59e0b;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      --glass: rgba(15, 23, 42, 0.8);
     }
 
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      margin: 0;
       min-height: 100vh;
       font-family: "Space Grotesk", system-ui, sans-serif;
       color: var(--txt);
       background:
-        radial-gradient(1000px 480px at 90% -20%, rgba(31, 182, 255, 0.2), transparent),
-        radial-gradient(900px 440px at -10% 120%, rgba(36, 241, 199, 0.14), transparent),
-        linear-gradient(135deg, var(--bg-a), var(--bg-b));
+        radial-gradient(ellipse 1200px 600px at 85% -15%, rgba(46, 107, 255, 0.15), transparent),
+        radial-gradient(ellipse 1000px 500px at -5% 110%, rgba(0, 212, 170, 0.1), transparent),
+        linear-gradient(160deg, var(--bg-a), var(--bg-b));
     }
 
     .mesh {
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: 0.24;
+      opacity: 0.15;
       background-image:
-        linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
-      background-size: 32px 32px;
-      mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
     }
 
-    .quick-actions {
+    .topbar {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 24px;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
       flex-wrap: wrap;
-    }
-
-    .quick-actions .brand {
-      margin-right: auto;
+      gap: 12px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       font-weight: 700;
-      letter-spacing: 0.2px;
-      font-size: 20px;
+      font-size: 22px;
+      letter-spacing: -0.5px;
     }
 
-    .dot {
-      width: 10px;
-      height: 10px;
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 16px;
+      color: white;
+    }
+
+    .dot-live {
+      width: 8px;
+      height: 8px;
       border-radius: 999px;
       background: var(--ok);
       box-shadow: 0 0 12px var(--ok);
-      animation: pulse 1.8s infinite;
+      animation: pulse 2s infinite ease-in-out;
     }
 
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(0.7); opacity: 0.5; }
+      50% { transform: scale(0.6); opacity: 0.4; }
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .chip {
       border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 8px 14px;
+      background: rgba(255, 255, 255, 0.04);
       color: var(--txt);
       font-weight: 600;
+      font-size: 13px;
       cursor: pointer;
+      transition: all 0.2s;
     }
+    .chip:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--border-bright); }
+    .chip-danger { border-color: rgba(251,113,133,0.3); color: var(--danger); }
+    .chip-danger:hover { background: rgba(251,113,133,0.1); }
 
     .container {
-      max-width: 1300px;
-      margin: 20px auto;
-      padding: 0 16px 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 40px;
       display: grid;
-      grid-template-columns: 1.1fr 1.4fr;
-      gap: 16px;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
     }
+
+    .full-span { grid-column: 1 / -1; }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
+      border-radius: 20px;
+      backdrop-filter: blur(20px);
       overflow: hidden;
+      transition: border-color 0.3s;
     }
+    .card:hover { border-color: var(--border-bright); }
 
     .card-head {
-      padding: 16px 16px 0;
+      padding: 18px 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
     }
 
     .title {
-      margin: 0;
-      font-size: 20px;
+      font-size: 17px;
       font-weight: 700;
+      letter-spacing: -0.3px;
     }
 
     .subtitle {
-      margin: 6px 0 0;
+      margin: 4px 0 0;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
     }
 
-    .body {
-      padding: 16px;
+    .badge {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .badge-live { background: rgba(34,197,94,0.15); color: var(--ok); border: 1px solid rgba(34,197,94,0.2); }
+    .badge-sync { background: rgba(46,107,255,0.15); color: var(--accent); border: 1px solid rgba(46,107,255,0.2); }
+
+    .body { padding: 16px 20px 20px; }
+
+    /* Clipboard Card */
+    .clipboard-area {
+      width: 100%;
+      min-height: 80px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      color: var(--txt);
+      padding: 12px;
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .clipboard-area:focus { border-color: var(--accent); }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
     }
 
+    .btn {
+      border: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(46,107,255,0.2), rgba(0,212,170,0.15));
+      color: white;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(46,107,255,0.2); }
+    .btn-sm { padding: 7px 12px; font-size: 11px; }
+    .btn-ghost { background: rgba(255,255,255,0.04); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08); }
+    .btn-del { background: rgba(251,113,133,0.15); border-color: rgba(251,113,133,0.25); color: var(--danger); }
+
+    .status-line {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .status-dot.active { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+
+    /* Notes */
+    .note-input {
+      width: 100%;
+      min-height: 80px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      color: var(--txt);
+      padding: 12px;
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+    }
+    .note-input:focus { border-color: var(--accent); }
+
+    .notes-list {
+      max-height: 400px;
+      overflow: auto;
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .note-item {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      border-radius: 14px;
+      padding: 14px;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .note-text {
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .note-meta {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .note-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      justify-content: flex-end;
+    }
+
+    /* File Upload */
     .drop {
-      border: 2px dashed rgba(31, 182, 255, 0.35);
+      border: 2px dashed rgba(46,107,255,0.3);
       border-radius: 16px;
-      min-height: 230px;
+      min-height: 200px;
       display: grid;
       place-items: center;
       text-align: center;
-      background: linear-gradient(180deg, rgba(31, 182, 255, 0.08), rgba(31, 182, 255, 0.02));
-      transition: all 220ms ease;
+      background: linear-gradient(180deg, rgba(46,107,255,0.05), rgba(46,107,255,0.01));
+      transition: all 0.25s ease;
       cursor: pointer;
-      padding: 14px;
+      padding: 16px;
     }
-
     .drop.active {
-      transform: translateY(-2px) scale(0.99);
+      transform: translateY(-2px);
       border-color: var(--accent-2);
-      box-shadow: 0 0 0 6px rgba(36, 241, 199, 0.11);
+      box-shadow: 0 0 0 6px rgba(0,212,170,0.1);
     }
 
     .progress {
-      margin-top: 10px;
-      height: 9px;
+      margin-top: 12px;
+      height: 6px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.13);
+      background: rgba(255, 255, 255, 0.08);
       overflow: hidden;
       display: none;
     }
-
     .bar {
       height: 100%;
       width: 0;
       background: linear-gradient(90deg, var(--accent), var(--accent-2));
       transition: width 120ms linear;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-
-    .tab {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--border);
-      color: var(--txt);
       border-radius: 999px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 13px;
     }
 
-    .tab.active {
-      background: linear-gradient(90deg, rgba(31, 182, 255, 0.22), rgba(36, 241, 199, 0.22));
-      border-color: rgba(36, 241, 199, 0.45);
-    }
-
-    .list {
-      max-height: 64vh;
+    /* Shared Files List */
+    .file-list {
+      max-height: 400px;
       overflow: auto;
       display: grid;
-      gap: 10px;
-      padding-right: 4px;
+      gap: 8px;
     }
 
-    .item {
+    .file-item {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 10px;
       align-items: center;
       border: 1px solid var(--border);
-      background: var(--card-2);
-      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
       padding: 12px;
-      animation: rise 340ms ease;
+      transition: background 0.2s;
     }
+    .file-item:hover { background: rgba(255,255,255,0.04); }
 
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .name {
-      font-size: 14px;
+    .file-name {
+      font-size: 13px;
       font-weight: 600;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .file-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
 
-    .meta {
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .btn {
-      border: 1px solid var(--border);
-      background: linear-gradient(90deg, rgba(31, 182, 255, 0.25), rgba(36, 241, 199, 0.25));
-      color: white;
-      font-weight: 700;
-      padding: 9px 12px;
-      border-radius: 12px;
-      cursor: pointer;
-    }
-
-    .muted { color: var(--muted); }
-
+    /* Auth Overlay */
     .overlay {
       position: fixed;
       inset: 0;
-      background: rgba(6, 10, 26, 0.78);
+      background: rgba(5, 10, 20, 0.92);
+      backdrop-filter: blur(20px);
       display: grid;
       place-items: center;
-      z-index: 50;
+      z-index: 100;
     }
 
     .auth {
-      width: min(420px, calc(100vw - 24px));
-      padding: 22px;
-      border-radius: 18px;
+      width: min(440px, calc(100vw - 32px));
+      padding: 36px;
+      border-radius: 24px;
       border: 1px solid var(--border);
-      background: rgba(17, 24, 39, 0.95);
+      background: var(--glass);
       box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .auth h2 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
     }
 
     .auth input {
-      margin-top: 10px;
+      margin-top: 20px;
       width: 100%;
-      height: 52px;
-      border-radius: 12px;
+      height: 64px;
+      border-radius: 16px;
       outline: none;
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.07);
+      background: rgba(0,0,0,0.3);
       color: var(--txt);
-      font-size: 22px;
+      font-size: 28px;
       text-align: center;
-      letter-spacing: 8px;
+      letter-spacing: 12px;
+      font-weight: 700;
+      transition: all 0.2s;
     }
+    .auth input:focus { border-color: var(--accent); box-shadow: 0 0 20px rgba(46,107,255,0.2); }
 
     .auth button {
-      margin-top: 12px;
+      margin-top: 16px;
       width: 100%;
-      height: 52px;
-      border-radius: 12px;
+      height: 56px;
+      border-radius: 14px;
       border: 0;
       font-weight: 700;
+      font-size: 15px;
       color: white;
       cursor: pointer;
-      background: linear-gradient(90deg, #1fb6ff, #24f1c7);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      transition: all 0.2s;
     }
+    .auth button:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(46,107,255,0.3); }
 
-    @media (max-width: 980px) {
+    .muted { color: var(--muted); }
+
+    @media (max-width: 900px) {
       .container { grid-template-columns: 1fr; }
-      .list { max-height: 52vh; }
     }
   </style>
 </head>
@@ -295,46 +419,66 @@
 
   <div id="auth-overlay" class="overlay">
     <div class="auth">
-      <h2 style="margin:0">Hackie Browser Portal</h2>
-      <p class="muted" style="margin-top:8px">Enter the 4-digit PIN shown in your Hackie app.</p>
-      <input id="pin" maxlength="4" inputmode="numeric" autocomplete="one-time-code" type="password" placeholder="0000" />
-      <button id="auth-btn">Connect</button>
-      <p id="auth-error" style="display:none;color:var(--danger);margin:10px 0 0">Invalid PIN or connection failed.</p>
+      <div class="brand-icon" style="width:56px;height:56px;font-size:22px;margin:0 auto 20px;">H</div>
+      <h2>Hackie Hub</h2>
+      <p class="muted" style="font-size:14px;">Enter the 4-digit PIN from your Hackie app</p>
+      <p id="lan-crypto-hint" class="muted" style="display:none;font-size:11px;margin-top:10px;line-height:1.4;">Running over LAN (plain HTTP). Clipboard and notes sync in plaintext over your local network. Your PIN still gates access.</p>
+      <input id="pin" maxlength="4" inputmode="numeric" autocomplete="one-time-code" type="password" placeholder="••••" />
+      <button id="auth-btn">Connect to Hub</button>
+      <p id="auth-error" style="display:none;color:var(--danger);margin:12px 0 0;font-size:13px;"></p>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">H</div>
+      <span>Hackie Hub</span>
+      <div class="dot-live"></div>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-btn" class="chip">↻ Refresh All</button>
+      <button id="revoke-btn" class="chip chip-danger">Sign Out</button>
     </div>
   </div>
 
   <main class="container">
-    <section class="card" style="grid-column: 1 / -1;">
+    <!-- Clipboard Card -->
+    <section class="card">
       <div class="card-head">
-        <h3 class="title">Shared Notes and Universal Clipboard</h3>
-        <p class="subtitle">Notes added in Hackie show here and on P2P web. Clipboard sync runs both directions.</p>
+        <div>
+          <h3 class="title">📋 Universal Clipboard</h3>
+          <p class="subtitle">Sync clipboard between this device and phone</p>
+        </div>
+        <span id="clip-badge" class="badge badge-sync">SYNC</span>
       </div>
       <div class="body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <textarea id="note-input" placeholder="Type a note and click Add Note" style="width:100%;min-height:96px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.06);color:var(--txt);padding:10px;"></textarea>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-              <button id="add-note-btn" class="chip">Add Note</button>
-              <button id="refresh-notes-btn" class="chip">Refresh Notes</button>
-            </div>
-            <div id="clipboard-status" class="muted" style="font-size:12px;margin-top:8px;">Clipboard sync idle.</div>
-          </div>
-          <div id="notes-list" class="list" style="max-height:220px;"></div>
+        <textarea id="clipboard-area" class="clipboard-area" placeholder="Clipboard content will appear here..."></textarea>
+        <div class="btn-row">
+          <button id="clip-pull-btn" class="btn">⬇ Pull from Phone</button>
+          <button id="clip-push-btn" class="btn btn-ghost">⬆ Push to Phone</button>
+          <button id="clip-copy-btn" class="btn btn-sm btn-ghost">📄 Copy</button>
+        </div>
+        <div id="clipboard-status" class="status-line">
+          <span id="clip-status-dot" class="status-dot"></span>
+          <span>Clipboard sync idle</span>
         </div>
       </div>
     </section>
 
+    <!-- Upload Card -->
     <section class="card">
       <div class="card-head">
-        <h3 class="title">Upload From Computer</h3>
-        <p class="subtitle">Drag and drop files. They are saved to your phone Downloads folder.</p>
+        <div>
+          <h3 class="title">⬆ Upload Files</h3>
+          <p class="subtitle">Drop files to save to phone Downloads</p>
+        </div>
       </div>
       <div class="body">
         <div id="drop-zone" class="drop">
           <div>
-            <div style="font-size:36px">⬆</div>
-            <div style="font-size:16px;font-weight:700;margin-top:8px">Drop files here</div>
-            <div class="muted" style="font-size:13px;margin-top:4px">or click to choose files</div>
+            <div style="font-size:40px;opacity:0.6;">📁</div>
+            <div style="font-size:15px;font-weight:700;margin-top:10px;">Drop files here</div>
+            <div class="muted" style="font-size:12px;margin-top:4px;">or click to choose files</div>
           </div>
           <input id="pick" type="file" multiple hidden />
         </div>
@@ -342,30 +486,48 @@
       </div>
     </section>
 
-    <section class="card">
+    <!-- Notes Card -->
+    <section class="card full-span">
       <div class="card-head">
-        <h3 class="title">Shared Hub</h3>
-        <p class="subtitle">Files currently shared from your phone.</p>
+        <div>
+          <h3 class="title">📝 Shared Notes</h3>
+          <p class="subtitle">Notes sync between Hackie app and this browser</p>
+        </div>
+        <span class="badge badge-live">LIVE</span>
       </div>
       <div class="body">
-        <div id="list" class="list">
-          <div class="muted">Sign in with PIN to load your files.</div>
+        <textarea id="note-input" class="note-input" placeholder="Type a note and click Add Note (Ctrl+Enter)"></textarea>
+        <div class="btn-row">
+          <button id="add-note-btn" class="btn">＋ Add Note</button>
+          <button id="refresh-notes-btn" class="btn btn-ghost">↻ Refresh Notes</button>
+        </div>
+        <div id="notes-list" class="notes-list"></div>
+      </div>
+    </section>
+
+    <!-- Shared Files Card -->
+    <section class="card full-span">
+      <div class="card-head">
+        <div>
+          <h3 class="title">📱 Phone Shared Files</h3>
+          <p class="subtitle">Files shared from your phone</p>
+        </div>
+      </div>
+      <div class="body">
+        <div id="list" class="file-list">
+          <div class="muted">Sign in to view shared files.</div>
         </div>
       </div>
     </section>
   </main>
 
   <script>
-    function createDeviceId() {
-      const hasCryptoUuid = typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function";
-      if (hasCryptoUuid) return crypto.randomUUID();
-      return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
+    // ──────── Device Identity ────────
     function getOrCreateDeviceId() {
       const saved = localStorage.getItem("hackie_device_id");
       if (saved) return saved;
-      const fresh = createDeviceId();
+      const hasCrypto = typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function";
+      const fresh = hasCrypto ? crypto.randomUUID() : `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       localStorage.setItem("hackie_device_id", fresh);
       return fresh;
     }
@@ -376,8 +538,8 @@
       shared: [],
       notes: []
     };
-    localStorage.setItem("hackie_device_id", state.deviceId);
 
+    // ──────── DOM Refs ────────
     const authOverlay = document.getElementById("auth-overlay");
     const authBtn = document.getElementById("auth-btn");
     const pinInput = document.getElementById("pin");
@@ -389,25 +551,38 @@
     const addNoteBtn = document.getElementById("add-note-btn");
     const refreshNotesBtn = document.getElementById("refresh-notes-btn");
     const notesList = document.getElementById("notes-list");
+    const clipboardArea = document.getElementById("clipboard-area");
     const clipboardStatus = document.getElementById("clipboard-status");
+    const clipStatusDot = document.getElementById("clip-status-dot");
+    const clipPullBtn = document.getElementById("clip-pull-btn");
+    const clipPushBtn = document.getElementById("clip-push-btn");
+    const clipCopyBtn = document.getElementById("clip-copy-btn");
+    const clipBadge = document.getElementById("clip-badge");
     const dropZone = document.getElementById("drop-zone");
     const pick = document.getElementById("pick");
     const progress = document.getElementById("progress");
     const bar = document.getElementById("bar");
+
     let lastWebClipboard = "";
     let lastPhoneClipboard = "";
+    let clipSyncInterval = null;
+    let notesSyncInterval = null;
+
+    // ──────── Crypto Check ────────
+    // crypto.subtle only works on HTTPS / localhost.  Plain http://192.168.x.x = insecure LAN.
+    const WEB_CRYPTO_OK = typeof crypto !== "undefined" && !!crypto.subtle;
+    (function showLanHint() {
+      const el = document.getElementById("lan-crypto-hint");
+      if (el && !WEB_CRYPTO_OK) el.style.display = "block";
+    })();
 
     const CryptoHelper = {
       async deriveKey(pin, salt) {
         const encoder = new TextEncoder();
-        const baseKey = await crypto.subtle.importKey(
-          "raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]
-        );
+        const baseKey = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]);
         return await crypto.subtle.deriveKey(
           { name: "PBKDF2", salt, iterations: 10000, hash: "SHA-256" },
-          baseKey,
-          { name: "AES-GCM", length: 256 },
-          false, ["encrypt", "decrypt"]
+          baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
         );
       },
       async encrypt(text, pin) {
@@ -415,13 +590,11 @@
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const key = await this.deriveKey(pin, salt);
-        const ciphertext = await crypto.subtle.encrypt(
-          { name: "AES-GCM", iv }, key, encoder.encode(text)
-        );
-        const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(text));
+        const combined = new Uint8Array(salt.length + iv.length + ct.byteLength);
         combined.set(salt, 0);
         combined.set(iv, 16);
-        combined.set(new Uint8Array(ciphertext), 28);
+        combined.set(new Uint8Array(ct), 28);
         return btoa(String.fromCharCode(...combined));
       },
       async decrypt(base64, pin) {
@@ -429,11 +602,9 @@
           const combined = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
           const salt = combined.slice(0, 16);
           const iv = combined.slice(16, 28);
-          const ciphertext = combined.slice(28);
+          const ct = combined.slice(28);
           const key = await this.deriveKey(pin, salt);
-          const decrypted = await crypto.subtle.decrypt(
-            { name: "AES-GCM", iv }, key, ciphertext
-          );
+          const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
           return new TextDecoder().decode(decrypted);
         } catch (e) { return null; }
       }
@@ -441,6 +612,7 @@
 
     function getPin() { return pinInput.value || localStorage.getItem("hackie_pin") || "0000"; }
 
+    // ──────── Utilities ────────
     function fmtSize(bytes) {
       if (!bytes || bytes < 0) return "Unknown";
       if (bytes < 1024) return bytes + " B";
@@ -455,184 +627,30 @@
       return new Date(ms).toLocaleString();
     }
 
+    function escapeHtml(raw) {
+      return (raw || "").toString()
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+    }
+
     function setAuthenticated(ok) {
       authOverlay.style.display = ok ? "none" : "grid";
     }
 
-    function escapeHtml(raw) {
-      return (raw || "").toString()
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
+    function updateClipStatus(text, active) {
+      clipboardStatus.innerHTML = `<span class="status-dot ${active ? 'active' : ''}"></span><span>${text}</span>`;
     }
 
-    function renderNotes() {
-      const notes = Array.isArray(state.notes) ? state.notes : [];
-      if (!notes.length) {
-        notesList.innerHTML = '<div class="muted">No notes yet. Add one from Hackie or this browser.</div>';
-        return;
-      }
-      notesList.innerHTML = notes.map((note) => {
-        const safeText = escapeHtml(note.text || "");
-        const safeSource = escapeHtml(note.source || "Hackie");
-        const noteJson = JSON.stringify(note.text || "");
-        return `
-          <article class="item" style="grid-template-columns:1fr auto;">
-            <div>
-              <div id="note-display-${note.id}" class="name" style="white-space:normal;">${safeText}</div>
-              <div class="meta">${fmtDate(Number(note.createdAtMs || 0))} • ${safeSource}</div>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button class="btn" onclick="copyNoteText(${noteJson})">Copy</button>
-              <button class="btn" style="background:rgba(31, 182, 255, 0.1);" onclick="editNote('${note.id}')">Edit</button>
-              <button class="btn" style="background:rgba(251, 113, 133, 0.2); border-color:var(--danger);" onclick="deleteNote('${note.id}')">Del</button>
-            </div>
-          </article>
-        `;
-      }).join("");
-    }
-
-    window.copyNoteText = async function(text) {
-      try { await navigator.clipboard.writeText((text || "").toString()); } catch (_) {}
-    }
-
-    window.editNote = async function(id) {
-        const el = document.getElementById('note-display-' + id);
-        const oldText = el ? el.innerText : "";
-        const newText = prompt("Edit note:", oldText);
-        if (newText === null || newText.trim() === "" || newText === oldText) return;
-        try {
-            const res = await safeFetch("/notes/" + id, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: newText.trim() })
-            });
-            state.notes = await res.json();
-            renderNotes();
-        } catch (e) { alert("Failed to update note"); }
-    }
-
-    window.deleteNote = async function(id) {
-        if (!confirm("Delete this note?")) return;
-        try {
-            const res = await safeFetch("/notes/" + id, { method: "DELETE" });
-            state.notes = await res.json();
-            renderNotes();
-        } catch (e) { alert("Failed to delete note"); }
-    }
-
-    async function refreshNotes() {
-      const res = await safeFetch("/notes");
-      const data = await res.json();
-      const pin = getPin();
-      state.notes = await Promise.all(data.map(async n => ({
-        ...n,
-        text: await CryptoHelper.decrypt(n.text, pin) || n.text
-      })));
-      renderNotes();
-    }
-
-    async function addNote() {
-      const text = (noteInput.value || "").trim();
-      if (!text) return;
-      const pin = getPin();
-      const encrypted = await CryptoHelper.encrypt(text, pin);
-      const res = await safeFetch("/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: encrypted })
-      });
-      state.notes = await res.json();
-      noteInput.value = "";
-      await refreshNotes();
-    }
-
-    async function syncUniversalClipboard() {
-      if (!state.token) return;
-      const pin = getPin();
-      try {
-        const pullRes = await safeFetch("/clipboard");
-        const pullData = await pullRes.json();
-        const encrypted = (pullData.text || "").trim();
-        const phoneText = encrypted ? await CryptoHelper.decrypt(encrypted, pin) : "";
-        
-        if (phoneText && phoneText !== lastPhoneClipboard && phoneText !== lastWebClipboard && document.hasFocus()) {
-          await navigator.clipboard.writeText(phoneText);
-          lastPhoneClipboard = phoneText;
-          lastWebClipboard = phoneText;
-          clipboardStatus.textContent = "Clipboard pulled (Encrypted).";
-        }
-      } catch (_) {}
-
-      if (document.hasFocus()) {
-        try {
-          const local = (await navigator.clipboard.readText()).trim();
-          if (local && local !== lastWebClipboard && local !== lastPhoneClipboard) {
-            const encrypted = await CryptoHelper.encrypt(local, pin);
-            await safeFetch("/clipboard", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: encrypted })
-            });
-            lastWebClipboard = local;
-            lastPhoneClipboard = local;
-            clipboardStatus.textContent = "Clipboard pushed (Encrypted).";
-          }
-        } catch (_) {}
-      }
-    }
-
-    async function auth() {
-      authError.style.display = "none";
-      const pin = pinInput.value.replace(/\D/g, "").trim();
-      if (pin.length !== 4) {
-        authError.textContent = "Enter the 4-digit PIN shown in Hackie.";
-        authError.style.color = "var(--danger)";
-        authError.style.display = "block";
-        return;
-      }
-      authBtn.disabled = true;
-      authBtn.textContent = "Connecting...";
-      try {
-        const res = await fetch("/auth", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Device-Id": state.deviceId
-          },
-          body: JSON.stringify({ pin })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          const reason = res.status === 401 ? "Wrong PIN. Please check and try again." : "Connection failed. Please retry.";
-          throw new Error(reason);
-        }
-        state.token = data.message;
-        localStorage.setItem("hackie_session_token", state.token);
-        localStorage.setItem("hackie_pin", pin);
-        authError.textContent = "PIN verified. Connecting...";
-        authError.style.color = "var(--ok)";
-        authError.style.display = "block";
-        setAuthenticated(true);
-        await refreshAll();
-      } catch (e) {
-        authError.textContent = e?.message || "Invalid PIN or connection failed.";
-        authError.style.color = "var(--danger)";
-        authError.style.display = "block";
-      } finally {
-        authBtn.disabled = false;
-        authBtn.textContent = "Connect";
-      }
-    }
-
+    // ──────── API Calls ────────
     async function safeFetch(url, init = {}) {
       const headers = {
         ...(init.headers || {}),
         "X-Session-Token": state.token,
         "X-Device-Id": state.deviceId
       };
+      if (!WEB_CRYPTO_OK) {
+        headers["X-Hackie-Insecure-Lan"] = "1";
+      }
       const res = await fetch(url, { ...init, headers });
       if (res.status === 401) {
         state.token = "";
@@ -643,37 +661,212 @@
       return res;
     }
 
-    function renderItems(items) {
-      if (!items.length) {
-        list.innerHTML = '<div class="muted">No files shared yet. Share a file from your phone to see it here.</div>';
+    // ──────── Clipboard Sync ────────
+    async function pullClipboard() {
+      if (!state.token) return;
+      try {
+        const res = await safeFetch("/clipboard");
+        const data = await res.json();
+        const raw = (data.text || "").trim();
+        if (!raw) return;
+
+        // KEY FIX: On insecure LAN, raw is already plaintext — do NOT try to decrypt
+        let phoneText;
+        if (WEB_CRYPTO_OK) {
+          phoneText = (await CryptoHelper.decrypt(raw, getPin())) || raw;
+        } else {
+          phoneText = raw;
+        }
+
+        if (phoneText && phoneText !== lastPhoneClipboard) {
+          lastPhoneClipboard = phoneText;
+          lastWebClipboard = phoneText;
+          clipboardArea.value = phoneText;
+
+          let written = false;
+          if (navigator.clipboard?.writeText && document.hasFocus()) {
+            try { await navigator.clipboard.writeText(phoneText); written = true; } catch (_) {}
+          }
+          updateClipStatus(written ? "✓ Pulled from phone" : "✓ Phone clipboard shown above (click Copy)", true);
+          clipBadge.textContent = "SYNCED";
+        }
+      } catch (_) {}
+    }
+
+    async function pushClipboard() {
+      if (!state.token) return;
+      const text = clipboardArea.value.trim();
+      if (!text) { updateClipStatus("Nothing to push", false); return; }
+      try {
+        const pin = getPin();
+        const wire = WEB_CRYPTO_OK ? await CryptoHelper.encrypt(text, pin) : text;
+        await safeFetch("/clipboard", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: wire })
+        });
+        lastWebClipboard = text;
+        lastPhoneClipboard = text;
+        updateClipStatus("✓ Pushed to phone clipboard", true);
+      } catch (_) { updateClipStatus("Push failed", false); }
+    }
+
+    async function autoSyncClipboard() {
+      if (!state.token || !document.hasFocus()) return;
+
+      // Pull from phone
+      await pullClipboard();
+
+      // Push from browser clipboard (if available)
+      if (navigator.clipboard?.readText) {
+        try {
+          const local = (await navigator.clipboard.readText()).trim();
+          if (local && local !== lastWebClipboard && local !== lastPhoneClipboard) {
+            clipboardArea.value = local;
+            const pin = getPin();
+            const wire = WEB_CRYPTO_OK ? await CryptoHelper.encrypt(local, pin) : local;
+            await safeFetch("/clipboard", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: wire })
+            });
+            lastWebClipboard = local;
+            lastPhoneClipboard = local;
+            updateClipStatus("✓ Auto-synced to phone", true);
+          }
+        } catch (_) {}
+      }
+    }
+
+    // ──────── Notes ────────
+    function renderNotes() {
+      const notes = Array.isArray(state.notes) ? state.notes : [];
+      if (!notes.length) {
+        notesList.innerHTML = '<div class="muted" style="padding:16px;text-align:center;">No notes yet. Add one from Hackie or this browser.</div>';
         return;
       }
-      list.innerHTML = items.map((it) => {
-        const meta = `${fmtSize(it.size)} • ${fmtDate(it.modifiedAt)} • ${it.type || "unknown"}`;
-        const href = `/download/${encodeURIComponent(it.id)}?token=${encodeURIComponent(state.token)}`;
+      notesList.innerHTML = notes.map((note) => {
+        const safeText = escapeHtml(note.text || "");
+        const safeSource = escapeHtml(note.source || "Hackie");
+        const noteJson = JSON.stringify(note.text || "");
         return `
-          <article class="item">
-            <div>
-              <div class="name" title="${it.name}">${it.name}</div>
-              <div class="meta">${meta}</div>
+          <article class="note-item">
+            <div id="note-display-${note.id}" class="note-text">${safeText}</div>
+            <div class="note-meta">${fmtDate(Number(note.createdAtMs || 0))} • ${safeSource}</div>
+            <div class="note-actions">
+              <button class="btn btn-sm btn-ghost" onclick="copyNoteText(${noteJson})">Copy</button>
+              <button class="btn btn-sm btn-ghost" onclick="editNote('${note.id}')">Edit</button>
+              <button class="btn btn-sm btn-del" onclick="deleteNote('${note.id}')">Delete</button>
             </div>
-            <a class="btn" href="${href}">Download</a>
           </article>
         `;
       }).join("");
     }
 
-    async function refreshAll() {
-      const sharedRes = await safeFetch("/shared-files");
-      state.shared = await sharedRes.json();
-      await refreshNotes();
-      renderActiveTab();
+    window.copyNoteText = async function(text) {
+      try { await navigator.clipboard.writeText((text || "").toString()); } catch (_) {}
+    };
+
+    window.editNote = async function(id) {
+      const el = document.getElementById('note-display-' + id);
+      const oldText = el ? el.innerText : "";
+      const newText = prompt("Edit note:", oldText);
+      if (newText === null || newText.trim() === "" || newText === oldText) return;
+      try {
+        const res = await safeFetch("/notes/" + id, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: newText.trim() })
+        });
+        state.notes = await res.json();
+        // Decrypt if needed
+        if (WEB_CRYPTO_OK) {
+          state.notes = await decryptNotesList(state.notes);
+        }
+        renderNotes();
+      } catch (e) { alert("Failed to update note"); }
+    };
+
+    window.deleteNote = async function(id) {
+      if (!confirm("Delete this note?")) return;
+      try {
+        const res = await safeFetch("/notes/" + id, { method: "DELETE" });
+        state.notes = await res.json();
+        if (WEB_CRYPTO_OK) {
+          state.notes = await decryptNotesList(state.notes);
+        }
+        renderNotes();
+      } catch (e) { alert("Failed to delete note"); }
+    };
+
+    async function decryptNotesList(notes) {
+      const pin = getPin();
+      return await Promise.all(notes.map(async (n) => ({
+        ...n,
+        text: (await CryptoHelper.decrypt(n.text, pin)) || n.text
+      })));
     }
 
-    function renderActiveTab() {
-      renderItems(state.shared);
+    async function refreshNotes() {
+      try {
+        const res = await safeFetch("/notes");
+        const data = await res.json();
+        if (WEB_CRYPTO_OK) {
+          state.notes = await decryptNotesList(data);
+        } else {
+          // KEY FIX: On insecure LAN, notes text is already plaintext
+          state.notes = data;
+        }
+        renderNotes();
+      } catch (_) {}
     }
 
+    async function addNote() {
+      const text = (noteInput.value || "").trim();
+      if (!text) return;
+      const pin = getPin();
+      const wire = WEB_CRYPTO_OK ? await CryptoHelper.encrypt(text, pin) : text;
+      try {
+        const res = await safeFetch("/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: wire })
+        });
+        const data = await res.json();
+        if (WEB_CRYPTO_OK) {
+          state.notes = await decryptNotesList(data);
+        } else {
+          state.notes = data;
+        }
+        noteInput.value = "";
+        renderNotes();
+        // Also refresh after a short delay to catch any timing issues
+        setTimeout(refreshNotes, 500);
+      } catch (_) {}
+    }
+
+    // ──────── Shared Files ────────
+    function renderItems(items) {
+      if (!items || !items.length) {
+        list.innerHTML = '<div class="muted" style="padding:16px;text-align:center;">No files shared. Share files from your phone.</div>';
+        return;
+      }
+      list.innerHTML = items.map((it) => {
+        const meta = `${fmtSize(it.size)} • ${fmtDate(it.modifiedAt)} • ${it.type || "file"}`;
+        const href = `/download/${encodeURIComponent(it.id)}?token=${encodeURIComponent(state.token)}`;
+        return `
+          <article class="file-item">
+            <div>
+              <div class="file-name" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</div>
+              <div class="file-meta">${meta}</div>
+            </div>
+            <a class="btn btn-sm" href="${href}">Download</a>
+          </article>
+        `;
+      }).join("");
+    }
+
+    // ──────── Upload ────────
     async function uploadFiles(files) {
       if (!files || !files.length) return;
       const form = new FormData();
@@ -685,39 +878,91 @@
         xhr.open("POST", "/upload");
         xhr.setRequestHeader("X-Session-Token", state.token);
         xhr.setRequestHeader("X-Device-Id", state.deviceId);
+        if (!WEB_CRYPTO_OK) xhr.setRequestHeader("X-Hackie-Insecure-Lan", "1");
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
-          const pct = Math.min(100, (e.loaded / e.total) * 100);
-          bar.style.width = `${pct.toFixed(0)}%`;
+          bar.style.width = `${Math.min(100, (e.loaded / e.total) * 100).toFixed(0)}%`;
         };
         xhr.onload = async () => {
           progress.style.display = "none";
-          if (xhr.status >= 200 && xhr.status < 300) {
-            await refreshAll();
-            resolve();
-            return;
-          }
+          if (xhr.status >= 200 && xhr.status < 300) { await refreshAll(); resolve(); return; }
           reject(new Error("Upload failed"));
         };
-        xhr.onerror = () => {
-          progress.style.display = "none";
-          reject(new Error("Network error"));
-        };
+        xhr.onerror = () => { progress.style.display = "none"; reject(new Error("Network error")); };
         xhr.send(form);
       });
     }
 
+    // ──────── Authentication ────────
+    async function auth() {
+      authError.style.display = "none";
+      const pin = pinInput.value.replace(/\D/g, "").trim();
+      if (pin.length !== 4) {
+        authError.textContent = "Enter the 4-digit PIN shown in Hackie.";
+        authError.style.display = "block";
+        return;
+      }
+      authBtn.disabled = true;
+      authBtn.textContent = "Connecting...";
+      try {
+        const res = await fetch("/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Device-Id": state.deviceId },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(res.status === 401 ? "Wrong PIN. Please try again." : "Connection failed.");
+        }
+        state.token = data.message;
+        localStorage.setItem("hackie_session_token", state.token);
+        localStorage.setItem("hackie_pin", pin);
+        setAuthenticated(true);
+        await refreshAll();
+        startSyncIntervals();
+      } catch (e) {
+        authError.textContent = e?.message || "Connection failed.";
+        authError.style.display = "block";
+      } finally {
+        authBtn.disabled = false;
+        authBtn.textContent = "Connect to Hub";
+      }
+    }
+
+    // ──────── Data Refresh ────────
+    async function refreshAll() {
+      try {
+        const sharedRes = await safeFetch("/shared-files");
+        state.shared = await sharedRes.json();
+        renderItems(state.shared);
+      } catch (_) {}
+      await refreshNotes();
+    }
+
+    function startSyncIntervals() {
+      // Clipboard auto-sync every 4 seconds
+      if (clipSyncInterval) clearInterval(clipSyncInterval);
+      clipSyncInterval = setInterval(autoSyncClipboard, 4000);
+
+      // Notes auto-refresh every 8 seconds
+      if (notesSyncInterval) clearInterval(notesSyncInterval);
+      notesSyncInterval = setInterval(refreshNotes, 8000);
+
+      // Sync on window focus
+      window.addEventListener("focus", () => {
+        autoSyncClipboard();
+        refreshNotes();
+      });
+    }
+
+    // ──────── Event Listeners ────────
     authBtn.addEventListener("click", auth);
-    pinInput.addEventListener("input", () => {
-      pinInput.value = pinInput.value.replace(/\D/g, "").slice(0, 4);
-    });
-    pinInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") auth();
-    });
+    pinInput.addEventListener("input", () => { pinInput.value = pinInput.value.replace(/\D/g, "").slice(0, 4); });
+    pinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") auth(); });
 
     refreshBtn.addEventListener("click", async () => {
       if (!state.token) return;
-      try { await refreshAll(); } catch (e) {}
+      try { await refreshAll(); } catch (_) {}
     });
 
     revokeBtn.addEventListener("click", async () => {
@@ -728,9 +973,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token: state.token })
         });
-      } catch (e) {}
+      } catch (_) {}
       state.token = "";
       localStorage.removeItem("hackie_session_token");
+      if (clipSyncInterval) clearInterval(clipSyncInterval);
+      if (notesSyncInterval) clearInterval(notesSyncInterval);
       setAuthenticated(false);
     });
 
@@ -752,47 +999,46 @@
       }
     });
 
-    document.querySelectorAll(".tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
-        state.tab = tab.getAttribute("data-tab");
-        renderActiveTab();
-      });
+    clipPullBtn.addEventListener("click", async () => {
+      if (!state.token) return;
+      await pullClipboard();
+    });
+
+    clipPushBtn.addEventListener("click", async () => {
+      if (!state.token) return;
+      await pushClipboard();
+    });
+
+    clipCopyBtn.addEventListener("click", async () => {
+      const text = clipboardArea.value;
+      if (text) {
+        try { await navigator.clipboard.writeText(text); updateClipStatus("✓ Copied to clipboard", true); } catch (_) {}
+      }
     });
 
     dropZone.addEventListener("click", () => pick.click());
     pick.addEventListener("change", async (e) => {
       if (!state.token) return;
-      try { await uploadFiles(e.target.files); } catch (err) { alert("Upload failed."); }
+      try { await uploadFiles(e.target.files); } catch (_) { alert("Upload failed."); }
       pick.value = "";
     });
 
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.classList.add("active");
-    });
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("active"); });
     dropZone.addEventListener("dragleave", () => dropZone.classList.remove("active"));
     dropZone.addEventListener("drop", async (e) => {
       e.preventDefault();
       dropZone.classList.remove("active");
       if (!state.token) return;
-      try { await uploadFiles(e.dataTransfer.files); } catch (err) { alert("Upload failed."); }
+      try { await uploadFiles(e.dataTransfer.files); } catch (_) { alert("Upload failed."); }
     });
 
+    // ──────── Bootstrap ────────
     (async function bootstrap() {
-      if (!state.token) {
-        setAuthenticated(false);
-        return;
-      }
+      if (!state.token) { setAuthenticated(false); return; }
       setAuthenticated(true);
       try {
         await refreshAll();
-        setInterval(syncUniversalClipboard, 4000);
-        window.addEventListener("focus", () => {
-          syncUniversalClipboard();
-          refreshNotes();
-        });
+        startSyncIntervals();
       } catch (e) {
         setAuthenticated(false);
       }

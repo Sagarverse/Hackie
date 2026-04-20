@@ -55,7 +55,6 @@ fun PremiumChatTopBar(
     )
 
     Surface(
-        modifier = Modifier.statusBarsPadding(),
         color = Color.Transparent
     ) {
         Box(

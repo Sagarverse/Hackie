@@ -52,8 +52,8 @@ private val RabitTypography = Typography(
         letterSpacing = (-0.3).sp
     ),
     headlineSmall = TextStyle(
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
+        fontSize = 19.sp,
+        lineHeight = 26.sp,
         fontWeight = FontWeight.W600,
         letterSpacing = 0.sp
     ),
@@ -66,7 +66,7 @@ private val RabitTypography = Typography(
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontSize = 15.sp,
+        fontSize = 16.sp,
         lineHeight = 20.sp,
         fontWeight = FontWeight.W600,
         letterSpacing = 0.1.sp
@@ -86,8 +86,8 @@ private val RabitTypography = Typography(
         letterSpacing = 0.15.sp
     ),
     bodyMedium = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
         fontWeight = FontWeight.W400,
         letterSpacing = 0.15.sp
     ),

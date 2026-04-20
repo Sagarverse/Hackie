@@ -30,6 +30,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.ArrayDeque
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -44,8 +45,19 @@ object RabitNetworkServer {
     const val PORT = 8080
     private const val TAG = "RabitNetworkServer"
 
+    /**
+     * Memorable LAN URL when mDNS is active, e.g. `http://hackie-a3f2.local:8080`.
+     * Requires clients on the same Wi‑Fi with multicast/mDNS allowed (not guest isolation).
+     */
+    @Volatile
+    var friendlyLanHttpUrl: String? = null
+        private set
+
+    private var mdnsAppContext: Context? = null
+
     private var server: ApplicationEngine? = null
-    val isRunning: Boolean get() = server != null
+    @Volatile private var isStopping = false
+    val isRunning: Boolean get() = server != null && !isStopping
     private var nsdManager: NsdManager? = null
     private var nsdRegistrationListener: NsdManager.RegistrationListener? = null
     private var encryptionManager: com.example.rabit.data.secure.EncryptionManager? = null
@@ -558,20 +570,73 @@ object RabitNetworkServer {
         return !session.revoked && session.expiresAt > now
     }
 
+    /**
+     * Web Crypto (`crypto.subtle`) is only available in secure contexts (HTTPS / localhost).
+     * Plain `http://192.168.x.x` LAN URLs are not secure contexts, so the web portal sends this
+     * header and we skip AES wire encryption (session token still required).
+     */
+    private fun ApplicationCall.insecureLanPlaintext(): Boolean =
+        request.headers["X-Hackie-Insecure-Lan"] == "1"
+
+    private fun ApplicationCall.decodeClientNoteBody(raw: String): String {
+        val t = raw.trim()
+        if (t.isEmpty()) return ""
+        return if (insecureLanPlaintext()) t
+        else (CryptoManager.decrypt(t, currentPin) ?: t)
+    }
+
     fun start(context: Context, encryption: com.example.rabit.data.secure.EncryptionManager? = null) {
-        if (server != null) {
-            Log.d(TAG, "Server already running on port $PORT")
-            return
+        if (server != null || isStopping) {
+            Log.d(TAG, "Server already running or stopping on port $PORT (isRunning=${server != null}, isStopping=$isStopping)")
+            // If stopping, wait for it to complete before proceeding
+            if (isStopping) {
+                var waited = 0
+                while (isStopping && waited < 5000) {
+                    Thread.sleep(100)
+                    waited += 100
+                }
+                if (isStopping) {
+                    Log.e(TAG, "Timed out waiting for server stop, forcing")
+                    isStopping = false
+                    server = null
+                }
+            }
+            if (server != null) return
         }
         this.encryptionManager = encryption
         
+        // Wait for port to become fully available to avoid Ktor async BindException crash
+        var portFree = false
+        var retryCount = 0
+        while (!portFree && retryCount < 10) {
+            try {
+                val s = java.net.ServerSocket(PORT)
+                s.reuseAddress = true
+                s.close()
+                portFree = true
+            } catch (e: Exception) {
+                Log.w(TAG, "Port $PORT still in use, waiting 500ms before starting Ktor (Attempt ${retryCount+1}/10)")
+                Thread.sleep(500)
+                retryCount++
+            }
+        }
+        
+        if (!portFree) {
+            Log.e(TAG, "Port $PORT never became available, aborting server start.")
+            isStopping = false
+            return
+        }
+
         // Start NSD
         registerService(context, PORT)
 
-        server = embeddedServer(CIO, port = PORT, host = "0.0.0.0") {
-            install(ContentNegotiation) {
-                json()
-            }
+        try {
+            server = embeddedServer(CIO, port = PORT, host = "0.0.0.0", configure = {
+                reuseAddress = true
+            }) {
+                install(ContentNegotiation) {
+                    json()
+                }
             routing {
                 // ───── Web Dashboard ─────
                 get("/") {
@@ -766,8 +831,12 @@ object RabitNetworkServer {
                         return@get
                     }
                     val text = clipboardProvider?.invoke() ?: ""
-                    val encrypted = CryptoManager.encrypt(text, currentPin) ?: text
-                    call.respond(HttpStatusCode.OK, ClipboardPayload(encrypted))
+                    val wire = if (call.insecureLanPlaintext()) {
+                        text
+                    } else {
+                        CryptoManager.encrypt(text, currentPin) ?: text
+                    }
+                    call.respond(HttpStatusCode.OK, ClipboardPayload(wire))
                 }
 
                 post("/clipboard") {
@@ -776,7 +845,11 @@ object RabitNetworkServer {
                         return@post
                     }
                     val payload = call.receive<ClipboardPayload>()
-                    val decrypted = CryptoManager.decrypt(payload.text, currentPin) ?: payload.text
+                    val decrypted = if (call.insecureLanPlaintext()) {
+                        payload.text
+                    } else {
+                        CryptoManager.decrypt(payload.text, currentPin) ?: payload.text
+                    }
                     recordClipboardHistory(decrypted)
                     clipboardReceiver?.invoke(decrypted)
                     call.respond(HttpStatusCode.OK, ApiResponse(true, "Clipboard updated"))
@@ -830,10 +903,14 @@ object RabitNetworkServer {
                         return@get
                     }
                     val notes = notesProvider?.invoke() ?: emptyList()
-                    val encryptedNotes = notes.map { 
-                        it.copy(text = CryptoManager.encrypt(it.text, currentPin) ?: it.text)
+                    val out = if (call.insecureLanPlaintext()) {
+                        notes
+                    } else {
+                        notes.map {
+                            it.copy(text = CryptoManager.encrypt(it.text, currentPin) ?: it.text)
+                        }
                     }
-                    call.respond(HttpStatusCode.OK, encryptedNotes)
+                    call.respond(HttpStatusCode.OK, out)
                 }
 
                 post("/notes") {
@@ -842,18 +919,29 @@ object RabitNetworkServer {
                         return@post
                     }
                     try {
-                        val body = call.receiveText()
-                        val text = runCatching {
-                            val json = JSONObject(body)
-                            json.optString("text", "")
-                        }.getOrElse { "" }.trim()
+                        val raw = runCatching {
+                            call.receive<UpdateNotePayload>().text
+                        }.getOrElse { "" }
+                        val text = call.decodeClientNoteBody(raw)
                         if (text.isBlank()) {
                             call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Text is required"))
                             return@post
                         }
 
+                        val beforeCount = notesProvider?.invoke()?.size ?: 0
                         noteReceiver?.invoke(text)
-                        call.respond(HttpStatusCode.OK, notesProvider?.invoke() ?: emptyList<BridgeNotePayload>())
+                        // Retry loop: wait until the notes list grows (Room DB insert + StateFlow propagation)
+                        var notes = notesProvider?.invoke() ?: emptyList()
+                        var retries = 0
+                        while (notes.size <= beforeCount && retries < 5) {
+                            kotlinx.coroutines.delay(150)
+                            notes = notesProvider?.invoke() ?: emptyList()
+                            retries++
+                        }
+                        val out = if (call.insecureLanPlaintext()) notes else notes.map {
+                            it.copy(text = CryptoManager.encrypt(it.text, currentPin) ?: it.text)
+                        }
+                        call.respond(HttpStatusCode.OK, out)
                     } catch (e: Exception) {
                         call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid payload"))
                     }
@@ -866,14 +954,8 @@ object RabitNetworkServer {
                     }
                     try {
                         val noteId = call.parameters["id"].orEmpty().trim()
-                        val text = runCatching {
-                            call.receive<UpdateNotePayload>().text
-                        }.getOrElse {
-                            val body = call.receiveText()
-                            val json = JSONObject(body)
-                            json.optString("text", "")
-                        }.trim()
-
+                        val raw = call.receive<UpdateNotePayload>().text
+                        val text = call.decodeClientNoteBody(raw)
                         if (noteId.isBlank() || text.isBlank()) {
                             call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "id and text are required"))
                             return@put
@@ -1143,12 +1225,52 @@ object RabitNetworkServer {
             }
         }.also { it.start(wait = false) }
         Log.d(TAG, "Rabit network server started on port $PORT")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start Ktor server", e)
+            server = null
+            unregisterService()
+            return
+        }
+
+        val appCtx = context.applicationContext
+        mdnsAppContext = appCtx
+        friendlyLanHttpUrl = null
+        val inet = LanIpResolver.preferredLanIpv4(appCtx)
+        if (inet != null) {
+            val label = stableMdnsHostLabel(appCtx)
+            if (HackieLocalMdns.start(appCtx, inet, PORT, label)) {
+                friendlyLanHttpUrl = "http://$label.local:$PORT"
+                Log.d(TAG, "Friendly LAN URL: $friendlyLanHttpUrl")
+            }
+        }
     }
 
     fun stop() {
+        if (isStopping) return
+        isStopping = true
+        friendlyLanHttpUrl = null
+        try {
+            mdnsAppContext?.let { HackieLocalMdns.stop(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "mDNS stop failed", e)
+        } finally {
+            mdnsAppContext = null
+        }
         unregisterService()
-        server?.stop(1000, 2000)
+        val engine = server
         server = null
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // gracePeriod 0 ensures it stops accepting new connections instantly
+                // timeout 1000 force-closes lingering connections after 1s
+                engine?.stop(0, 1000)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping Ktor engine", e)
+            } finally {
+                isStopping = false
+            }
+        }
         Log.d(TAG, "Rabit network server stopped")
     }
 
@@ -1238,6 +1360,20 @@ object RabitNetworkServer {
         val start = range.substringBefore('-').toLongOrNull() ?: return 0L
         return start.coerceIn(0L, maxOf(0L, totalSize - 1))
     }
+
+    /** Single DNS label for mDNS (e.g. hackie-a3f2); stable per install so bookmarks keep working. */
+    private fun stableMdnsHostLabel(context: Context): String {
+        val p = context.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+        var s = p.getString("lan_mdns_hostname", null)?.trim()?.lowercase(Locale.US)
+        val valid = s != null && s.matches(Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"))
+        if (!valid) {
+            val suffix = UUID.randomUUID().toString().replace("-", "").take(4).lowercase(Locale.US)
+            s = "hackie-$suffix"
+            p.edit().putString("lan_mdns_hostname", s).apply()
+        }
+        return s!!
+    }
+
     private fun registerService(context: Context, port: Int) {
         nsdManager = (context.getSystemService(Context.NSD_SERVICE) as NsdManager)
         

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,7 +22,6 @@ import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutoClickerScreen(
     viewModel: AutomationViewModel,
@@ -39,18 +37,7 @@ fun AutoClickerScreen(
     var loopsText by remember(loops) { mutableStateOf(loops.toString()) }
 
     Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            TopAppBar(
-                title = { Text("AUTO-CLICKER", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, letterSpacing = 2.sp)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+        containerColor = Obsidian
     ) { padding ->
         Column(
             modifier = Modifier

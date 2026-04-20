@@ -72,12 +72,7 @@ class StubRaopEngine(
                 parseAnnounceSdp(request.body)
                 if (encryptedSessionRequested) {
                     status("Encrypted RAOP session requested (rsaaeskey/aesiv)")
-                    status("Unsupported encryption mode. Re-select Rabit output after receiver restart")
-                    return RtspResponse(
-                        statusCode = 461,
-                        reason = "Unsupported Transport",
-                        headers = mapOf("Unsupported" to "encrypted-raop")
-                    )
+                    status("Proceeding best-effort with unencrypted pipeline expectation")
                 }
                 if (!isCodecSupported(codec)) {
                     status("Unsupported RAOP codec: $codec")
@@ -94,20 +89,11 @@ class StubRaopEngine(
             "SETUP" -> {
                 status("RAOP SETUP received")
                 val requestedTransport = request.headers["transport"] ?: "RTP/AVP/UDP;unicast;mode=record"
-                if (requestedTransport.contains("TCP", ignoreCase = true) ||
-                    requestedTransport.contains("interleaved", ignoreCase = true)
-                ) {
-                    status("Unsupported RAOP transport: TCP/interleaved (UDP required)")
-                    return RtspResponse(
-                        statusCode = 461,
-                        reason = "Unsupported Transport",
-                        headers = mapOf("Transport" to "RTP/AVP/UDP;unicast;mode=record")
-                    )
-                }
+                val normalizedRequest = coerceTransportToUdp(requestedTransport)
 
                 ensureTransportSockets()
-                parseClientPorts(requestedTransport)
-                val transport = normalizeTransport(requestedTransport)
+                parseClientPorts(normalizedRequest)
+                val transport = normalizeTransport(normalizedRequest)
                 val audioPort = audioSocket?.localPort ?: 6000
                 val controlPort = controlSocket?.localPort ?: (audioPort + 1)
                 val timingPort = timingSocket?.localPort ?: (audioPort + 2)
@@ -140,15 +126,9 @@ class StubRaopEngine(
                 )
             }
             "FLUSH" -> {
-                audioPacketCount.set(0)
-                deliveredPacketCount.set(0)
-                outOfOrderCount.set(0)
-                droppedPacketCount.set(0)
-                jitterBuffer.clear()
-                expectedSeq = null
-                lastPacketAtMs.set(0)
-                runCatching { alacDecoder?.flush() }
-                status("RAOP FLUSH")
+                // Some senders issue FLUSH during route transition; clearing transport state
+                // there causes 1-2s rewind/pause artifacts. Keep stream hot.
+                status("RAOP FLUSH ignored to preserve playback continuity")
                 RtspResponse(headers = commonHeaders())
             }
             "TEARDOWN" -> {
@@ -173,7 +153,9 @@ class StubRaopEngine(
                 RtspResponse(headers = commonHeaders())
             }
             "PAUSE" -> {
-                recordingActive = false
+                // Some senders emit transient PAUSE during route stabilization.
+                // Keep pipeline running to avoid 1-2s playback dropouts.
+                status("RAOP PAUSE ignored to preserve continuous playback")
                 RtspResponse(headers = commonHeaders())
             }
             else -> RtspResponse(headers = commonHeaders())
@@ -281,6 +263,25 @@ class StubRaopEngine(
             }
         }
         return ensured.joinToString(";")
+    }
+
+    private fun coerceTransportToUdp(raw: String): String {
+        val originalUpper = raw.uppercase(Locale.ROOT)
+        var updated = raw
+        if (updated.contains("TCP", ignoreCase = true)) {
+            status("Sender requested TCP/interleaved; coercing to UDP for receiver compatibility")
+            updated = updated.replace("RTP/AVP/TCP", "RTP/AVP/UDP", ignoreCase = true)
+            if (originalUpper.startsWith("RTP/AVP;")) {
+                updated = "RTP/AVP/UDP" + updated.removePrefix("RTP/AVP")
+            }
+        }
+        val filtered = updated.split(';')
+            .map { it.trim() }
+            .filter { token ->
+                !token.startsWith("interleaved=", ignoreCase = true)
+            }
+            .joinToString(";")
+        return filtered
     }
 
     private fun parseClientPorts(transport: String) {

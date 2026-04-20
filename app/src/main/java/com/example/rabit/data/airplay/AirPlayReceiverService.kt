@@ -29,6 +29,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
+import kotlin.random.Random
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -49,7 +50,7 @@ class AirPlayReceiverService : Service() {
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
     private var multicastLock: WifiManager.MulticastLock? = null
-    private val audioSink: RaopAudioSink = AudioTrackPcmSink()
+    private val audioSink: RaopAudioSink by lazy { AudioTrackPcmSink(this) }
     private lateinit var raopEngine: RaopEngine
 
     override fun onCreate() {
@@ -228,9 +229,10 @@ class AirPlayReceiverService : Service() {
         val raopId = buildRaopId()
         val serviceDisplayName = "Hackie"
 
+        val raopServiceName = "$raopId@$serviceDisplayName"
         val serviceInfo = NsdServiceInfo().apply {
-            serviceName = "$raopId@$serviceDisplayName"
-            serviceType = "_raop._tcp."
+            serviceName = raopServiceName
+            serviceType = "_raop._tcp"
             setPort(port)
             setAttribute("txtvers", "1")
             // Force PCM-only negotiation with current native sink path.
@@ -257,6 +259,9 @@ class AirPlayReceiverService : Service() {
 
             override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                 updateRuntimeStatus("RAOP advertise failed (error $errorCode)")
+                if (errorCode == NsdManager.FAILURE_ALREADY_ACTIVE || errorCode == NsdManager.FAILURE_MAX_LIMIT) {
+                    retryRaopRegistration(port, raopId, serviceDisplayName)
+                }
             }
 
             override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {}
@@ -265,7 +270,96 @@ class AirPlayReceiverService : Service() {
         }
 
         nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, raopRegistrationListener)
-        updateRuntimeStatus("Compatibility mode: RAOP-only advertisement enabled")
+        updateRuntimeStatus("Compatibility mode: RAOP advertisement enabled")
+    }
+
+    private fun registerAirPlayCompanionService(port: Int, serviceDisplayName: String, raopId: String) {
+        val companionInfo = NsdServiceInfo().apply {
+            serviceName = serviceDisplayName
+            serviceType = "_airplay._tcp"
+            setPort(port)
+            setAttribute("deviceid", raopId.chunked(2).joinToString(":"))
+            setAttribute("features", "0x445F8A00,0x1C340")
+            setAttribute("flags", "0x4")
+            setAttribute("model", "AppleTV3,2")
+            setAttribute("manufacturer", "Hackie")
+            setAttribute("serialNumber", raopId)
+            setAttribute("srcvers", "220.68")
+            setAttribute("pi", raopId.lowercase())
+            setAttribute("pw", "false")
+            setAttribute("vv", "2")
+        }
+
+        airplayRegistrationListener = object : NsdManager.RegistrationListener {
+            override fun onServiceRegistered(nsdServiceInfo: NsdServiceInfo) {
+                updateRuntimeStatus("AirPlay companion advertised as ${nsdServiceInfo.serviceName}")
+            }
+
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                updateRuntimeStatus("AirPlay companion advertise failed (error $errorCode)")
+                if (errorCode == NsdManager.FAILURE_ALREADY_ACTIVE || errorCode == NsdManager.FAILURE_MAX_LIMIT) {
+                    retryAirPlayRegistration(port, serviceDisplayName, raopId)
+                }
+            }
+
+            override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {}
+
+            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
+        }
+
+        nsdManager?.registerService(companionInfo, NsdManager.PROTOCOL_DNS_SD, airplayRegistrationListener)
+    }
+
+    private fun retryRaopRegistration(port: Int, raopId: String, serviceDisplayName: String) {
+        val fallbackName = "$raopId@${serviceDisplayName}-${Random.nextInt(100, 999)}"
+        val retryInfo = NsdServiceInfo().apply {
+            serviceName = fallbackName
+            serviceType = "_raop._tcp"
+            setPort(port)
+            setAttribute("txtvers", "1")
+            setAttribute("cn", "0")
+            setAttribute("ch", "2")
+            setAttribute("sr", "44100")
+            setAttribute("ss", "16")
+            setAttribute("tp", "UDP")
+            setAttribute("vn", "3")
+            setAttribute("md", "0,1,2")
+            setAttribute("sf", "0x4")
+            setAttribute("am", "HackieAndroid")
+            setAttribute("da", "true")
+            setAttribute("pw", "false")
+            setAttribute("et", "0")
+            setAttribute("vs", "220.68")
+        }
+        runCatching {
+            raopRegistrationListener?.let { nsdManager?.unregisterService(it) }
+        }
+        nsdManager?.registerService(retryInfo, NsdManager.PROTOCOL_DNS_SD, raopRegistrationListener)
+        updateRuntimeStatus("Retrying RAOP advertisement as $fallbackName")
+    }
+
+    private fun retryAirPlayRegistration(port: Int, serviceDisplayName: String, raopId: String) {
+        val fallbackName = "$serviceDisplayName-${Random.nextInt(100, 999)}"
+        val retryInfo = NsdServiceInfo().apply {
+            serviceName = fallbackName
+            serviceType = "_airplay._tcp"
+            setPort(port)
+            setAttribute("deviceid", raopId.chunked(2).joinToString(":"))
+            setAttribute("features", "0x445F8A00,0x1C340")
+            setAttribute("flags", "0x4")
+            setAttribute("model", "AppleTV3,2")
+            setAttribute("manufacturer", "Hackie")
+            setAttribute("serialNumber", raopId)
+            setAttribute("srcvers", "220.68")
+            setAttribute("pi", raopId.lowercase())
+            setAttribute("pw", "false")
+            setAttribute("vv", "2")
+        }
+        runCatching {
+            airplayRegistrationListener?.let { nsdManager?.unregisterService(it) }
+        }
+        nsdManager?.registerService(retryInfo, NsdManager.PROTOCOL_DNS_SD, airplayRegistrationListener)
+        updateRuntimeStatus("Retrying AirPlay companion advertisement as $fallbackName")
     }
 
     private fun unregisterRaopService() {

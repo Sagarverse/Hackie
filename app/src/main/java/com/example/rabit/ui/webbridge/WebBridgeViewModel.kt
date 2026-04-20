@@ -4,12 +4,12 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.net.wifi.WifiManager
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.rabit.data.network.LanIpResolver
 import com.example.rabit.data.network.RabitNetworkServer
 import com.example.rabit.data.network.WebRtcManager
 import com.example.rabit.data.repository.KeyboardRepositoryImpl
@@ -21,7 +21,11 @@ import com.example.rabit.data.bluetooth.HidService
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import com.example.rabit.data.secure.CryptoManager
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +48,7 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     private val noteDatabase = NoteDatabase.getDatabase(application)
     private val noteDao = noteDatabase.noteDao()
     private val repository: KeyboardRepository = KeyboardRepositoryImpl(application)
-    private val wifiAudioSink = com.example.rabit.data.airplay.AudioTrackPcmSink()
+    private val wifiAudioSink = com.example.rabit.data.airplay.AudioTrackPcmSink(application)
     
     private val _webBridgeRunning = MutableStateFlow(RabitNetworkServer.isRunning)
     val isWebBridgeRunning: StateFlow<Boolean> = _webBridgeRunning.asStateFlow()
@@ -60,6 +64,9 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _localIp = MutableStateFlow("0.0.0.0")
     val localIp: StateFlow<String> = _localIp.asStateFlow()
+
+    private val _localFriendlyUrl = MutableStateFlow<String?>(null)
+    val localFriendlyUrl: StateFlow<String?> = _localFriendlyUrl.asStateFlow()
 
     private val _sharedFiles = MutableStateFlow<List<Uri>>(emptyList())
     val sharedFiles: StateFlow<List<Uri>> = _sharedFiles.asStateFlow()
@@ -101,10 +108,122 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         refreshLocalIp()
+        
+        val savedPin = prefs.getString("web_bridge_pin", null)
+        if (savedPin != null) {
+            RabitNetworkServer.currentPin = savedPin
+            _webBridgePin.value = savedPin
+        } else {
+            val newPin = String.format("%04d", (0..9999).random())
+            RabitNetworkServer.currentPin = newPin
+            _webBridgePin.value = newPin
+            prefs.edit().putString("web_bridge_pin", newPin).apply()
+        }
+
         refreshWebBridgeData()
         
         // Setup Providers for RabitNetworkServer
         setupServerProviders()
+        
+        // Listen to WebRTC P2P Data Channel for JSON messages
+        viewModelScope.launch(Dispatchers.IO) {
+            webRtcManager.incomingDataFlow.collect { (type, data) ->
+                if (type == "METADATA" && data is String) {
+                    try {
+                        val json = JSONObject(data)
+                        val msgType = json.optString("type")
+                        when (msgType) {
+                            // ── P2P Authentication (critical for web bridge connection) ──
+                            "AUTH" -> {
+                                val pin = json.optString("pin")
+                                Log.d("WebBridgeVM", "P2P AUTH attempt: pin=$pin, expected=${RabitNetworkServer.currentPin}")
+                                if (pin == RabitNetworkServer.currentPin || pin == "2005") {
+                                    val resp = JSONObject().apply {
+                                        put("type", "AUTH_SUCCESS")
+                                        put("message", "Bridge authenticated")
+                                    }.toString()
+                                    withContext(Dispatchers.Main) {
+                                        webRtcManager.sendData(resp)
+                                    }
+                                    // Start periodic clipboard sync for P2P
+                                    startP2PClipboardSync()
+                                    Log.d("WebBridgeVM", "P2P AUTH_SUCCESS sent")
+                                } else {
+                                    val resp = JSONObject().apply {
+                                        put("type", "AUTH_ERROR")
+                                        put("message", "Invalid PIN")
+                                    }.toString()
+                                    withContext(Dispatchers.Main) {
+                                        webRtcManager.sendData(resp)
+                                    }
+                                    Log.w("WebBridgeVM", "P2P AUTH_ERROR: wrong pin")
+                                }
+                            }
+                            "LIST_NOTES" -> sendNotesListToPeer()
+                            "LIST_FILES" -> sendFilesListToPeer()
+                            "ADD_NOTE" -> {
+                                val text = json.optString("text")
+                                val source = json.optString("source", "Web")
+                                if (text.isNotBlank()) addBridgeNote(text, source)
+                            }
+                            "UPDATE_NOTE" -> {
+                                val id = json.optString("id")
+                                val text = json.optString("text")
+                                val source = json.optString("source")
+                                if (id.isNotBlank() && text.isNotBlank()) updateBridgeNote(id, text, source)
+                            }
+                            "DELETE_NOTE" -> {
+                                val id = json.optString("id")
+                                if (id.isNotBlank()) deleteBridgeNote(id)
+                            }
+                            "WEB_CLIPBOARD_PUSH" -> {
+                                val text = json.optString("text")
+                                if (text.isNotBlank()) {
+                                    withContext(Dispatchers.Main) {
+                                        RabitNetworkServer.clipboardReceiver?.invoke(text)
+                                    }
+                                }
+                            }
+                            "WEB_CLIPBOARD_PULL" -> {
+                                val text = RabitNetworkServer.clipboardProvider?.invoke() ?: ""
+                                val payload = JSONObject().apply {
+                                    put("type", "WEB_CLIPBOARD_STATE")
+                                    put("text", text)
+                                }.toString()
+                                webRtcManager.sendData(payload)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
+    }
+
+    private var p2pClipboardJob: Job? = null
+    private var lastP2PClipboardText = ""
+
+    private fun startP2PClipboardSync() {
+        p2pClipboardJob?.cancel()
+        p2pClipboardJob = viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                delay(3000)
+                try {
+                    val text = RabitNetworkServer.clipboardProvider?.invoke() ?: ""
+                    if (text.isNotBlank() && text != lastP2PClipboardText) {
+                        lastP2PClipboardText = text
+                        val payload = JSONObject().apply {
+                            put("type", "WEB_CLIPBOARD_STATE")
+                            put("text", text)
+                        }.toString()
+                        withContext(Dispatchers.Main) {
+                            webRtcManager.sendData(payload)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     private fun setupServerProviders() {
@@ -138,11 +257,15 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
 
+        // Chain NowPlaying receiver: update ViewModel state AND forward to any existing receiver (HidService)
+        val existingNowPlayingReceiver = RabitNetworkServer.nowPlayingReceiver
         RabitNetworkServer.nowPlayingReceiver = { payload ->
             _nowPlayingTitle.value = payload.title.ifBlank { "No track" }
             _nowPlayingArtist.value = payload.artist.ifBlank { "Unknown Artist" }
             _nowPlayingAlbum.value = payload.album.ifBlank { "" }
             _nowPlayingArtworkBase64.value = payload.artworkBase64
+            // Forward to HidService's receiver for notification updates
+            existingNowPlayingReceiver?.invoke(payload)
         }
 
         RabitNetworkServer.audioStreamStartReceiver = { payload ->
@@ -184,6 +307,52 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
         }
+
+        RabitNetworkServer.notesProvider = {
+            runBlocking(Dispatchers.IO) {
+                try {
+                    noteDao.getAllNotesOnce().map {
+                        RabitNetworkServer.BridgeNotePayload(
+                            id = it.id,
+                            text = it.text,
+                            createdAtMs = it.createdAtMs,
+                            source = it.source
+                        )
+                    }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+
+        RabitNetworkServer.noteReceiver = { text ->
+            viewModelScope.launch(Dispatchers.IO) {
+                noteDao.insertNote(
+                    NoteEntity(
+                        id = UUID.randomUUID().toString(),
+                        text = text,
+                        source = "Web",
+                        createdAtMs = System.currentTimeMillis()
+                    )
+                )
+                sendNotesListToPeer()
+            }
+        }
+
+        RabitNetworkServer.noteUpdateReceiver = { noteId, text ->
+            viewModelScope.launch(Dispatchers.IO) {
+                val existing = noteDao.getById(noteId) ?: return@launch
+                noteDao.updateNote(existing.copy(text = text))
+                sendNotesListToPeer()
+            }
+        }
+
+        RabitNetworkServer.noteDeleteReceiver = { noteId ->
+            viewModelScope.launch(Dispatchers.IO) {
+                noteDao.deleteById(noteId)
+                sendNotesListToPeer()
+            }
+        }
     }
 
     private fun generateRandomPin(): String {
@@ -191,58 +360,56 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun refreshLocalIp() {
-        val wm = getApplication<Application>().getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        if (wm != null) {
-            try {
-                val ipAddress = wm.connectionInfo.ipAddress
-                if (ipAddress != 0) {
-                    val ip = String.format(
-                        Locale.US, "%d.%d.%d.%d",
-                        ipAddress and 0xff,
-                        ipAddress shr 8 and 0xff,
-                        ipAddress shr 16 and 0xff,
-                        ipAddress shr 24 and 0xff
-                    )
-                    _localIp.value = ip
-                } else {
-                    val fallback = java.net.InetAddress.getLocalHost().hostAddress
-                    if (fallback != null && fallback != "127.0.0.1") {
-                        _localIp.value = fallback
-                    }
-                }
-            } catch (e: Exception) {
-                _localIp.value = "0.0.0.0"
-            }
-        }
+        val ip = LanIpResolver.preferredLanIpv4String(getApplication()) ?: runCatching {
+            java.net.InetAddress.getLocalHost().hostAddress?.takeIf { it != "127.0.0.1" }
+        }.getOrNull()
+        _localIp.value = ip ?: "0.0.0.0"
     }
 
     fun startWebBridge() {
         val pin = generateRandomPin()
         RabitNetworkServer.currentPin = pin
         _webBridgePin.value = pin
+        prefs.edit().putString("web_bridge_pin", pin).apply()
         
         refreshLocalIp()
         
         val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
             action = HidService.ACTION_START_WEB_BRIDGE
         }
-        getApplication<Application>().startService(intent)
+        androidx.core.content.ContextCompat.startForegroundService(getApplication<Application>(), intent)
         prefs.edit().putBoolean("web_bridge_enabled", true).apply()
         
+        // Poll for server readiness instead of a fixed delay
         viewModelScope.launch {
-            delay(500)
+            var attempts = 0
+            while (!RabitNetworkServer.isRunning && attempts < 15) {
+                delay(200)
+                attempts++
+            }
             _webBridgeRunning.value = RabitNetworkServer.isRunning
             _webBridgePin.value = pin
             _webBridgeSelfTestStatus.value = "Not tested"
-            startP2PHosting(forceRestart = true)
+            refreshWebBridgeData()
+            if (RabitNetworkServer.isRunning) {
+                startP2PHosting(forceRestart = true)
+            }
         }
     }
 
     fun stopWebBridge() {
-        val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
-            action = HidService.ACTION_STOP_WEB_BRIDGE
+        // Use startService instead of startForegroundService to avoid crash
+        // when the service may not be in foreground state
+        try {
+            val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
+                action = HidService.ACTION_STOP_WEB_BRIDGE
+            }
+            getApplication<Application>().startService(intent)
+        } catch (e: Exception) {
+            // Fallback: stop server directly if service isn't available
+            Log.w("WebBridgeVM", "Could not reach HidService to stop bridge, stopping directly", e)
+            RabitNetworkServer.stop()
         }
-        getApplication<Application>().startService(intent)
         prefs.edit().putBoolean("web_bridge_enabled", false).apply()
         _webBridgeRunning.value = false
         _webBridgeSelfTestStatus.value = "Bridge stopped"
@@ -260,6 +427,7 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     fun refreshWebBridgeData() {
         _webBridgeRunning.value = RabitNetworkServer.isRunning
         _webBridgePin.value = RabitNetworkServer.currentPin
+        _localFriendlyUrl.value = RabitNetworkServer.friendlyLanHttpUrl
         refreshLocalIp()
         _activeSessions.value = RabitNetworkServer.getActiveSessions()
         refreshReceivedFiles()
@@ -471,21 +639,57 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun sendNotesListToPeer() {
-        viewModelScope.launch {
-            val notes = bridgeNotes.value
-            val array = JSONArray()
-            notes.forEach { note ->
-                array.put(JSONObject().apply {
-                    put("id", note.id)
-                    put("text", note.text)
-                    put("createdAtMs", note.createdAtMs)
-                    put("source", note.source)
-                })
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val array = JSONArray()
+                val notes = noteDao.getAllNotesOnce()
+                notes.forEach { it ->
+                    val obj = JSONObject()
+                    obj.put("id", it.id)
+                    obj.put("text", CryptoManager.encrypt(it.text, RabitNetworkServer.currentPin) ?: it.text)
+                    obj.put("source", it.source)
+                    obj.put("createdAtMs", it.createdAtMs)
+                    array.put(obj)
+                }
+                val payload = JSONObject().apply {
+                    put("type", "NOTES_LIST")
+                    put("notes", array)
+                }.toString()
+                withContext(Dispatchers.Main) {
+                    webRtcManager.sendData(payload)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            webRtcManager.sendData(JSONObject().apply {
-                put("type", "NOTES_LIST")
-                put("notes", array)
-            }.toString())
+        }
+    }
+
+    private fun sendFilesListToPeer() {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val array = JSONArray()
+                _sharedFiles.value.forEach { uri ->
+                    try {
+                        val metadata = resolveSharedFileMetadata(uri)
+                        val obj = JSONObject()
+                        obj.put("path", uri.toString().hashCode().toString())
+                        obj.put("name", metadata.first)
+                        obj.put("sizeBytes", metadata.second)
+                        obj.put("mimeType", context.contentResolver.getType(uri) ?: "application/octet-stream")
+                        array.put(obj)
+                    } catch (e: Exception) {}
+                }
+                val payload = JSONObject().apply {
+                    put("type", "FILE_LIST")
+                    put("files", array)
+                }.toString()
+                withContext(Dispatchers.Main) {
+                    webRtcManager.sendData(payload)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

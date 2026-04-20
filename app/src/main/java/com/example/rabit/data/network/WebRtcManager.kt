@@ -38,8 +38,9 @@ class WebRtcManager(private val context: Context) {
     private val firestore = FirebaseFirestore.getInstance()
     private var signalingListener: ListenerRegistration? = null
     private val processedRemoteCandidates = mutableSetOf<String>()
-        private var signalingDocId: String? = null
-        private var signalingReconnectJob: Job? = null
+    private val pendingRemoteCandidates = mutableListOf<String>()
+    private var signalingDocId: String? = null
+    private var signalingReconnectJob: Job? = null
 
     fun start(roomKey: String? = null) {
             if (_peerId.value != null || peerConnection != null || signalingListener != null) {
@@ -48,7 +49,6 @@ class WebRtcManager(private val context: Context) {
 
         val resolvedRoom = roomKey
             ?.trim()
-            ?.uppercase(Locale.getDefault())
             ?.takeIf { it.isNotEmpty() }
             ?: UUID.randomUUID().toString().take(6).uppercase(Locale.getDefault())
 
@@ -100,11 +100,32 @@ class WebRtcManager(private val context: Context) {
                     PeerConnection.IceConnectionState.COMPLETED -> "P2P Connected"
                     PeerConnection.IceConnectionState.CHECKING -> "Negotiating ICE"
                     PeerConnection.IceConnectionState.DISCONNECTED -> "Peer disconnected"
-                    PeerConnection.IceConnectionState.FAILED -> "ICE failed"
+                    PeerConnection.IceConnectionState.FAILED -> "ICE failed – retrying"
                     PeerConnection.IceConnectionState.CLOSED -> "P2P closed"
                     PeerConnection.IceConnectionState.NEW -> "Waiting for ICE"
                 }
                 Log.d(TAG, "ICE Connection State: $newState")
+                
+                // Auto-recover from ICE failure by resetting signaling
+                if (newState == PeerConnection.IceConnectionState.FAILED) {
+                    val currentRoom = _peerId.value
+                    if (currentRoom != null) {
+                        scope.launch {
+                            delay(1500)
+                            Log.d(TAG, "ICE failed, restarting signaling for room $currentRoom")
+                            // Tear down current peer connection and re-initialize
+                            dataChannel?.close()
+                            peerConnection?.close()
+                            pcf?.dispose()
+                            dataChannel = null
+                            peerConnection = null
+                            pcf = null
+                            processedRemoteCandidates.clear()
+                            initializeWebRtc()
+                            setupFirestoreSignaling(currentRoom)
+                        }
+                    }
+                }
             }
 
             override fun onSignalingChange(p0: PeerConnection.SignalingState?) {}
@@ -165,8 +186,7 @@ class WebRtcManager(private val context: Context) {
     private fun setupFirestoreSignaling(id: String) {
         val signalRef = firestore.collection("signals").document(id)
 
-        // Clear previous session data for this ID to ensure a fresh handshake, but only for Android's side.
-        // If web_offer is already there, we want to see it.
+        // Clear OUR previous session data, but preserve any web offer that may have just been published
         signalRef.set(
             mapOf(
                 "android_answer" to null,
@@ -175,7 +195,7 @@ class WebRtcManager(private val context: Context) {
             ),
             SetOptions.merge()
         ).addOnFailureListener {
-            Log.e(TAG, "Failed to reset signaling doc", it)
+            Log.e(TAG, "Failed to update signaling doc", it)
             _connectionStatus.value = "Signaling write failed"
         }
 
@@ -197,22 +217,40 @@ class WebRtcManager(private val context: Context) {
 
                 // Web Bridge writes offer; Android answers.
                 val offer = data["web_offer"] as? String
+                val timestamp = (data["timestamp"] as? Number)?.toLong() ?: 0L
+                val isStale = (System.currentTimeMillis() - timestamp) > 60_000L
+
                 val answer = data["web_answer"] as? String
                 val candidates = (data["web_candidates"] as? List<*>)
                     ?.filterIsInstance<String>()
                     ?: emptyList()
 
-                if (offer != null && peerConnection?.remoteDescription == null) {
+                if (offer != null && !isStale && peerConnection?.remoteDescription == null) {
                     _connectionStatus.value = "Offer received"
                     handleOffer(offer)
+                    // Flush any buffered candidates now that remote description will be set
+                    scope.launch {
+                        delay(300)
+                        flushPendingCandidates()
+                    }
                 } else if (answer != null && peerConnection?.remoteDescription == null) {
                     _connectionStatus.value = "Answer received"
                     handleAnswer(answer)
+                    scope.launch {
+                        delay(300)
+                        flushPendingCandidates()
+                    }
                 }
 
                 candidates.forEach { candStr ->
                     if (processedRemoteCandidates.add(candStr)) {
-                        handleRemoteCandidateString(candStr)
+                        if (peerConnection?.remoteDescription != null) {
+                            handleRemoteCandidateString(candStr)
+                        } else {
+                            // Buffer candidates that arrive before remote description
+                            Log.d(TAG, "Buffering ICE candidate (no remote desc yet)")
+                            pendingRemoteCandidates.add(candStr)
+                        }
                     }
                 }
             }
@@ -298,17 +336,31 @@ class WebRtcManager(private val context: Context) {
         }, sdp)
     }
 
+    private fun flushPendingCandidates() {
+        if (peerConnection?.remoteDescription == null) return
+        val buffered = pendingRemoteCandidates.toList()
+        pendingRemoteCandidates.clear()
+        Log.d(TAG, "Flushing ${buffered.size} buffered ICE candidates")
+        buffered.forEach { handleRemoteCandidateString(it) }
+    }
+
     private fun handleRemoteCandidateString(candStr: String) {
         try {
             val json = JSONObject(candStr)
-            val candidate = IceCandidate(
-                json.getString("sdpMid"),
-                json.getInt("sdpMLineIndex"),
-                json.getString("candidate")
-            )
+            // Handle both flat format {sdpMid, sdpMLineIndex, candidate}
+            // and wrapped format {candidate: "...", sdpMid: "...", sdpMLineIndex: N}
+            val sdpMid = json.optString("sdpMid", "")
+            val sdpMLineIndex = json.optInt("sdpMLineIndex", 0)
+            val candidateSdp = json.optString("candidate", "")
+            if (candidateSdp.isBlank()) {
+                Log.w(TAG, "Empty candidate SDP, skipping")
+                return
+            }
+            val candidate = IceCandidate(sdpMid, sdpMLineIndex, candidateSdp)
             peerConnection?.addIceCandidate(candidate)
+            Log.d(TAG, "Added remote ICE candidate: ${candidateSdp.take(40)}...")
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing remote candidate", e)
+            Log.e(TAG, "Error parsing remote candidate: $candStr", e)
         }
     }
 
@@ -328,6 +380,7 @@ class WebRtcManager(private val context: Context) {
         pcf = null
         signalingDocId = null
         processedRemoteCandidates.clear()
+        pendingRemoteCandidates.clear()
         
         _peerId.value = null
         _connectionStatus.value = "Disconnected"

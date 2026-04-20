@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hackie | File Bridge Hub</title>
     <meta name="description" content="Hackie Bridge Hub — Secure peer-to-peer file, text, and clipboard bridge between your phone and browser.">
+    <link rel="icon" type="image/png" href="../helper_app/web/favicon.png"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../helper_app/web/icons/Icon-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -280,23 +283,39 @@
         </div>
 
         <div id="file-hub">
+            <!-- Clipboard Card -->
+            <div class="upload-box" style="border:1px solid rgba(46,91,255,0.2); background:rgba(46,91,255,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div style="font-size:13px; font-weight:700;">📋 Universal Clipboard</div>
+                    <span id="clip-sync-badge" style="font-size:10px; padding:4px 10px; border-radius:8px; background:rgba(50,215,75,0.1); color:#32D74B; border:1px solid rgba(50,215,75,0.2); font-weight:700;">SYNC</span>
+                </div>
+                <textarea id="clipboard-area" placeholder="Clipboard content will appear here..." style="width:100%; min-height:72px; resize:vertical; padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.2); color:var(--platinum); font-family:inherit; font-size:13px;"></textarea>
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button id="clip-pull-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">⬇ Pull from Phone</button>
+                    <button id="clip-push-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">⬆ Push to Phone</button>
+                    <button id="clip-copy-local" class="btn-outline" style="padding:10px 14px; font-size:12px;">📄 Copy</button>
+                </div>
+                <div id="clip-status" style="font-size:11px; opacity:0.6; margin-top:8px;">Clipboard sync idle</div>
+            </div>
+
+            <!-- Notes Card -->
             <div class="upload-box">
                 <div style="text-align:left; min-width:220px; width:100%; margin-bottom:12px;">
-                    <div style="font-size:13px; font-weight:700; margin-bottom:8px;">Shared Notes (Hackie + Web)</div>
+                    <div style="font-size:13px; font-weight:700; margin-bottom:8px;">📝 Shared Notes (Hackie + Web)</div>
                     <textarea id="note-input" placeholder="Type a note and click Add Note" style="width:100%; min-height:96px; resize:vertical; padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--platinum); font-family:inherit; font-size:13px;"></textarea>
                 </div>
                 <div style="display:flex; gap:8px; width:100%; flex-wrap:wrap;">
-                    <button id="add-note-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">Add Note</button>
-                    <button id="refresh-notes-btn" class="btn-outline" style="padding:10px 14px; font-size:12px;">Refresh Notes</button>
-                    <button id="sync-clipboard-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">Sync Clipboard Now</button>
+                    <button id="add-note-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">＋ Add Note</button>
+                    <button id="refresh-notes-btn" class="btn-outline" style="padding:10px 14px; font-size:12px;">↻ Refresh Notes</button>
                 </div>
                 <div id="notes-status" style="font-size:12px; opacity:0.75; width:100%; margin-top:8px;">No notes loaded yet.</div>
-                <div id="notes-list" style="width:100%; display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:220px; overflow:auto;"></div>
+                <div id="notes-list" style="width:100%; display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:300px; overflow:auto;"></div>
             </div>
 
+            <!-- File Upload Card -->
             <div class="upload-box">
                 <div style="text-align:left; min-width:220px; margin-bottom:12px;">
-                    <div style="font-size:13px; font-weight:700;">Send Files From Mac To Phone</div>
+                    <div style="font-size:13px; font-weight:700;">⬆ Send Files To Phone</div>
                 </div>
                 <div id="drag-drop-zone" style="padding:28px 16px; border:2px dashed var(--border); border-radius:14px; background:rgba(10,132,255,0.05); text-align:center; cursor:pointer;">
                     <div style="font-size:12px; opacity:0.7;">Drag files here or click to browse</div>
@@ -311,10 +330,11 @@
                 <div class="upload-progress" id="upload-progress"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
             </div>
 
+            <!-- Files on Phone Card -->
             <div class="upload-box">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                    <div style="font-size:13px; font-weight:700;">Files on Phone</div>
-                    <button id="refresh-files-btn" class="btn-outline" style="padding:8px 12px; font-size:11px;">Refresh</button>
+                    <div style="font-size:13px; font-weight:700;">📱 Files on Phone</div>
+                    <button id="refresh-files-btn" class="btn-outline" style="padding:8px 12px; font-size:11px;">↻ Refresh</button>
                 </div>
                 <div id="files-status" style="font-size:12px; opacity:0.6; margin-bottom:10px;">Connect to view files.</div>
                 <div id="download-action" style="margin-bottom:12px;"></div>
@@ -322,7 +342,7 @@
             </div>
 
             <div style="margin-top:32px; display:flex; justify-content:center;">
-                <button id="disconnect-btn" class="btn-outline" style="border-color:var(--danger); color:var(--danger); width:100%; max-width:200px;">Disconnect Bridge</button>
+                <button id="disconnect-btn" class="btn-outline" style="border-color:var(--danger); color:var(--danger); width:100%; max-width:200px;">⏻ Disconnect Bridge</button>
             </div>
         </div>
     </div>
@@ -373,9 +393,9 @@
                 if (statusLight) statusLight.style.background = "#FFD60A";
 
                 try {
-                    const roomId = `PIN_${pin.toUpperCase()}`;
+                    const roomId = `rabit_p2p_${pin}`;
                     if (log) log.innerText = `[1/2] Publishing offer to ${roomId}...\n`;
-                    await window.startHandshake({ pin, log });
+                    await window.startHandshake({ pin, log, roomId });
                     if (log) log.innerText += "[2/2] Offer published! Waiting for phone's response...\n    (Open Hackie app > Web Bridge screen)";
                 } catch (e) {
                     console.error(e);
@@ -441,6 +461,13 @@
         const dragDropZone = document.getElementById('drag-drop-zone');
         const selectedFilesPreview = document.getElementById('selected-files-preview');
         const clearFilesBtn = document.getElementById('clear-files-btn');
+        const clipboardAreaEl = document.getElementById('clipboard-area');
+        const clipPullBtn = document.getElementById('clip-pull-btn');
+        const clipPushBtn = document.getElementById('clip-push-btn');
+        const clipCopyLocal = document.getElementById('clip-copy-local');
+        const clipStatusEl = document.getElementById('clip-status');
+        const clipSyncBadge = document.getElementById('clip-sync-badge');
+        let notesAutoRefreshTimer = null;
 
         // --- Connection State ---
         let pc = null;
@@ -594,32 +621,53 @@
         }
 
         // --- Clipboard Sync ---
+        function updateClipStatusP2P(text) {
+            if (clipStatusEl) clipStatusEl.innerText = text;
+        }
+
         async function syncClipboardFromWebToPhone() {
             if (!dataChannel || dataChannel.readyState !== 'open') return;
             try {
                 const text = (await navigator.clipboard.readText() || '').trim();
                 if (!text || text === lastWebClipboard || text === lastPhoneClipboard) return;
                 lastWebClipboard = text;
+                if (clipboardAreaEl) clipboardAreaEl.value = text;
                 dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PUSH', text }));
-                showNotesStatus('Clipboard pushed to phone.');
+                updateClipStatusP2P('✓ Clipboard pushed to phone');
             } catch (_) {}
+        }
+
+        async function pullClipboardP2P() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PULL' }));
+            updateClipStatusP2P('Pulling from phone...');
+        }
+
+        async function pushClipboardP2P() {
+            if (!dataChannel || dataChannel.readyState !== 'open') {
+                updateClipStatusP2P('Bridge not connected');
+                return;
+            }
+            const text = (clipboardAreaEl?.value || '').trim();
+            if (!text) { updateClipStatusP2P('Nothing to push'); return; }
+            lastWebClipboard = text;
+            dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PUSH', text }));
+            updateClipStatusP2P('✓ Pushed to phone clipboard');
         }
 
         async function applyClipboardFromPhone(text) {
             const normalized = (text || '').trim();
             if (!normalized || normalized === lastPhoneClipboard) return;
+            lastPhoneClipboard = normalized;
+            lastWebClipboard = normalized;
+            if (clipboardAreaEl) clipboardAreaEl.value = normalized;
             try {
-                // Try to write to navigator clipboard
                 await navigator.clipboard.writeText(normalized);
-                lastPhoneClipboard = normalized;
-                lastWebClipboard = normalized;
-                showNotesStatus('Phone clipboard synced to browser!');
+                updateClipStatusP2P('✓ Phone clipboard synced to browser');
+                if (clipSyncBadge) clipSyncBadge.textContent = 'SYNCED';
             } catch (err) {
-                // Fallback: just update the local state so the next 'Sync Clipboard' button press works with the fresh value
-                lastPhoneClipboard = normalized;
-                lastWebClipboard = normalized;
-                showNotesStatus('Phone clipboard received (Click Sync to apply).');
-                console.warn("Clipboard write failed (requires user interaction):", err);
+                updateClipStatusP2P('✓ Phone clipboard shown above (click Copy)');
+                console.warn("Clipboard write failed:", err);
             }
         }
 
@@ -845,10 +893,14 @@
                 requestNotesFromPhone();
                 renderNotes();
                 hackieFeatures?.retryOfflineQueue();
-                if (dataChannel && dataChannel.readyState === 'open') {
-                    dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PULL' }));
-                }
+                // Pull clipboard on auth success
+                pullClipboardP2P();
                 syncClipboardFromWebToPhone();
+                // Start auto-refresh intervals
+                if (notesAutoRefreshTimer) clearInterval(notesAutoRefreshTimer);
+                notesAutoRefreshTimer = setInterval(() => {
+                    requestNotesFromPhone();
+                }, 8000);
                 return;
             }
 
@@ -1013,10 +1065,10 @@
 
         async function startHandshake(opts = {}) {
             const log = opts.log || document.getElementById('connect-log');
-            const pin = (opts.pin || '').trim().toUpperCase();
+            const pin = (opts.pin || '').trim();
             if (!pin) throw new Error("Security PIN missing from handshake request.");
 
-            signalingRoomId = `PIN_${pin}`;
+            signalingRoomId = opts.roomId || `rabit_p2p_${pin}`;
             cleanupHandshake();
 
             statusText.innerText = "Initializing WebRTC engine...";
@@ -1030,9 +1082,15 @@
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
+                    // Only serialize the fields Android expects
+                    const candObj = {
+                        sdpMid: event.candidate.sdpMid,
+                        sdpMLineIndex: event.candidate.sdpMLineIndex,
+                        candidate: event.candidate.candidate
+                    };
                     const signalRef = doc(window.db, "signals", signalingRoomId);
                     setDoc(signalRef, {
-                        web_candidates: arrayUnion(JSON.stringify(event.candidate))
+                        web_candidates: arrayUnion(JSON.stringify(candObj))
                     }, { merge: true }).catch((err) => {
                         console.error("Failed to publish web ICE candidate", err);
                     });
@@ -1082,18 +1140,40 @@
                         await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.android_answer }));
                         statusText.innerText = "Phone Handshake Verified";
                         log.textContent = "Establishing secure peer tunnel...";
+                        // Flush any buffered ICE candidates now that remote desc is set
+                        if (window._bufferedAndroidCandidates) {
+                            window._bufferedAndroidCandidates.forEach(candStr => {
+                                try {
+                                    const candidate = JSON.parse(candStr);
+                                    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+                                } catch (_) {}
+                            });
+                            window._bufferedAndroidCandidates = [];
+                        }
                     } catch (err) {
                         console.error("Failed to set remote description", err);
                         log.textContent = "Handshake error: " + err.message;
                     }
                 }
 
-                if (data.android_candidates && pc.remoteDescription) {
+                if (data.android_candidates) {
+                    const processedSet = window._processedAndroidCandidates || new Set();
+                    window._processedAndroidCandidates = processedSet;
                     data.android_candidates.forEach(candStr => {
-                        const candidate = JSON.parse(candStr);
-                        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
-                            console.warn("Failed to add ICE candidate", e);
-                        });
+                        if (processedSet.has(candStr)) return;
+                        processedSet.add(candStr);
+                        if (!pc.remoteDescription) {
+                            // Buffer candidates until remote description is set
+                            window._bufferedAndroidCandidates = window._bufferedAndroidCandidates || [];
+                            window._bufferedAndroidCandidates.push(candStr);
+                            return;
+                        }
+                        try {
+                            const candidate = JSON.parse(candStr);
+                            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+                                console.warn("Failed to add ICE candidate", e);
+                            });
+                        } catch (e) { console.warn('Bad ICE candidate JSON', e); }
                     });
                 }
             });
@@ -1169,10 +1249,12 @@
         addNoteBtn?.addEventListener('click', () => addNoteFromWeb());
         refreshNotesBtn?.addEventListener('click', () => requestNotesFromPhone());
 
-        syncClipboardBtn?.addEventListener('click', async () => {
-            await syncClipboardFromWebToPhone();
-            if (dataChannel && dataChannel.readyState === 'open') {
-                dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PULL' }));
+        clipPullBtn?.addEventListener('click', () => pullClipboardP2P());
+        clipPushBtn?.addEventListener('click', () => pushClipboardP2P());
+        clipCopyLocal?.addEventListener('click', async () => {
+            const text = clipboardAreaEl?.value || '';
+            if (text) {
+                try { await navigator.clipboard.writeText(text); updateClipStatusP2P('✓ Copied'); } catch (_) {}
             }
         });
 
@@ -1224,8 +1306,8 @@
             showNotesStatus('Offline mode active. New actions will be queued.', true);
         });
 
-        // Clipboard sync interval
-        setInterval(() => { syncClipboardFromWebToPhone(); }, 2200);
+        // Clipboard sync interval (auto-push web clipboard changes to phone)
+        setInterval(() => { syncClipboardFromWebToPhone(); }, 3500);
     </script>
 </body>
 </html>

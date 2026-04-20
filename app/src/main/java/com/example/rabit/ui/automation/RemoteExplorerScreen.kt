@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,7 +29,6 @@ import com.example.rabit.domain.model.RemoteFile
 import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteExplorerScreen(
     viewModel: HelperViewModel,
@@ -46,79 +44,7 @@ fun RemoteExplorerScreen(
     val sshConnected by viewModel.sshConnected.collectAsState()
 
     Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "REMOTE EXPLORER",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text(
-                            currentPath,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Silver.copy(alpha = 0.5f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                actions = {
-                    // Mount/Unmount button
-                    IconButton(onClick = { viewModel.toggleRemoteMount() }) {
-                        Icon(
-                            if (isMounted) Icons.Default.CloudDone else Icons.Default.CloudQueue,
-                            null,
-                            tint = if (isMounted) SuccessGreen else Silver.copy(alpha = 0.5f)
-                        )
-                    }
-                    // Open in Files app
-                    if (isMounted) {
-                        IconButton(onClick = {
-                            try {
-                                val rootsUri = DocumentsContract.buildRootsUri(
-                                    "${context.packageName}.remote.documents"
-                                )
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(rootsUri, "vnd.android.document/root")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                // Fallback: open the system file manager
-                                val browseIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                                    addCategory(Intent.CATEGORY_OPENABLE)
-                                    type = "*/*"
-                                }
-                                try {
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    context.startActivity(browseIntent)
-                                }
-                            } catch (_: Exception) {
-                                // Ignore if Files app isn't available
-                            }
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = AccentBlue)
-                        }
-                    }
-                    IconButton(onClick = { viewModel.refreshRemoteFiles() }) {
-                        Icon(Icons.Default.Refresh, null, tint = AccentTeal)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        }
+        containerColor = Obsidian
     ) { padding ->
         Column(
             modifier = Modifier
@@ -213,6 +139,54 @@ fun RemoteExplorerScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.toggleRemoteMount() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        if (isMounted) Icons.Default.CloudOff else Icons.Default.CloudDone,
+                        contentDescription = null,
+                        tint = if (isMounted) WarningYellow else SuccessGreen
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isMounted) "Unmount" else "Mount")
+                }
+                OutlinedButton(
+                    onClick = { viewModel.refreshRemoteFiles() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = AccentTeal)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Refresh")
+                }
+                if (isMounted) {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val rootsUri = DocumentsContract.buildRootsUri("${context.packageName}.remote.documents")
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(rootsUri, "vnd.android.document/root")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = AccentBlue)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Files")
+                    }
                 }
             }
 

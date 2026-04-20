@@ -88,6 +88,7 @@ dependencies {
     implementation("commons-codec:commons-codec:1.16.0")
     
     implementation(libs.mediapipe.genai)
+    implementation(libs.jmdns)
     implementation(libs.zxing.core)
     implementation("io.coil-kt:coil-compose:2.6.0")
     

@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -175,7 +179,7 @@ fun AppNavigation(
     val isBluetoothConnected = bluetoothState is HidDeviceManager.ConnectionState.Connected
 
     // Routes that should NOT show the professional drawer (Onboarding & Initial Pairing)
-    val noDrawerRoutes = listOf("onboarding", "onboarding_splash", "assistant")
+    val noDrawerRoutes = listOf("onboarding", "onboarding_splash")
     val showDrawer = currentRoute.split("?").first() !in noDrawerRoutes
 
     fun routeAllowed(route: String): Boolean {
@@ -490,11 +494,7 @@ fun AppNavigation(
                     restoreState = target != "assistant"
                 }
             },
-            showTopBar = currentRoute.split("?").first() !in listOf(
-                "helper", "remote_explorer", "reverse_shell", "terminal_scanner", 
-                "auto_clicker", "web_bridge", "airplay_receiver", "profile", 
-                "assistant", "injector", "password_manager", "adb_manager"
-            ),
+            showTopBar = currentRoute.split("?").first() != "assistant",
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,
             featureAssistantVisible = featureAssistantVisible,
@@ -505,13 +505,15 @@ fun AppNavigation(
             activeApp = activeApp,
             onBack = { navController.popBackStack() },
             topBarActions = {
+                val route = currentRoute.split("?").first()
                 IconButton(onClick = {
-                    if (currentRoute.split("?").first() != "global_search") {
+                    if (route != "global_search") {
                         navController.navigate("global_search") { launchSingleTop = true }
                     }
                 }) {
                     Icon(Icons.Default.Search, contentDescription = "Open global search")
                 }
+                if (route == "assistant") return@RabitAppScaffold
             }
         ) { padding ->
             navHost(padding)

@@ -30,7 +30,9 @@ import java.util.*
 import kotlin.math.*
 import android.content.Intent
 import android.bluetooth.BluetoothAdapter
+import androidx.core.content.ContextCompat
 import com.example.rabit.data.voice.VoiceState
+import com.example.rabit.data.airplay.AirPlayReceiverService
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     enum class SystemShortcut { MUTE, PLAY_PAUSE, NEXT, PREV, VOL_UP, VOL_DOWN, LOCK_SCREEN }
@@ -251,17 +253,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val nowPlayingAlbum = MutableStateFlow("").asStateFlow()
     val nowPlayingArtworkBase64 = MutableStateFlow<String?>(null).asStateFlow()
 
-    // AirPlay Stubs
-    val airPlayPacketStats = MutableStateFlow("0 pkt / 0 ms").asStateFlow()
-    val airPlayAutoFallbackEnabled = MutableStateFlow(true).asStateFlow()
-    val airPlayReceiverEnabled = MutableStateFlow(false).asStateFlow()
-    val airPlayNativeReadiness = MutableStateFlow("Uninitialized").asStateFlow()
-    val airPlayLastRtspMethod = MutableStateFlow("N/A").asStateFlow()
-    val airPlayServerPorts = MutableStateFlow("N/A").asStateFlow()
-    val airPlayClientPorts = MutableStateFlow("N/A").asStateFlow()
-    val airPlayEncryptionEnabled = MutableStateFlow(false).asStateFlow()
-    val airPlayAudioLatency = MutableStateFlow(0L).asStateFlow()
-    val airPlayBufferStatus = MutableStateFlow("Empty").asStateFlow()
+    private val _airPlayPacketStats = MutableStateFlow("0 pkt / 0 drop / 0 reorder")
+    val airPlayPacketStats = _airPlayPacketStats.asStateFlow()
+    private val _airPlayAutoFallbackEnabled = MutableStateFlow(prefs.getBoolean("airplay_auto_fallback_enabled", true))
+    val airPlayAutoFallbackEnabled = _airPlayAutoFallbackEnabled.asStateFlow()
+    private val _airPlayReceiverEnabled = MutableStateFlow(false)
+    val airPlayReceiverEnabled = _airPlayReceiverEnabled.asStateFlow()
+    private val _airPlayNativeReadiness = MutableStateFlow("LOW")
+    val airPlayNativeReadiness = _airPlayNativeReadiness.asStateFlow()
+    private val _airPlayLastRtspMethod = MutableStateFlow("N/A")
+    val airPlayLastRtspMethod = _airPlayLastRtspMethod.asStateFlow()
+    private val _airPlayServerPorts = MutableStateFlow("N/A")
+    val airPlayServerPorts = _airPlayServerPorts.asStateFlow()
+    private val _airPlayClientPorts = MutableStateFlow("N/A")
+    val airPlayClientPorts = _airPlayClientPorts.asStateFlow()
+    private val _airPlayEncryptionEnabled = MutableStateFlow(false)
+    val airPlayEncryptionEnabled = _airPlayEncryptionEnabled.asStateFlow()
+    private val _airPlayAudioLatency = MutableStateFlow(0L)
+    val airPlayAudioLatency = _airPlayAudioLatency.asStateFlow()
+    private val _airPlayBufferStatus = MutableStateFlow("Idle")
+    val airPlayBufferStatus = _airPlayBufferStatus.asStateFlow()
 
     private var proximityTelemetryJob: Job? = null
 
@@ -296,6 +307,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(System.currentTimeMillis())
                 _airPlayStatusLog.value = (listOf("[$ts] $status") + _airPlayStatusLog.value).take(24)
                 _airPlayHandshakeStage.value = mapAirPlayStage(status)
+                syncAirPlayTelemetry(status)
             }
         }
         
@@ -436,9 +448,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun mapAirPlayStage(status: String): String {
         return when {
             status.contains("Idle", ignoreCase = true) -> "IDLE"
-            status.contains("Streaming", ignoreCase = true) -> "STREAMING"
+            status.contains("ANNOUNCE", ignoreCase = true) -> "ANNOUNCED"
+            status.contains("SETUP", ignoreCase = true) -> "SETUP"
+            status.contains("RECORD", ignoreCase = true) -> "RECORDING"
+            status.contains("Streaming", ignoreCase = true) || status.contains("delivered=", ignoreCase = true) -> "STREAMING"
+            status.contains("stalled", ignoreCase = true) -> "STALLED"
+            status.contains("failed", ignoreCase = true) || status.contains("unsupported", ignoreCase = true) -> "FAILED"
             status.contains("Handshake", ignoreCase = true) -> "HANDSHAKE"
             else -> "ACTIVE"
+        }
+    }
+
+    private fun syncAirPlayTelemetry(status: String) {
+        if (status.contains("Idle", ignoreCase = true)) {
+            _airPlayReceiverEnabled.value = false
+        }
+        if (status.contains("Starting AirPlay receiver", ignoreCase = true) ||
+            status.contains("AirPlay ready on port", ignoreCase = true) ||
+            status.contains("RAOP advertised", ignoreCase = true) ||
+            status.contains("RAOP client connected", ignoreCase = true)
+        ) {
+            _airPlayReceiverEnabled.value = true
+        }
+
+        if (status.contains("RTSP ", ignoreCase = true)) {
+            _airPlayLastRtspMethod.value = status.substringAfter("RTSP ").substringBefore(' ').uppercase(Locale.getDefault())
+        }
+
+        if (status.contains("RAOP UDP ready", ignoreCase = true)) {
+            _airPlayServerPorts.value = status.substringAfter("RAOP UDP ready ").trim()
+        }
+
+        if (status.contains("RAOP client ports", ignoreCase = true)) {
+            _airPlayClientPorts.value = status.substringAfter("RAOP client ports ").trim()
+        }
+
+        if (status.contains("delivered=", ignoreCase = true)) {
+            _airPlayPacketStats.value = status.substringAfter("RTP packets ").trim()
+            _airPlayBufferStatus.value = "Flowing"
+            _airPlayNativeReadiness.value = "MEDIUM"
+        } else if (status.contains("Waiting for RTP packets", ignoreCase = true) ||
+            status.contains("stalled", ignoreCase = true)
+        ) {
+            _airPlayBufferStatus.value = "Waiting"
+        }
+
+        if (status.contains("Encrypted RAOP session requested", ignoreCase = true)) {
+            _airPlayEncryptionEnabled.value = true
+        }
+        if (status.contains("ALAC native decode pipeline armed", ignoreCase = true) ||
+            status.contains("ALAC decode active", ignoreCase = true)
+        ) {
+            _airPlayNativeReadiness.value = "MEDIUM"
+        }
+        if (status.contains("decode unavailable", ignoreCase = true) ||
+            status.contains("fallback required", ignoreCase = true)
+        ) {
+            _airPlayNativeReadiness.value = "LOW-MEDIUM"
         }
     }
 
@@ -482,13 +548,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun stopTextPush() { /* Stub */ }
 
     // AirPlay Controls
-    fun startAirPlayReceiver() { /* Stub */ }
-    fun stopAirPlayReceiver() { /* Stub */ }
-    fun restartAirPlayReceiver() { /* Stub */ }
-    fun setAirPlayAutoFallbackEnabled(enabled: Boolean) { /* Stub */ }
-    fun refreshAirPlayDecoderCapability() { /* Stub */ }
-    fun clearAirPlayStatusLog() { /* Stub */ }
-    fun playAirPlayTestTone() { /* Stub */ }
+    fun startAirPlayReceiver() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, AirPlayReceiverService::class.java).apply {
+            action = AirPlayReceiverService.ACTION_START
+        }
+        ContextCompat.startForegroundService(context, intent)
+        _airPlayReceiverEnabled.value = true
+    }
+
+    fun stopAirPlayReceiver() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, AirPlayReceiverService::class.java).apply {
+            action = AirPlayReceiverService.ACTION_STOP
+        }
+        context.startService(intent)
+        _airPlayReceiverEnabled.value = false
+    }
+
+    fun restartAirPlayReceiver() {
+        stopAirPlayReceiver()
+        viewModelScope.launch {
+            delay(250)
+            startAirPlayReceiver()
+        }
+    }
+
+    fun setAirPlayAutoFallbackEnabled(enabled: Boolean) {
+        _airPlayAutoFallbackEnabled.value = enabled
+        prefs.edit().putBoolean("airplay_auto_fallback_enabled", enabled).apply()
+    }
+
+    fun refreshAirPlayDecoderCapability() {
+        _airPlayAlacCapability.value = AlacFrameDecoder.capabilityLabel()
+    }
+
+    fun clearAirPlayStatusLog() {
+        _airPlayStatusLog.value = emptyList()
+    }
+
+    fun playAirPlayTestTone() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, AirPlayReceiverService::class.java).apply {
+            action = AirPlayReceiverService.ACTION_TEST_TONE
+        }
+        ContextCompat.startForegroundService(context, intent)
+    }
 
     fun requestNowPlayingFromHost() { /* Stub */ }
     fun discoverHelperOnLocalWifi() { /* Stub */ }

@@ -8,6 +8,12 @@ interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY createdAtMs DESC")
     fun getAllNotes(): Flow<List<NoteEntity>>
 
+    @Query("SELECT * FROM notes ORDER BY createdAtMs DESC")
+    suspend fun getAllNotesOnce(): List<NoteEntity>
+
+    @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): NoteEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: NoteEntity)
 

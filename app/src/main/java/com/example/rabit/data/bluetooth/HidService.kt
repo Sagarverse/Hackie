@@ -81,14 +81,17 @@ class HidService : Service() {
 
         // Keep now-playing ingestion owned by the service so metadata continues
         // to update even when no UI ViewModel is active.
-        RabitNetworkServer.nowPlayingReceiver = { payload ->
-            updateNowPlayingState(
-                title = payload.title,
-                artist = payload.artist,
-                album = payload.album,
-                artworkBase64 = payload.artworkBase64,
-                state = payload.playbackState
-            )
+        // Only set if no receiver has been registered yet (ViewModel may chain to this)
+        if (RabitNetworkServer.nowPlayingReceiver == null) {
+            RabitNetworkServer.nowPlayingReceiver = { payload ->
+                updateNowPlayingState(
+                    title = payload.title,
+                    artist = payload.artist,
+                    album = payload.album,
+                    artworkBase64 = payload.artworkBase64,
+                    state = payload.playbackState
+                )
+            }
         }
 
         encryptionManager = com.example.rabit.data.secure.EncryptionManager(this)
@@ -111,6 +114,15 @@ class HidService : Service() {
         
         // Check if Web Bridge should auto-start from preferences
         val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+        val savedPin = prefs.getString("web_bridge_pin", null)
+        if (savedPin != null) {
+            RabitNetworkServer.currentPin = savedPin
+        } else {
+            val hPin = String.format("%04d", (0..9999).random())
+            RabitNetworkServer.currentPin = hPin
+            prefs.edit().putString("web_bridge_pin", hPin).apply()
+        }
+
         if (prefs.getBoolean("web_bridge_enabled", false)) {
             serviceScope.launch(Dispatchers.IO) {
                 RabitNetworkServer.start(this@HidService, encryptionManager)
@@ -134,23 +146,36 @@ class HidService : Service() {
         clipboardJob = serviceScope.launch {
             while (isActive) {
                 try {
-                    val primaryClip = clipboard.primaryClip
-                    if (primaryClip != null && primaryClip.itemCount > 0) {
-                        val text = primaryClip.getItemAt(0).text?.toString()
-                        if (text != lastClipboardText && !text.isNullOrBlank()) {
-                            lastClipboardText = text
-                            val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
-                            val isAutoPush = prefs.getBoolean("auto_push_enabled", false)
-                            
-                            if (isAutoPush) {
-                                sendText(text)
-                            } else {
-                                showClipboardNotification(text)
+                    // Only read clipboard when the app is in the foreground
+                    // to avoid "Denying clipboard access" errors on Android 10+
+                    val am = getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                    val appProcesses = am?.runningAppProcesses
+                    val isInForeground = appProcesses?.any {
+                        it.processName == packageName &&
+                        it.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                    } ?: false
+                    
+                    if (isInForeground) {
+                        val primaryClip = clipboard.primaryClip
+                        if (primaryClip != null && primaryClip.itemCount > 0) {
+                            val text = primaryClip.getItemAt(0).text?.toString()
+                            if (text != lastClipboardText && !text.isNullOrBlank()) {
+                                lastClipboardText = text
+                                val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+                                val isAutoPush = prefs.getBoolean("auto_push_enabled", false)
+                                
+                                if (isAutoPush) {
+                                    sendText(text)
+                                } else {
+                                    showClipboardNotification(text)
+                                }
                             }
                         }
                     }
-                } catch (e: Exception) { }
-                delay(3000)
+                } catch (e: Exception) {
+                    // Silently ignore clipboard access denial
+                }
+                delay(5000)
             }
         }
     }

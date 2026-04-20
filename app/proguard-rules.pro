@@ -24,6 +24,10 @@
 -keep class com.jcraft.jsch.** { *; }
 -dontwarn com.jcraft.jsch.**
 
+# ── JmDNS (LAN .local hostnames) ──
+-keep class javax.jmdns.** { *; }
+-dontwarn javax.jmdns.**
+
 # ── Ktor ──
 -keep class io.ktor.** { *; }
 -dontwarn io.ktor.**

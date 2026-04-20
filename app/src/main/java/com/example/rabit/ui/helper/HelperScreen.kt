@@ -105,7 +105,6 @@ fun HelperScreen(
     val helperAutoConnectStatus by viewModel.helperAutoConnectStatus.collectAsState()
     val helperLastAutoDiscoverAt by viewModel.helperLastAutoDiscoverAt.collectAsState()
     val helperIp by viewModel.helperDeviceIp.collectAsState()
-    val helperPin by viewModel.helperPin.collectAsState()
     val helperMac by viewModel.helperDeviceMac.collectAsState()
     val terminalOutput by viewModel.terminalOutput.collectAsState()
     val currentRemotePath by viewModel.currentRemotePath.collectAsState()
@@ -176,33 +175,11 @@ fun HelperScreen(
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedTextField(
-                            value = helperPin,
-                            onValueChange = { viewModel.setHelperPin(it) },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                            label = { Text("Helper Pairing PIN", color = Silver.copy(alpha = 0.6f)) },
-                            placeholder = { Text("Enter PIN from Mac", color = Silver.copy(alpha = 0.4f)) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MintTeal,
-                                unfocusedBorderColor = Silver.copy(alpha = 0.1f),
-                                focusedLabelColor = MintTeal,
-                                focusedContainerColor = Color.Black.copy(alpha = 0.2f),
-                                unfocusedContainerColor = Color.Black.copy(alpha = 0.1f)
-                            ),
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp,
-                                color = Platinum,
-                                textAlign = TextAlign.Center
-                            )
-                        )
                     }
                 }
 
                 Text(
-                    "REMOTE FILE SYSTEM",
+                    "SEND TO MAC DESKTOP",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp,
@@ -212,38 +189,15 @@ fun HelperScreen(
 
                 PremiumGlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Folder, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                "Path: ${currentRemotePath.ifBlank { "/" }}",
-                                color = Platinum,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            "Quickly send any file from your Android directly to your Mac's Desktop.",
+                            color = Silver.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
-                                onClick = { viewModel.listParentRemoteFiles() },
-                                modifier = Modifier.weight(1f).height(48.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Silver.copy(alpha = 0.15f))
-                            ) {
-                                Text("LEVEL UP", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = { viewModel.listRemoteFiles(currentRemotePath) },
-                                modifier = Modifier.weight(1f).height(48.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Graphite)
-                            ) {
-                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("REFRESH", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         Button(
                             onClick = { filePickerLauncher.launch("*/*") },
@@ -253,35 +207,7 @@ fun HelperScreen(
                         ) {
                             Icon(Icons.Default.Upload, null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("PUSH FILE TO HELPER", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
-                        }
-
-                        HorizontalDivider(color = Silver.copy(alpha = 0.05f))
-
-                        if (helperRemoteFiles.isEmpty()) {
-                            Text(
-                                "No remote files visible. Connect and refresh to browse.",
-                                color = Silver.copy(alpha = 0.5f),
-                                style = MaterialTheme.typography.bodySmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                            )
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                helperRemoteFiles.take(8).forEach { file ->
-                                    RemoteFileItem(file) {
-                                        if (file.isDirectory) viewModel.listRemoteFiles(file.path)
-                                    }
-                                }
-                                if (helperRemoteFiles.size > 8) {
-                                    Text(
-                                        "View more in file manager...",
-                                        color = AccentBlue,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
-                                    )
-                                }
-                            }
+                            Text("PUSH FILE TO MAC DESKTOP", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                         }
                     }
                 }

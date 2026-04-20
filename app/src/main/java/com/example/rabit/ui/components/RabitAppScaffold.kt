@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -31,6 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+
+val LocalOpenGlobalDrawer = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /**
  * RabitAppScaffold — Ultra-minimal global container.
@@ -58,7 +61,7 @@ fun RabitAppScaffold(
     val scope = rememberCoroutineScope()
 
     val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
-    val isSubPage = currentRoute !in mainRoutes
+    val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     val screenTitle = when(currentRoute) {
         "home" -> "Home"
@@ -83,6 +86,14 @@ fun RabitAppScaffold(
         "reverse_shell" -> "Reverse Shell"
         "terminal_scanner" -> "Scanner"
         else -> "Hackie"
+    }
+
+    val appBarSubtitle = when {
+        currentRoute == "assistant" -> "AI Workspace"
+        currentRoute == "airplay_receiver" -> "Wireless Audio"
+        currentRoute == "helper" -> "Desktop Bridge"
+        !activeApp.isNullOrBlank() && currentRoute in listOf("main", "keyboard") -> activeApp
+        else -> "Hackie Pro"
     }
 
     ModalNavigationDrawer(
@@ -295,52 +306,63 @@ fun RabitAppScaffold(
             topBar = {
                 if (showTopBar) {
                     Surface(
-                        color = Surface0.copy(alpha = 0.96f),
+                        color = Surface0.copy(alpha = 0.98f),
                         shadowElevation = 0.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        CenterAlignedTopAppBar(
+                        TopAppBar(
                             title = {
-                                Text(
-                                    text = screenTitle,
-                                    color = TextPrimary,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    letterSpacing = 0.3.sp
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Text(
+                                        text = screenTitle,
+                                        color = TextPrimary,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        letterSpacing = 0.3.sp
+                                    )
+                                    Text(
+                                        text = appBarSubtitle,
+                                        color = TextSecondary.copy(alpha = 0.9f),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.alpha(0.95f)
+                                    )
+                                }
                             },
                             navigationIcon = {
-                                if (isSubPage && onBack != null) {
-                                    IconButton(onClick = onBack) {
-                                        Icon(
-                                            Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Go back",
-                                            tint = TextPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                } else {
-                                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                        Icon(
-                                            Icons.Default.Menu,
-                                            contentDescription = "Open navigation menu",
-                                            tint = TextPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                IconButton(onClick = openDrawer) {
+                                    Icon(
+                                        Icons.Default.Menu,
+                                        contentDescription = "Open navigation menu",
+                                        tint = TextPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             },
                             actions = {
                                 topBarActions()
                             },
-                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = Color.Transparent,
                                 titleContentColor = TextPrimary
-                            )
+                            ),
+                            modifier = Modifier.height(74.dp)
                         )
-                        // Subtle bottom border
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = BorderColor.copy(alpha = 0.5f)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color.Transparent,
+                                            AccentBlue.copy(alpha = 0.35f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
                         )
                     }
                 }
@@ -351,7 +373,9 @@ fun RabitAppScaffold(
                     .fillMaxSize()
                     .background(AppAtmosphereGradient)
             ) {
-                content(padding)
+                CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
+                    content(padding)
+                }
             }
         }
     }
