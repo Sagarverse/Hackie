@@ -50,6 +50,8 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     private val repository: KeyboardRepository = KeyboardRepositoryImpl(application)
     private val wifiAudioSink = com.example.rabit.data.airplay.AudioTrackPcmSink(application)
     
+    private val activeTransfers = mutableMapOf<String, java.io.FileOutputStream>()
+    
     private val _webBridgeRunning = MutableStateFlow(RabitNetworkServer.isRunning)
     val isWebBridgeRunning: StateFlow<Boolean> = _webBridgeRunning.asStateFlow()
 
@@ -161,6 +163,13 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                             }
                             "LIST_NOTES" -> sendNotesListToPeer()
                             "LIST_FILES" -> sendFilesListToPeer()
+                            "DOWNLOAD_FILE" -> {
+                                val path = json.optString("path")
+                                val reqId = json.optString("requestId")
+                                if (path.isNotBlank()) {
+                                    handleP2PDownloadRequest(path, reqId)
+                                }
+                            }
                             "ADD_NOTE" -> {
                                 val text = json.optString("text")
                                 val source = json.optString("source", "Web")
@@ -191,6 +200,27 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                                     put("text", text)
                                 }.toString()
                                 webRtcManager.sendData(payload)
+                            }
+                            // ── P2P File Upload Handlers ──
+                            "UPLOAD_START" -> {
+                                val transferId = json.optString("transferId")
+                                val fileName = json.optString("fileName")
+                                if (transferId.isNotBlank() && fileName.isNotBlank()) {
+                                    handleP2PUploadStart(transferId, fileName)
+                                }
+                            }
+                            "UPLOAD_CHUNK" -> {
+                                val transferId = json.optString("transferId")
+                                val dataBase64 = json.optString("dataBase64")
+                                if (transferId.isNotBlank() && dataBase64.isNotBlank()) {
+                                    handleP2PUploadChunk(transferId, dataBase64)
+                                }
+                            }
+                            "UPLOAD_END" -> {
+                                val transferId = json.optString("transferId")
+                                if (transferId.isNotBlank()) {
+                                    handleP2PUploadEnd(transferId)
+                                }
                             }
                         }
                     } catch (e: Exception) {
@@ -477,16 +507,23 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun resolveSharedFileMetadata(uri: Uri): Pair<String, Long> {
+        val cr = getApplication<Application>().contentResolver
         return try {
             var name = "File"
             var size = 0L
-            getApplication<Application>().contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            cr.query(uri, null, null, null, null)?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
                 if (cursor.moveToFirst()) {
                     if (nameIndex >= 0) name = cursor.getString(nameIndex)
                     if (sizeIndex >= 0) size = cursor.getLong(sizeIndex)
                 }
+            }
+            if (size <= 0L) {
+                size = cr.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+            }
+            if (name == "File") {
+                name = uri.lastPathSegment ?: "File"
             }
             name to size
         } catch (e: Exception) {
@@ -646,7 +683,7 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                 notes.forEach { it ->
                     val obj = JSONObject()
                     obj.put("id", it.id)
-                    obj.put("text", CryptoManager.encrypt(it.text, RabitNetworkServer.currentPin) ?: it.text)
+                    obj.put("text", it.text)
                     obj.put("source", it.source)
                     obj.put("createdAtMs", it.createdAtMs)
                     array.put(obj)
@@ -689,6 +726,126 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    private fun handleP2PDownloadRequest(fileId: String, reqId: String) {
+        val uri = _sharedFiles.value.find { it.toString().hashCode().toString() == fileId }
+        val context = getApplication<Application>()
+        if (uri == null) {
+            val err = JSONObject().apply {
+                put("type", "ERROR")
+                put("message", "File blocked or not found")
+            }.toString()
+            viewModelScope.launch(Dispatchers.Main) { webRtcManager.sendData(err) }
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val metadata = resolveSharedFileMetadata(uri)
+                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val transferId = UUID.randomUUID().toString()
+
+                val ack = JSONObject().apply {
+                    put("type", "FILE_DOWNLOAD_ACK")
+                    put("requestId", reqId)
+                    put("accepted", true)
+                }.toString()
+                withContext(Dispatchers.Main) { webRtcManager.sendData(ack) }
+
+                val start = JSONObject().apply {
+                    put("type", "FILE_DOWNLOAD_START")
+                    put("transferId", transferId)
+                    put("name", metadata.first)
+                    put("sizeBytes", metadata.second)
+                    put("mimeType", mime)
+                }.toString()
+                withContext(Dispatchers.Main) { webRtcManager.sendData(start) }
+
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val buffer = ByteArray(16 * 1024)
+                    var bytesRead: Int
+                    while (stream.read(buffer).also { bytesRead = it } != -1) {
+                        val validBytes = buffer.take(bytesRead).toByteArray()
+                        val b64 = android.util.Base64.encodeToString(validBytes, android.util.Base64.NO_WRAP)
+                        val chunkChunk = JSONObject().apply {
+                            put("type", "FILE_DOWNLOAD_CHUNK")
+                            put("transferId", transferId)
+                            put("dataBase64", b64)
+                        }.toString()
+                        withContext(Dispatchers.Main) { webRtcManager.sendData(chunkChunk) }
+                        delay(2) // yield slightly to not backpressure data channel completely
+                    }
+                }
+
+                val end = JSONObject().apply {
+                    put("type", "FILE_DOWNLOAD_END")
+                    put("transferId", transferId)
+                }.toString()
+                withContext(Dispatchers.Main) { webRtcManager.sendData(end) }
+
+            } catch (e: Exception) {
+                val err = JSONObject().apply {
+                    put("type", "ERROR")
+                    put("message", "Stream aborted: ${e.message}")
+                }.toString()
+                withContext(Dispatchers.Main) { webRtcManager.sendData(err) }
+            }
+        }
+    }
+
+    private fun handleP2PUploadStart(transferId: String, fileName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val hackieDir = File(downloadsDir, "Hackie")
+                if (!hackieDir.exists()) hackieDir.mkdirs()
+
+                // Sanitize filename to prevent directory traversal
+                val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val targetFile = File(hackieDir, safeName)
+                
+                // If exists, append timestamp to avoid overwriting
+                val finalFile = if (targetFile.exists()) {
+                    File(hackieDir, "${System.currentTimeMillis()}_$safeName")
+                } else targetFile
+
+                Log.d("WebBridgeVM", "P2P Upload Start: $transferId, saving to ${finalFile.absolutePath}")
+                val fos = java.io.FileOutputStream(finalFile)
+                activeTransfers[transferId] = fos
+            } catch (e: Exception) {
+                Log.e("WebBridgeVM", "Failed to start P2P upload", e)
+            }
+        }
+    }
+
+    private fun handleP2PUploadChunk(transferId: String, dataBase64: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val fos = activeTransfers[transferId]
+                if (fos != null) {
+                    val data = android.util.Base64.decode(dataBase64, android.util.Base64.DEFAULT)
+                    fos.write(data)
+                }
+            } catch (e: Exception) {
+                Log.e("WebBridgeVM", "Failed to write P2P chunk", e)
+            }
+        }
+    }
+
+    private fun handleP2PUploadEnd(transferId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val fos = activeTransfers.remove(transferId)
+                if (fos != null) {
+                    fos.flush()
+                    fos.close()
+                    Log.d("WebBridgeVM", "P2P Upload End: $transferId")
+                    refreshReceivedFiles()
+                }
+            } catch (e: Exception) {
+                Log.e("WebBridgeVM", "Failed to end P2P upload", e)
             }
         }
     }

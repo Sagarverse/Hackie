@@ -32,9 +32,14 @@ fun PremiumChatTopBar(
     onClearChat: () -> Unit,
     onNewChat: () -> Unit,
     onExportChat: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    chatSessions: List<com.example.rabit.data.repository.ChatSession> = emptyList(),
+    onSessionClick: (String) -> Unit = {},
+    onDeleteSession: (String) -> Unit = {}
 ) {
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "orbPulse")
     val orbAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
@@ -130,11 +135,36 @@ fun PremiumChatTopBar(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = onRightPanelClick,
-                        modifier = Modifier.background(Graphite.copy(alpha = 0.4f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Tune, contentDescription = "Open right panel", tint = AccentBlue, modifier = Modifier.size(18.dp))
+                    Box {
+                        IconButton(
+                            onClick = { showSettingsMenu = true },
+                            modifier = Modifier.background(Graphite.copy(alpha = 0.4f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = "Settings", tint = AccentBlue, modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showSettingsMenu,
+                            onDismissRequest = { showSettingsMenu = false },
+                            containerColor = Graphite.copy(alpha = 0.98f),
+                            modifier = Modifier.border(0.5.dp, BorderColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Hardware Monitor", color = Platinum) },
+                                leadingIcon = { Icon(Icons.Default.SettingsInputComponent, contentDescription = null, tint = AccentBlue) },
+                                onClick = {
+                                    showSettingsMenu = false
+                                    onRightPanelClick()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Chat History", color = Platinum) },
+                                leadingIcon = { Icon(Icons.Default.History, contentDescription = null, tint = AccentBlue) },
+                                onClick = {
+                                    showSettingsMenu = false
+                                    showHistoryDialog = true
+                                }
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onNewChat,
@@ -181,5 +211,68 @@ fun PremiumChatTopBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
+    }
+
+    if (showHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showHistoryDialog = false },
+            containerColor = ChatSurface,
+            titleContentColor = Platinum,
+            textContentColor = Silver,
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.History, contentDescription = null, tint = AccentBlue)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Chat History")
+                }
+            },
+            text = {
+                if (chatSessions.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text("No saved sessions", color = Silver.copy(alpha = 0.5f))
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(chatSessions.size) { index ->
+                            val session = chatSessions[index]
+                            Surface(
+                                onClick = {
+                                    onSessionClick(session.id)
+                                    showHistoryDialog = false
+                                },
+                                color = Graphite.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(session.title, color = Platinum, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            "${session.messageCount} messages · ${java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(session.lastModified)}",
+                                            color = Silver.copy(alpha = 0.7f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    IconButton(onClick = { onDeleteSession(session.id) }) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHistoryDialog = false }) {
+                    Text("Close", color = AccentBlue)
+                }
+            }
+        )
     }
 }

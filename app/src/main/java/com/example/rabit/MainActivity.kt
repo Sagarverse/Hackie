@@ -161,7 +161,8 @@ fun AppNavigation(
     settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel,
     webBridgeViewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
     automationViewModel: com.example.rabit.ui.automation.AutomationViewModel,
-    helperViewModel: com.example.rabit.ui.helper.HelperViewModel
+    helperViewModel: com.example.rabit.ui.helper.HelperViewModel,
+    browserViewModel: com.example.rabit.ui.browser.BrowserViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
     val startDest = if (viewModel.onboardingCompleted) "home" else "onboarding"
@@ -325,6 +326,12 @@ fun AppNavigation(
                         }
                     )
                 }
+                composable("browser") {
+                    com.example.rabit.ui.browser.BrowserScreen(
+                        viewModel = browserViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("adb_mirror") {
                     com.example.rabit.ui.automation.AdbMirrorScreen(
                         viewModel = automationViewModel,
@@ -429,6 +436,7 @@ fun AppNavigation(
                         if (featureSnippetsVisible) add("snippets")
                         if (featureWakeOnLanVisible) add("wake_on_lan")
                         if (featureSshTerminalVisible) add("ssh_terminal")
+                        add("browser")
                     }
                     val availableActions = buildSet {
                         add("action_unlock_mac")

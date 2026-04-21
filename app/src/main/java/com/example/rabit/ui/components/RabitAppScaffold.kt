@@ -60,7 +60,7 @@ fun RabitAppScaffold(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     val screenTitle = when(currentRoute) {
@@ -85,11 +85,13 @@ fun RabitAppScaffold(
         "remote_explorer" -> "Remote Explorer"
         "reverse_shell" -> "Reverse Shell"
         "terminal_scanner" -> "Scanner"
+        "browser" -> "Browser"
         else -> "Hackie"
     }
 
     val appBarSubtitle = when {
         currentRoute == "assistant" -> "AI Workspace"
+        currentRoute == "browser" -> "Web Explorer"
         currentRoute == "airplay_receiver" -> "Wireless Audio"
         currentRoute == "helper" -> "Desktop Bridge"
         !activeApp.isNullOrBlank() && currentRoute in listOf("main", "keyboard") -> activeApp
@@ -263,6 +265,12 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("assistant"); scope.launch { drawerState.close() } }
                                 )
                             }
+                            DrawerNavItem(
+                                label = "Browser",
+                                icon = Icons.Default.Explore,
+                                isSelected = currentRoute == "browser",
+                                onClick = { onNavigate("browser"); scope.launch { drawerState.close() } }
+                            )
                             if (featureSnippetsVisible) {
                                 DrawerNavItem(
                                     label = "Snippets",

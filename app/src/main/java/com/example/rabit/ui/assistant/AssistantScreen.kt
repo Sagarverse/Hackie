@@ -94,39 +94,30 @@ fun AssistantScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = ChatSurface,
-                drawerContentColor = Platinum,
-                modifier = Modifier.width(320.dp)
-            ) {
-                AssistantDrawerContent(
-                    viewModel = viewModel,
-                    onPromptLibraryClick = { showPromptLibrary = true; coroutineScope.launch { drawerState.close() } },
-                    onHardwareMonitorClick = { showHardwareMonitor = true; coroutineScope.launch { drawerState.close() } },
-                    onMacroGenieClick = { showMacroGenie = true; coroutineScope.launch { drawerState.close() } }
-                )
-            }
+    val openGlobalDrawer = LocalOpenGlobalDrawer.current
+
+    // Observe sessions
+    val chatSessions by viewModel.chatSessions.collectAsState()
+
+    Scaffold(
+        containerColor = ChatSurface,
+        topBar = {
+            PremiumChatTopBar(
+                modelName = selectedModelName,
+                isThinking = uiState is AssistantUiState.Loading,
+                connectionState = connectionState,
+                onLeftPanelClick = { openGlobalDrawer?.invoke() },
+                onRightPanelClick = { showHardwareMonitor = true },
+                onClearChat = { viewModel.clearConversation() },
+                onNewChat = { viewModel.clearConversation() },
+                onExportChat = { viewModel.exportChatHistory(context) },
+                onSettingsClick = onNavigateToSettings,
+                chatSessions = chatSessions,
+                onSessionClick = { viewModel.loadChatSession(it) },
+                onDeleteSession = { viewModel.deleteChatSession(it) }
+            )
         }
-    ) {
-        Scaffold(
-            containerColor = ChatSurface,
-            topBar = {
-                PremiumChatTopBar(
-                    modelName = selectedModelName,
-                    isThinking = uiState is AssistantUiState.Loading,
-                    connectionState = connectionState,
-                    onLeftPanelClick = { coroutineScope.launch { drawerState.open() } },
-                    onRightPanelClick = { showHardwareMonitor = true },
-                    onClearChat = { viewModel.clearConversation() },
-                    onNewChat = { viewModel.clearConversation() },
-                    onExportChat = { viewModel.exportChatHistory(context) },
-                    onSettingsClick = onNavigateToSettings
-                )
-            }
-        ) { padding ->
+    ) { padding ->
         val modelLoadState by viewModel.modelLoadState.collectAsState()
         val modelCopyProgress by viewModel.modelCopyProgress.collectAsState()
         val modelLastError by viewModel.modelLastError.collectAsState()
@@ -161,7 +152,6 @@ fun AssistantScreen(
             }
             PremiumInputArea(viewModel, mainViewModel)
         }
-    }
     }
 
     if (showPromptLibrary) {
