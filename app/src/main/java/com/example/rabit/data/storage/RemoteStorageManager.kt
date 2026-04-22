@@ -55,6 +55,7 @@ object RemoteStorageManager {
     @Volatile var adbIp: String = ""
     @Volatile var adbPort: Int = 5555
     @Volatile var adbClient: com.example.rabit.data.adb.RabitAdbClient? = null
+    @Volatile var isAdbConnecting: Boolean = false
 
     private var cacheDir: File? = null
 
@@ -71,15 +72,25 @@ object RemoteStorageManager {
         adbPort = prefs.getInt("adb_port", 5555)
 
         cacheDir = File(context.cacheDir, CACHE_DIR_NAME).also { it.mkdirs() }
-
-        if (adbIp.isNotBlank()) {
-            val crypto = com.example.rabit.data.adb.RabitAdbCrypto.getCrypto(context)
-            adbClient = com.example.rabit.data.adb.RabitAdbClient(crypto)
-            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching { adbClient?.connectWifi(adbIp, adbPort) }
-            }
-        }
         isMounted = true
+    }
+
+    suspend fun connectAdb(context: Context, ip: String, port: Int): Boolean {
+        adbIp = ip
+        adbPort = port
+        isAdbConnecting = true
+        return try {
+            val crypto = com.example.rabit.data.adb.RabitAdbCrypto.getCrypto(context)
+            val client = com.example.rabit.data.adb.RabitAdbClient(crypto)
+            client.connectWifi(ip, port)
+            adbClient = client
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "ADB WiFi connection failed", e)
+            false
+        } finally {
+            isAdbConnecting = false
+        }
     }
 
     fun connectUsb(context: Context, device: UsbDevice, onResult: (Boolean) -> Unit) {
@@ -95,13 +106,19 @@ object RemoteStorageManager {
                             client.connectSocket(socket)
                             adbClient = client
                             isMounted = true
-                            onResult(true)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                onResult(true)
+                            }
                         } else {
-                            onResult(false)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                onResult(false)
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "USB ADB connection failed", e)
-                        onResult(false)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            onResult(false)
+                        }
                     }
                 }
             } else {
@@ -122,7 +139,13 @@ object RemoteStorageManager {
     }
 
     val isConnected: Boolean
-        get() = isSshReady() || helperBaseUrl.isNotBlank() || (adbClient != null && adbIp.isNotBlank())
+        get() = isSshReady() || helperBaseUrl.isNotBlank() || (adbClient != null && isAdbConnected())
+
+    private fun isAdbConnected(): Boolean {
+        // We can't easily check socket status without a heartbeat, 
+        // but we can check if the client exists and hasn't been disconnected.
+        return adbClient != null
+    }
 
     // ---------- SSH helpers ----------
 

@@ -46,7 +46,7 @@ class AutomationViewModel(
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
 
     // ADB Components
-    val adbClient = RabitAdbClient(RabitAdbCrypto.getCrypto(application))
+    val adbClient get() = com.example.rabit.data.storage.RemoteStorageManager.adbClient
     val usbAdbManager = UsbAdbManager(application)
     private val geminiRepo = GeminiRepositoryImpl()
 

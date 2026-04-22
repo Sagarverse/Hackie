@@ -94,6 +94,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _macAutofillPostEnter = MutableStateFlow(prefs.getBoolean("mac_autofill_post_enter", false))
     val macAutofillPostEnter = _macAutofillPostEnter.asStateFlow()
 
+    val geminiApiKey: String get() = prefs.getString("gemini_api_key", "") ?: ""
+
     // Passwords Vault
     private fun loadPasswordVaultEntries(): List<VaultEntry> {
         val jsonString = secureStorage.getPasswordVaultJson()

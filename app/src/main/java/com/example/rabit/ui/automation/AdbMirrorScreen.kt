@@ -33,11 +33,29 @@ fun AdbMirrorScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val adbClient = viewModel.adbClient
+    
+    if (adbClient == null) {
+        Box(modifier = Modifier.fillMaxSize().background(Obsidian), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.WifiOff, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(16.dp))
+                Text("Device Not Connected", color = Color.White)
+                Button(onClick = onBack) { Text("Go Back") }
+            }
+        }
+        return
+    }
+
     val streamer = remember { AdbMirrorStreamer(adbClient, scope) }
     
     var deviceWidth by remember { mutableStateOf(1080) }
     var deviceHeight by remember { mutableStateOf(2400) }
     var isMirroring by remember { mutableStateOf(false) }
+    val isUsb = remember { com.example.rabit.data.storage.RemoteStorageManager.adbIp.isBlank() }
+    
+    var startX by remember { mutableStateOf(0f) }
+    var startY by remember { mutableStateOf(0f) }
+    var startTime by remember { mutableStateOf(0L) }
 
     // Fetch device resolution on entry
     LaunchedEffect(Unit) {
@@ -93,7 +111,8 @@ fun AdbMirrorScreen(
                         holder.addCallback(object : SurfaceHolder.Callback {
                             override fun surfaceCreated(holder: SurfaceHolder) {
                                 isMirroring = true
-                                streamer.startMirroring(holder.surface, deviceWidth / 2, deviceHeight / 2) // Lower res for latency
+                                val bitrate = if (isUsb) 8_000_000 else 2_000_000
+                                streamer.startMirroring(holder.surface, deviceWidth / 2, deviceHeight / 2, bitrate)
                             }
                             override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {}
                             override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -107,20 +126,30 @@ fun AdbMirrorScreen(
                     .fillMaxSize()
                     .pointerInteropFilter { event ->
                         val view = surfaceView ?: return@pointerInteropFilter false
+                        val x = (event.x / view.width) * deviceWidth
+                        val y = (event.y / view.height) * deviceHeight
+                        
                         when (event.action) {
-                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
-                                val x = (event.x / view.width) * deviceWidth
-                                val y = (event.y / view.height) * deviceHeight
+                            MotionEvent.ACTION_DOWN -> {
+                                startX = x
+                                startY = y
+                                startTime = System.currentTimeMillis()
+                                true
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                val duration = System.currentTimeMillis() - startTime
+                                val dist = Math.sqrt(Math.pow((x - startX).toDouble(), 2.0) + Math.pow((y - startY).toDouble(), 2.0))
                                 
                                 scope.launch(Dispatchers.IO) {
-                                    if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_UP) {
+                                    if (dist < 20 && duration < 300) {
                                         adbClient.executeCommand("input tap ${x.toInt()} ${y.toInt()}")
-                                    } else if (event.action == MotionEvent.ACTION_MOVE) {
-                                        // Swipe handling is more complex, but simple tap suffices for "essential"
+                                    } else {
+                                        adbClient.executeCommand("input swipe ${startX.toInt()} ${startY.toInt()} ${x.toInt()} ${y.toInt()} ${duration.coerceAtMost(1000)}")
                                     }
                                 }
                                 true
                             }
+                            MotionEvent.ACTION_MOVE -> true
                             else -> false
                         }
                     }

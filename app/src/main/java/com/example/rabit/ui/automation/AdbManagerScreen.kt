@@ -173,27 +173,18 @@ fun AdbManagerScreen(
             Button(
                 onClick = {
                     isConnecting = true
-                    prefs.edit()
-                        .putString("adb_ip", adbIp)
-                        .putInt("adb_port", adbPort.toIntOrNull() ?: 5555)
-                        .apply()
-
                     scope.launch(Dispatchers.IO) {
-                        try {
-                            RemoteStorageManager.mount(context)
-                            val isConnected = RemoteStorageManager.isConnected
-                            withContext(Dispatchers.Main) {
-                                isConnecting = false
-                                if (isConnected) {
-                                    Toast.makeText(context, "Mounted ADB Storage Successfully!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Failed to connect", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                isConnecting = false
-                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                        val success = RemoteStorageManager.connectAdb(context, adbIp, adbPort.toIntOrNull() ?: 5555)
+                        withContext(Dispatchers.Main) {
+                            isConnecting = false
+                            if (success) {
+                                prefs.edit()
+                                    .putString("adb_ip", adbIp)
+                                    .putInt("adb_port", adbPort.toIntOrNull() ?: 5555)
+                                    .apply()
+                                Toast.makeText(context, "ADB Connection Established!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Connection Failed. Check IP/Port and Auth.", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
@@ -207,7 +198,7 @@ fun AdbManagerScreen(
                 } else {
                     Icon(Icons.Default.Wifi, contentDescription = null, tint = Platinum)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connect & Mount", color = Platinum, fontWeight = FontWeight.Bold)
+                    Text("Connect ADB", color = Platinum, fontWeight = FontWeight.Bold)
                 }
             }
 

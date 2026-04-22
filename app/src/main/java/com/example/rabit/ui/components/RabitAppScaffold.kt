@@ -340,6 +340,86 @@ fun RabitAppScaffold(
                             onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
                         )
                         DrawerNavItem(
+                            label = "BLE Auditor",
+                            icon = Icons.Default.BluetoothConnected,
+                            isSelected = currentRoute == "ble_auditor",
+                            onClick = { onNavigate("ble_auditor"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Wi-Fi Attacker",
+                            icon = Icons.Default.WifiTethering,
+                            isSelected = currentRoute == "wifi_attacker",
+                            onClick = { onNavigate("wifi_attacker"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Neural QA Auditor",
+                            icon = Icons.Default.BugReport,
+                            isSelected = currentRoute == "neural_qa",
+                            onClick = { onNavigate("neural_qa"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Neural Web Auditor",
+                            icon = Icons.Default.Public,
+                            isSelected = currentRoute == "neural_web_auditor",
+                            onClick = { onNavigate("neural_web_auditor"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Neural Payload Forge",
+                            icon = Icons.Default.Bolt,
+                            isSelected = currentRoute == "payload_forge",
+                            onClick = { onNavigate("payload_forge"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Rogue Horizon",
+                            icon = Icons.Default.WifiTetheringError,
+                            isSelected = currentRoute == "rogue_horizon",
+                            onClick = { onNavigate("rogue_horizon"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Sensor Lab",
+                            icon = Icons.Default.Stream,
+                            isSelected = currentRoute == "sensor_lab",
+                            onClick = { onNavigate("sensor_lab"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "OSINT Ghost",
+                            icon = Icons.Default.Radar,
+                            isSelected = currentRoute == "osint_ghost",
+                            onClick = { onNavigate("osint_ghost"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Bluetooth Shadow",
+                            icon = Icons.Default.BluetoothAudio,
+                            isSelected = currentRoute == "bluetooth_shadow",
+                            onClick = { onNavigate("bluetooth_shadow"); scope.launch { drawerState.close() } }
+                        )
+                        DrawerNavItem(
+                            label = "Neural Mirror Lab",
+                            icon = Icons.Default.Flip,
+                            isSelected = currentRoute == "bluetooth_mirror",
+                            onClick = { onNavigate("bluetooth_mirror"); scope.launch { drawerState.close() } }
+                        )
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+                        
+                        // Stealth Decoy Toggle
+                        val decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val isStealth by decoyViewModel.isStealthMode.collectAsState()
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(if (isStealth) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = if (isStealth) Color.Red else SuccessGreen, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("DECOY PROTOCOL", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = isStealth,
+                                onCheckedChange = { decoyViewModel.toggleStealthIcon(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.Red, checkedTrackColor = Color.Red.copy(alpha = 0.3f))
+                            )
+                        }
+                        DrawerNavItem(
                             label = "Screenshot Lab",
                             icon = Icons.Default.AddAPhoto,
                             isSelected = currentRoute == "screenshot_lab",

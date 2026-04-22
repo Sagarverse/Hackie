@@ -16,10 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Storage
 import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,6 +31,7 @@ fun WebFuzzerScreen(
     onBack: () -> Unit
 ) {
     var targetUrl by remember { mutableStateOf("http://192.168.1.100/vulnerable.php?id=") }
+    var extractionMode by remember { mutableStateOf(false) }
     val isFuzzing by viewModel.isFuzzing.collectAsState()
     val logs by viewModel.fuzzerLogs.collectAsState()
     val results by viewModel.fuzzerResults.collectAsState()
@@ -79,25 +82,60 @@ fun WebFuzzerScreen(
             )
             
             Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storage, contentDescription = null, tint = if (extractionMode) Color(0xFFFF3131) else Silver, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Database Extraction", color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Focus on dumping table data (SQLi)", color = Silver.copy(alpha = 0.6f), fontSize = 10.sp)
+                    }
+                }
+                Switch(
+                    checked = extractionMode,
+                    onCheckedChange = { extractionMode = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFFFF3131),
+                        uncheckedThumbColor = Color.Gray,
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                    )
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
             
             Button(
                 onClick = {
                     if (isFuzzing) viewModel.stopFuzzing()
                     else {
                         val apiKey = prefs.getString("gemini_api_key", "") ?: ""
-                        viewModel.startFuzzing(targetUrl, apiKey)
+                        if (extractionMode) {
+                            viewModel.startSqlInjection(targetUrl, apiKey)
+                        } else {
+                            viewModel.startFuzzing(targetUrl, apiKey)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isFuzzing) Color(0xFFE11D48) else AccentBlue
+                    containerColor = if (isFuzzing) Color(0xFFE11D48) else if (extractionMode) Color(0xFFFF3131) else AccentBlue
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(if (isFuzzing) Icons.Default.Stop else Icons.Default.AutoAwesome, null, tint = Color.Black)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (isFuzzing) "ABORT ATTACK" else "GENERATE & INJECT PAYLOADS", 
+                    if (isFuzzing) "ABORT ATTACK" else if (extractionMode) "INITIALIZE SQLi DUMP" else "GENERATE & INJECT PAYLOADS", 
                     color = Color.Black, 
                     fontWeight = FontWeight.Black
                 )

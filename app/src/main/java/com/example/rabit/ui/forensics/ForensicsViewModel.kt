@@ -30,6 +30,7 @@ sealed class ForensicsState {
         val app: InstalledApp,
         val manifestXml: String,
         val strings: List<String>,
+        val certificateInfo: String? = null,
         val aiInsight: String? = null,
         val isAnalyzing: Boolean = false
     ) : ForensicsState()
@@ -77,13 +78,15 @@ class ForensicsViewModel(application: Application) : AndroidViewModel(applicatio
                 val manifestXml = apkFile.manifestXml ?: "Could not extract manifest"
                 apkFile.close()
                 
-                // Advanced extraction: Read raw classes.dex and find high-value strings
+                // Advanced extraction: Read all DEX files and find high-value strings
                 val strings = extractHighValueStrings(app.sourceDir)
+                val certInfo = getCertificateInfo(app.packageName)
 
                 _uiState.value = ForensicsState.AppSelected(
                     app = app,
                     manifestXml = manifestXml,
-                    strings = strings
+                    strings = strings,
+                    certificateInfo = certInfo
                 )
             } catch (e: Exception) {
                  _uiState.value = ForensicsState.Error(e.localizedMessage ?: "Failed to parse APK")
@@ -91,36 +94,58 @@ class ForensicsViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private fun getCertificateInfo(packageName: String): String {
+        return try {
+            val pm = getApplication<Application>().packageManager
+            val sigs = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures
+            }
+            
+            val cert = sigs?.getOrNull(0)?.toByteArray() ?: return "Fingerprint: Unknown"
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val publicKey = md.digest(cert)
+            "SHA-256: ${publicKey.joinToString("") { "%02x".format(it) }.uppercase()}"
+        } catch (e: Exception) {
+            "Fingerprint: Unknown"
+        }
+    }
+
     private fun extractHighValueStrings(sourceDir: String): List<String> {
         val strings = mutableListOf<String>()
         try {
             val apk = ApkFile(File(sourceDir))
-            val dexBytes = apk.getFileData("classes.dex")
-            apk.close()
+            val dexFiles = listOf("classes.dex") + (2..10).map { "classes$it.dex" }
             
-            if (dexBytes == null) return listOf("classes.dex not found")
-
-            val minLength = 6
-            var currentStr = StringBuilder()
-            
-            for (byte in dexBytes) {
-                val char = byte.toInt().toChar()
-                if (char in ' '..'~') {
-                    currentStr.append(char)
-                } else {
+            dexFiles.forEach { dexName ->
+                val dexBytes = try { apk.getFileData(dexName) } catch (e: Exception) { null }
+                if (dexBytes != null) {
+                    val minLength = 6
+                    var currentStr = StringBuilder()
+                    
+                    for (byte in dexBytes) {
+                        val char = byte.toInt().toChar()
+                        if (char in ' '..'~') {
+                            currentStr.append(char)
+                        } else {
+                            if (currentStr.length >= minLength) {
+                                val s = currentStr.toString()
+                                if (isHighValueString(s)) strings.add(s)
+                            }
+                            currentStr.clear()
+                        }
+                    }
                     if (currentStr.length >= minLength) {
                         val s = currentStr.toString()
                         if (isHighValueString(s)) strings.add(s)
                     }
-                    currentStr.clear()
                 }
             }
-            if (currentStr.length >= minLength) {
-                val s = currentStr.toString()
-                if (isHighValueString(s)) strings.add(s)
-            }
+            apk.close()
         } catch (e: Exception) {
-            strings.add("Error extracting strings: ${e.localizedMessage}")
+            strings.add("Extraction Error: ${e.localizedMessage}")
         }
         return strings.distinct()
     }
