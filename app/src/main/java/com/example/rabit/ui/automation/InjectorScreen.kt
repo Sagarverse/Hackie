@@ -12,6 +12,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,6 +73,20 @@ fun InjectorScreen(
     var runHistory by remember { mutableStateOf(loadInjectorRunHistory(prefs)) }
     var analysis by remember(payload) { mutableStateOf(analyzeInjectorScript(payload)) }
 
+    // AI Agent State
+    var aiPrompt by remember { mutableStateOf("") }
+    val aiState by automationViewModel.aiGenerationState.collectAsState()
+    
+    // Auto-load AI response when success
+    LaunchedEffect(aiState) {
+        if (aiState is AutomationViewModel.AiGenerationState.Success) {
+            val generated = (aiState as AutomationViewModel.AiGenerationState.Success).payload
+            payload = generated
+            analysis = analyzeInjectorScript(generated)
+            automationViewModel.resetAiGeneration()
+        }
+    }
+
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -119,6 +136,72 @@ fun InjectorScreen(
                         fontSize = 11.sp,
                         lineHeight = 16.sp
                     )
+                }
+            }
+
+            // --- Tactical AI Agent ---
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                color = Graphite.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, if (aiState is AutomationViewModel.AiGenerationState.Generating) AccentBlue else BorderColor.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Tactical AI Agent", color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    OutlinedTextField(
+                        value = aiPrompt,
+                        onValueChange = { aiPrompt = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("e.g., 'scan my network' or 'leak history'", color = Silver.copy(alpha = 0.5f), fontSize = 13.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedBorderColor = BorderColor.copy(alpha = 0.5f),
+                            focusedBorderColor = AccentBlue
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = Platinum),
+                        maxLines = 2
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Button(
+                        onClick = { automationViewModel.generateAiDuckyPayload(aiPrompt) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = aiPrompt.isNotBlank() && aiState !is AutomationViewModel.AiGenerationState.Generating
+                    ) {
+                        if (aiState is AutomationViewModel.AiGenerationState.Generating) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Obsidian, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("THINKING...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        } else {
+                            Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("GENERATE & LOAD", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                    
+                    if (aiState is AutomationViewModel.AiGenerationState.Error) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            (aiState as AutomationViewModel.AiGenerationState.Error).message,
+                            color = ErrorRed,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
                 }
             }
 

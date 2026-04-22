@@ -27,6 +27,7 @@ room = "2.6.1"
 ksp = "2.1.0-1.0.29"
 glance = "1.1.1"
 jmdns = "3.5.12"
+apkParser = "v2.6.10"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -69,6 +70,7 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 androidx-glance = { group = "androidx.glance", name = "glance", version.ref = "glance" }
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 jmdns = { group = "org.jmdns", name = "jmdns", version.ref = "jmdns" }
+apk-parser = { group = "com.github.AndroidDeveloperLB", name = "apk-parser", version.ref = "apkParser" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

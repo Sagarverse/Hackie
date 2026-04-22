@@ -112,6 +112,9 @@ dependencies {
     implementation("com.google.firebase:firebase-database-ktx")
     implementation(libs.firebase.analytics)
 
+    // APK Parser for App & APK Forensics Lab
+    implementation(libs.apk.parser)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

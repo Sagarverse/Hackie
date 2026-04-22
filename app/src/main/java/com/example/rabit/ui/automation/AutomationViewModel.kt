@@ -12,6 +12,8 @@ import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.domain.model.*
 import com.example.rabit.domain.repository.KeyboardRepository
 import com.example.rabit.data.repository.KeyboardRepositoryImpl
+import com.example.rabit.data.gemini.GeminiRepositoryImpl
+import com.example.rabit.domain.model.gemini.GeminiRequest
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.sign
+import android.graphics.Bitmap
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -43,8 +48,17 @@ class AutomationViewModel(
     // ADB Components
     val adbClient = RabitAdbClient(RabitAdbCrypto.getCrypto(application))
     val usbAdbManager = UsbAdbManager(application)
+    private val geminiRepo = GeminiRepositoryImpl()
 
     // --- State Flows ---
+    sealed class AiGenerationState {
+        object Idle : AiGenerationState()
+        object Generating : AiGenerationState()
+        data class Success(val payload: String) : AiGenerationState()
+        data class Error(val message: String) : AiGenerationState()
+    }
+    private val _aiGenerationState = MutableStateFlow<AiGenerationState>(AiGenerationState.Idle)
+    val aiGenerationState = _aiGenerationState.asStateFlow()
 
     private val _customMacros = MutableStateFlow<List<CustomMacro>>(loadCustomMacros())
     val customMacros: StateFlow<List<CustomMacro>> = _customMacros.asStateFlow()
@@ -83,6 +97,9 @@ class AutomationViewModel(
 
     private val _reverseShellConnected = MutableStateFlow(false)
     val reverseShellConnected: StateFlow<Boolean> = _reverseShellConnected.asStateFlow()
+
+    private val _isPulseModeEnabled = MutableStateFlow(false)
+    val isPulseModeEnabled: StateFlow<Boolean> = _isPulseModeEnabled.asStateFlow()
 
     private val _isReverseShellListening = MutableStateFlow(false)
     val isReverseShellListening: StateFlow<Boolean> = _isReverseShellListening.asStateFlow()
@@ -283,24 +300,44 @@ class AutomationViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             val foundDevices = mutableListOf<TerminalDevice>()
-            val ports = listOf(22, 5555, 8080)
+            val commonPorts = listOf(21, 22, 23, 80, 443, 445, 3389, 5555, 8080)
             
-            // Simple subset scan behavior
-            val baseIp = "192.168.1." 
-            val totalIps = 20
+            val baseIp = getLocalSubnet()
+            if (baseIp == null) {
+                withContext(Dispatchers.Main) { _isTerminalScanning.value = false }
+                return@launch
+            }
+
+            val totalIps = 254
             for (i in 1..totalIps) {
-                val targetIp = baseIp + i
-                for (port in ports) {
+                val targetIp = "$baseIp$i"
+                for (port in commonPorts) {
                     try {
                         val socket = Socket()
-                        socket.connect(InetSocketAddress(targetIp, port), 40)
+                        socket.connect(InetSocketAddress(targetIp, port), 25)
+                        
+                        val banner = try {
+                            val reader = socket.getInputStream().bufferedReader()
+                            if (port == 22 || port == 21 || port == 23) {
+                                reader.readLine()?.trim()
+                            } else null
+                        } catch (e: Exception) { null }
+                        
                         socket.close()
+                        
                         val proto = when(port) {
+                            21 -> "FTP"
                             22 -> "SSH"
+                            23 -> "Telnet"
+                            80 -> "HTTP"
+                            443 -> "HTTPS"
+                            445 -> "SMB"
+                            3389 -> "RDP"
                             5555 -> "ADB"
-                            else -> "HTTP"
+                            else -> "UNKNOWN"
                         }
-                        foundDevices.add(TerminalDevice(targetIp, port, proto))
+                        
+                        foundDevices.add(TerminalDevice(targetIp, port, proto, banner))
                     } catch (e: Exception) { }
                 }
                 withContext(Dispatchers.Main) {
@@ -315,6 +352,78 @@ class AutomationViewModel(
             }
         }
     }
+
+    private fun getLocalSubnet(): String? {
+        try {
+            NetworkInterface.getNetworkInterfaces().asSequence().forEach { iface ->
+                if (iface.isUp && !iface.isLoopback) {
+                    iface.interfaceAddresses.forEach { addr ->
+                        val ip = addr.address.hostAddress
+                        if (ip != null && ip.contains(".")) {
+                            val parts = ip.split(".")
+                            if (parts.size == 4) {
+                                return "${parts[0]}.${parts[1]}.${parts[2]}."
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) { }
+        return null
+    }
+
+    fun analyzeHostVulnerabilities(device: TerminalDevice) {
+        val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+        if (apiKey.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val prompt = """
+                    Analyze this network service for security vulnerabilities:
+                    Target: ${device.ip}:${device.port}
+                    Protocol: ${device.protocol}
+                    Banner: ${device.banner ?: "None Grabbed"}
+                    
+                    Identify:
+                    1. Likely OS/Software version.
+                    2. Known CVEs for this software version.
+                    3. Risk level (LOW, MEDIUM, HIGH, CRITICAL).
+                    4. Tactical recommendations for a penetration tester.
+                    
+                    Output in concise bullet points.
+                """.trimIndent()
+
+                val request = GeminiRequest(
+                    prompt = prompt,
+                    systemPrompt = "You are a professional network security auditor. Provide a technical vulnerability triage.",
+                    temperature = 0.3f
+                )
+
+                val response = geminiRepo.sendPrompt(request, apiKey)
+                if (response.error == null) {
+                    val updatedList = _scannedTerminals.value.map {
+                        if (it.ip == device.ip && it.port == device.port) {
+                            val risk = extractRiskLevel(response.text)
+                            it.copy(aiInsight = response.text, riskLevel = risk)
+                        } else it
+                    }
+                    _scannedTerminals.value = updatedList
+                }
+            } catch (e: Exception) { }
+        }
+    }
+
+    private fun extractRiskLevel(text: String): String {
+        val uText = text.uppercase()
+        return when {
+            uText.contains("CRITICAL") -> "CRITICAL"
+            uText.contains("HIGH") -> "HIGH"
+            uText.contains("MEDIUM") -> "MEDIUM"
+            uText.contains("LOW") -> "LOW"
+            else -> "UNKNOWN"
+        }
+    }
+
 
     // --- Reverse Shell ---
 
@@ -518,9 +627,88 @@ class AutomationViewModel(
                         repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_SHIFT)
                     }
                 }
-                delay(10)
+                val loopDelay = if (_isPulseModeEnabled.value) (10L + (0..20).random()) else 10L
+                delay(loopDelay)
             }
         }
+    }
+
+    fun togglePulseMode() {
+        _isPulseModeEnabled.value = !_isPulseModeEnabled.value
+        repository.isPulseModeEnabled = _isPulseModeEnabled.value
+    }
+
+    // --- AI Generator ---
+
+    fun generateAiDuckyPayload(prompt: String) {
+        if (prompt.isBlank()) return
+        
+        viewModelScope.launch {
+            _aiGenerationState.value = AiGenerationState.Generating
+            try {
+                val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+                if (apiKey.isBlank()) {
+                    _aiGenerationState.value = AiGenerationState.Error("Gemini API Key missing in Settings")
+                    return@launch
+                }
+
+                val request = GeminiRequest(
+                    prompt = prompt,
+                    systemPrompt = HidAiPrompts.DUCKY_SYSTEM_PROMPT,
+                    temperature = 0.4f
+                )
+
+                val response = geminiRepo.sendPrompt(request, apiKey)
+                if (response.error != null) {
+                    _aiGenerationState.value = AiGenerationState.Error(response.error.message)
+                } else {
+                    val cleanPayload = response.text.replace("```duckyscript", "").replace("```", "").trim()
+                    _aiGenerationState.value = AiGenerationState.Success(cleanPayload)
+                }
+            } catch (e: Exception) {
+                _aiGenerationState.value = AiGenerationState.Error(e.message ?: "Unknown AI error")
+            }
+        }
+    }
+
+    fun analyzeUiVision(bitmap: Bitmap) {
+        viewModelScope.launch {
+            _aiGenerationState.value = AiGenerationState.Generating
+            try {
+                val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+                if (apiKey.isBlank()) {
+                    _aiGenerationState.value = AiGenerationState.Error("Gemini API Key missing in Settings")
+                    return@launch
+                }
+
+                val b64 = withContext(Dispatchers.IO) {
+                    val outputStream = ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                    Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+                }
+
+                val request = GeminiRequest(
+                    prompt = "Analyze this UI and generate the most effective DuckyScript to bypass, navigate, or fulfill the likely tactical objective. Output clean DuckyScript only, no explanation.",
+                    systemPrompt = "You are a tactical HID engineer. You specialize in generating DuckyScript based on visual UI analysis. Prioritize Spotlight/Start menu navigation.",
+                    imageBase64 = b64,
+                    model = "gemini-2.0-flash"
+                )
+
+                val response = geminiRepo.sendPrompt(request, apiKey)
+                if (response.error != null) {
+                    _aiGenerationState.value = AiGenerationState.Error(response.error.message)
+                } else {
+                    val cleanPayload = response.text.replace("```duckyscript", "").replace("```", "").trim()
+                    _aiGenerationState.value = AiGenerationState.Success(cleanPayload)
+                }
+            } catch (e: Exception) {
+                _aiGenerationState.value = AiGenerationState.Error(e.message ?: "Vision analysis failed")
+            }
+        }
+    }
+
+    fun resetAiGeneration() {
+        _aiGenerationState.value = AiGenerationState.Idle
     }
 
     private fun parseDuckyKey(arg: String): Byte {
@@ -537,6 +725,12 @@ class AutomationViewModel(
                     if (uArg[0] == '0') HidKeyCodes.KEY_0 else (HidKeyCodes.KEY_1 + (uArg[0] - '1')).toByte()
                 } else HidKeyCodes.KEY_NONE
             }
+        }
+    }
+    
+    fun updateHidIdentity(name: String, provider: String, description: String) {
+        viewModelScope.launch {
+            repository.updateIdentity(name, provider, description)
         }
     }
 }

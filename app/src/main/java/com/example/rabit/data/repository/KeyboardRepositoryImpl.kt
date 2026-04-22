@@ -20,6 +20,11 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
     override val isPushPaused: StateFlow<Boolean> = hidDeviceManager.isPushPaused
     override val isTextPushing: StateFlow<Boolean> = hidDeviceManager.isTextPushing
     override val knownWorkstations: StateFlow<List<com.example.rabit.domain.model.Workstation>> = deviceRepository.knownWorkstations
+    
+    override var isPulseModeEnabled: Boolean
+        get() = hidDeviceManager.isPulseModeEnabled
+        set(value) { hidDeviceManager.isPulseModeEnabled = value }
+
     override var onShakeDetected: (() -> Unit)? = null
 
     override fun startScanning() {
@@ -148,5 +153,9 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
             "BRIGHT_UP" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_UP)
             "BRIGHT_DOWN" -> hidDeviceManager.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_DOWN)
         }
+    }
+
+    override fun updateIdentity(name: String, provider: String, description: String) {
+        hidDeviceManager.updateIdentity(name, provider, description)
     }
 }

@@ -89,7 +89,6 @@ fun BrowserScreen(
                             unfocusedContainerColor = Graphite.copy(alpha = 0.2f),
                             focusedBorderColor = AccentBlue.copy(alpha = 0.5f),
                             unfocusedBorderColor = BorderColor.copy(alpha = 0.2f),
-                            selectionColors = TextSelectionColors,
                             cursorColor = AccentBlue,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextSecondary

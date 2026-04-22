@@ -12,6 +12,7 @@ interface KeyboardRepository {
     val isPushPaused: StateFlow<Boolean>
     val isTextPushing: StateFlow<Boolean>
     val knownWorkstations: StateFlow<List<Workstation>>
+    var isPulseModeEnabled: Boolean
     var onShakeDetected: (() -> Unit)?
     
     fun startScanning()
@@ -41,4 +42,5 @@ interface KeyboardRepository {
     )
     fun executeKeyCombo(combo: String)
     fun executeSpecialKey(key: String)
+    fun updateIdentity(name: String, provider: String, description: String)
 }

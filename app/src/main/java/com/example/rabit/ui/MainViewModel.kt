@@ -117,6 +117,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _featureSshTerminalVisible = MutableStateFlow(prefs.getBoolean("feature_ssh_terminal_visible", true))
     val featureSshTerminalVisible = _featureSshTerminalVisible.asStateFlow()
 
+    // OPSEC & Anti-Forensics
+    private val _isDecoyMode = MutableStateFlow(prefs.getBoolean("is_decoy_mode", false))
+    val isDecoyMode = _isDecoyMode.asStateFlow()
+
+    fun setDecoyMode(enabled: Boolean) {
+        _isDecoyMode.value = enabled
+        prefs.edit().putBoolean("is_decoy_mode", enabled).apply()
+    }
+
+    fun nukeData() {
+        val editor = prefs.edit()
+        // Wipe all saved custom macros
+        editor.remove("rabit_macros")
+        // Wipe AI keys
+        editor.remove("gemini_api_key")
+        // Wipe tactical history/settings (if any)
+        editor.remove("recent_workstations")
+        // Automatically hide tactical UI sections
+        editor.putBoolean("feature_web_bridge_visible", false)
+        editor.putBoolean("feature_automation_visible", false)
+        editor.putBoolean("feature_ssh_terminal_visible", false)
+        editor.apply()
+
+        // Engage Decoy Mode immediately after nuking
+        setDecoyMode(true)
+    }
+
     // AirPlay State (for Global UI)
     private val _airPlayStatus = MutableStateFlow("Idle")
     val airPlayStatus = _airPlayStatus.asStateFlow()

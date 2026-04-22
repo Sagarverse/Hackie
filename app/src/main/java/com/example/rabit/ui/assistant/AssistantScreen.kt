@@ -94,7 +94,7 @@ fun AssistantScreen(
         }
     }
 
-    val openGlobalDrawer = LocalOpenGlobalDrawer.current
+
 
     // Observe sessions
     val chatSessions by viewModel.chatSessions.collectAsState()

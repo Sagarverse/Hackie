@@ -156,7 +156,7 @@ private fun TerminalHeader(text: String, isScanning: Boolean, onStartScan: () ->
                     )
                 }
                 Text(
-                    "Scanning ports 22, 23, 5555",
+                    "Scanning full /24 subnet (Ports: 21, 22, 23, 80, 443, 5555)",
                     color = Silver.copy(alpha = 0.5f),
                     fontSize = 11.sp
                 )
@@ -187,74 +187,142 @@ private fun DiscoveredDeviceItem(
     viewModel: AutomationViewModel,
     onConnect: (String, Int, String) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Surface(
         color = Color.White.copy(alpha = 0.03f),
         shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+        onClick = { expanded = !expanded }
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    color = Color.White.copy(alpha = 0.05f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            when(device.protocol) {
-                                "SSH" -> Icons.Default.Terminal
-                                "ADB" -> Icons.Default.Android
-                                "Telnet" -> Icons.Default.SettingsEthernet
-                                else -> Icons.Default.Devices
-                            },
-                            null,
-                            tint = Platinum.copy(alpha = 0.8f),
-                            modifier = Modifier.size(20.dp)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        color = Color.White.copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                when(device.protocol) {
+                                    "SSH" -> Icons.Default.Terminal
+                                    "ADB" -> Icons.Default.Android
+                                    "Telnet" -> Icons.Default.SettingsEthernet
+                                    "HTTP", "HTTPS" -> Icons.Default.Language
+                                    else -> Icons.Default.Devices
+                                },
+                                null,
+                                tint = when(device.riskLevel) {
+                                    "CRITICAL" -> Color.Red
+                                    "HIGH" -> Color(0xFFFF4500)
+                                    "MEDIUM" -> Color.Yellow
+                                    "LOW" -> SuccessGreen
+                                    else -> Platinum.copy(alpha = 0.8f)
+                                },
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            device.ip,
+                            color = Platinum,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${device.protocol} : ${device.port}",
+                                color = Silver.copy(alpha = 0.6f),
+                                fontSize = 11.sp
+                            )
+                            if (device.riskLevel != "UNKNOWN") {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "[${device.riskLevel}]",
+                                    color = when(device.riskLevel) {
+                                        "CRITICAL" -> Color.Red
+                                        "HIGH" -> Color(0xFFFF4500)
+                                        "MEDIUM" -> Color.Yellow
+                                        else -> SuccessGreen
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        device.ip,
-                        color = Platinum,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        "${device.protocol} Node detected",
-                        color = Silver.copy(alpha = 0.6f),
-                        fontSize = 11.sp
-                    )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { viewModel.analyzeHostVulnerabilities(device) },
+                        modifier = Modifier.background(AccentTeal.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConnect(device.ip, device.port, device.protocol) },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentTeal.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text("PWN", color = AccentTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (device.protocol == "SSH" || device.protocol == "ADB") {
-                    IconButton(
-                        onClick = {
-                            // Logic will be handled via onConnect or future RemoteStorageViewModel
-                            onConnect(device.ip, device.port, "EXPLORE") 
-                        },
-                        modifier = Modifier.background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                    ) {
-                        Icon(Icons.Default.FolderOpen, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    if (device.banner != null) {
+                        Text("BANNER", color = Silver.copy(alpha = 0.4f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            device.banner,
+                            color = SuccessGreen.copy(alpha = 0.8f),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                
-                Button(
-                    onClick = { onConnect(device.ip, device.port, device.protocol) },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal.copy(alpha = 0.15f)),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text("LOGIN", color = AccentTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    
+                    if (device.aiInsight != null) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Shield, null, tint = AccentTeal, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("AI TACTICAL REPORT", color = AccentTeal, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    device.aiInsight,
+                                    color = Platinum.copy(alpha = 0.9f),
+                                    fontSize = 12.sp,
+                                    lineHeight = 18.sp,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Tap the AI icon to analyze vulnerabilities",
+                            color = Silver.copy(alpha = 0.3f),
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                 }
             }
         }

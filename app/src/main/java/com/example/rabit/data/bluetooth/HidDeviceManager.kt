@@ -45,6 +45,7 @@ class HidDeviceManager private constructor(private val context: Context) {
     private val reportChannel = Channel<ReportRequest>(Channel.UNLIMITED)
 
     var typingDelay = 120L 
+    var isPulseModeEnabled = false
     private var currentModifiers: Byte = 0
     private var textPushJob: Job? = null
     private val consumerKeyLock = Any()
@@ -202,6 +203,27 @@ class HidDeviceManager private constructor(private val context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    fun updateIdentity(name: String, provider: String, description: String) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                bluetoothAdapter?.name = name
+                
+                val sdpSettings = BluetoothHidDeviceAppSdpSettings(
+                    name, description, provider,
+                    0xC0.toByte(), // Keyboard + Mouse
+                    HID_REPORT_DESCRIPTOR
+                )
+                
+                hidDevice?.unregisterApp()
+                delay(800) // Wait for OS to teardown SDP
+                hidDevice?.registerApp(sdpSettings, null, null, executor, callback)
+                Log.d("HidDeviceManager", "Identity spoofed to: $name")
+            } catch (e: Exception) {
+                Log.e("HidDeviceManager", "Failed to update identity", e)
+            }
+        }
     }
 
     fun connect(device: BluetoothDevice) {
@@ -455,7 +477,12 @@ class HidDeviceManager private constructor(private val context: Context) {
                     val model = com.example.rabit.domain.model.HidKeyCodes.getHidCode(char)
                     if (model.keyCode != 0.toByte() || model.modifier != 0.toByte()) {
                         sendKeyPress(model.keyCode, model.modifier, useSticky = false)
-                        delay(typingDelay) 
+                        val actualDelay = if (isPulseModeEnabled) {
+                            (typingDelay + (-15..35).random()).coerceAtLeast(10L)
+                        } else {
+                            typingDelay
+                        }
+                        delay(actualDelay) 
                     }
                 }
             } finally {

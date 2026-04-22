@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +83,8 @@ fun WebBridgeScreen(
     var qrMode by remember { mutableStateOf("LAN") }
     val receivedFiles by viewModel.receivedFiles.collectAsState()
     val activeSessions by viewModel.activeSessions.collectAsState()
+    val fileSensitivities by viewModel.fileSensitivities.collectAsState()
+    val isProfiling by viewModel.isProfiling.collectAsState()
 
     LaunchedEffect(isRunning) {
         if (isRunning) {
@@ -408,6 +411,9 @@ fun WebBridgeScreen(
                             receivedFiles.forEach { file ->
                                 ReceivedAssetItem(
                                     file = file,
+                                    sensitivityResult = fileSensitivities[file.absolutePath],
+                                    isProfiling = isProfiling,
+                                    onAnalyze = { viewModel.analyzeFileSensitivity(file) },
                                     onDelete = { viewModel.deleteReceivedFile(file) }
                                 )
                             }
@@ -532,20 +538,58 @@ private fun SharedAssetItem(uri: Uri, context: Context, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun ReceivedAssetItem(file: File, onDelete: () -> Unit) {
+private fun ReceivedAssetItem(
+    file: File, 
+    sensitivityResult: String?,
+    isProfiling: Boolean,
+    onAnalyze: () -> Unit,
+    onDelete: () -> Unit
+) {
     GlassCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.FileDownload, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(file.name.removePrefix("Hackie_"), color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(formatFileSize(file.length()), color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FileDownload, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(file.name.removePrefix("Hackie_"), color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(formatFileSize(file.length()), color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
+                }
+                
+                if (sensitivityResult == null) {
+                    IconButton(onClick = onAnalyze, enabled = !isProfiling) {
+                        Icon(Icons.Default.AutoAwesome, "Neural Scan", tint = Color(0xFFBC13FE), modifier = Modifier.size(18.dp))
+                    }
+                }
+                
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, null, tint = Silver, modifier = Modifier.size(18.dp))
+                }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = Silver, modifier = Modifier.size(18.dp))
+            
+            if (sensitivityResult != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.Black.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFFBC13FE).copy(alpha = 0.3f))
+                ) {
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.Security, null, tint = Color(0xFFBC13FE), modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = sensitivityResult,
+                            color = when {
+                                sensitivityResult.contains("[CRITICAL]") -> Color(0xFFFF453A)
+                                sensitivityResult.contains("[TARGET]") -> Color(0xFFFFD60A)
+                                else -> SuccessGreen
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
             }
         }
     }

