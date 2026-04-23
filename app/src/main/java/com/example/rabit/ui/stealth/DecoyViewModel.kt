@@ -17,6 +17,9 @@ class DecoyViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSessionUnlocked = MutableStateFlow(false)
     val isSessionUnlocked = _isSessionUnlocked.asStateFlow()
 
+    private val _isVaultUnlocked = MutableStateFlow(false)
+    val isVaultUnlocked = _isVaultUnlocked.asStateFlow()
+
     private val _calculatorDisplay = MutableStateFlow("0")
     val calculatorDisplay = _calculatorDisplay.asStateFlow()
 
@@ -44,15 +47,34 @@ class DecoyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun checkSecretSequence() {
-        // SECRET UNLOCK CODE: 1337
-        if (_calculatorDisplay.value == "1337") {
-            unlockHackie()
+        // SECRET UNLOCK CODES
+        // 1337: Full Hackie Interface
+        // 9999: Hidden Forensic Vault
+        when (_calculatorDisplay.value) {
+            "1337" -> unlockHackie()
+            "9999" -> unlockVault()
         }
         secretBuffer = ""
     }
 
     fun unlockHackie() {
         _isSessionUnlocked.value = true
+        _isVaultUnlocked.value = false
+    }
+
+    fun unlockVault() {
+        _isVaultUnlocked.value = true
+        _isSessionUnlocked.value = false
+    }
+
+    /**
+     * Tactical Panic Action.
+     * Instantly locks everything and hides the session.
+     */
+    fun lockAll() {
+        _isSessionUnlocked.value = false
+        _isVaultUnlocked.value = false
+        _calculatorDisplay.value = "0"
     }
 
     fun toggleStealthIcon(enable: Boolean) {
@@ -60,7 +82,7 @@ class DecoyViewModel(application: Application) : AndroidViewModel(application) {
         val packageManager = context.packageManager
         
         val hackieComponent = ComponentName(context, "com.example.rabit.MainActivity")
-        val decoyComponent = ComponentName(context, "com.example.rabit.DecoyActivity") // Activity Alias
+        val decoyComponent = ComponentName(context, "com.example.rabit.DecoyActivity")
 
         if (enable) {
             packageManager.setComponentEnabledSetting(hackieComponent, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)

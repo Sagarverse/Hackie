@@ -5,12 +5,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,7 +67,7 @@ fun LocalTerminalScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
+                        Icon(Icons.Default.ArrowBack, "Back", tint = Platinum)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -76,37 +77,94 @@ fun LocalTerminalScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
+        .padding(padding)
+        .padding(horizontal = 16.dp)
+) {
+    // --- Tactical Briefing ---
+    var showBriefing by remember { mutableStateOf(true) }
+    if (showBriefing) {
+        Surface(
+            color = AccentBlue.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.2f)),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
         ) {
-            // --- Terminal Monitor ---
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                color = Color.Black,
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor.copy(alpha = 0.2f))
-            ) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.Top
-                ) {
-                    items(lines) { line ->
-                        Text(
-                            line,
-                            color = if (line.startsWith("$ ")) Platinum else SuccessGreen,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("TACTICAL BRIEFING", color = AccentBlue, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { showBriefing = false }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, null, tint = Silver, modifier = Modifier.size(16.dp))
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "This is your own private Linux computer inside Hackie. You can install tools just like a pro hacker.",
+                    color = Platinum, fontSize = 13.sp, lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("HOW TO USE:", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("• Type 'hpkg install cmatrix' to get the falling green matrix effect.", color = Silver, fontSize = 12.sp)
+                Text("• Type 'hpkg install busybox' to add 100+ new commands.", color = Silver, fontSize = 12.sp)
+                Text("• Use 'clear' to clean the screen.", color = Silver, fontSize = 12.sp)
             }
+        }
+    }
+
+    val screenBuffer by viewModel.screenBuffer.collectAsState()
+    
+    // --- Terminal Monitor ---
+    Surface(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth(),
+        color = Color.Black,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor.copy(alpha = 0.2f))
+    ) {
+        if (lines.any { it.contains("cmatrix") } || screenBuffer.any { row -> row.any { it != ' ' } }) {
+            // High-Definition Matrix Grid
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                screenBuffer.forEach { row ->
+                    Text(
+                        text = String(row),
+                        color = SuccessGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        letterSpacing = 0.sp
+                    )
+                }
+            }
+        } else {
+            // Standard Tactical Log
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.Top
+            ) {
+                items(lines) { line ->
+                    Text(
+                        line,
+                        color = if (line.startsWith("$ ")) Platinum else SuccessGreen,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
 
             Spacer(modifier = Modifier.height(12.dp))
 

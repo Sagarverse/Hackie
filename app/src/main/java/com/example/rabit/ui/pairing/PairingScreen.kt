@@ -131,24 +131,40 @@ fun PairingScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = AccentBlue.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, AccentBlue.copy(alpha = 0.35f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                var showGuide by remember { mutableStateOf(true) }
+                if (showGuide) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = AccentBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, AccentBlue.copy(alpha = 0.35f))
                     ) {
-                        Icon(Icons.Default.TipsAndUpdates, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            "Enable Bluetooth, choose a workstation, and confirm pairing on your computer.",
-                            color = Silver,
-                            fontSize = 11.sp,
-                            lineHeight = 15.sp
-                        )
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("TACTICAL CONNECTION GUIDE", color = AccentBlue, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+                                Spacer(Modifier.weight(1f))
+                                IconButton(onClick = { showGuide = false }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, null, tint = Silver, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "To control another phone or computer, you need to 'introduce' Hackie to it first.",
+                                color = Platinum, fontSize = 13.sp, lineHeight = 18.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Text("FOR PHONES (ADB):", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("• 1. Go to Settings > About Phone > Tap 'Build Number' 7 times.", color = Silver, fontSize = 12.sp)
+                            Text("• 2. Go to 'Developer Options' and turn on 'USB Debugging'.", color = Silver, fontSize = 12.sp)
+                            Text("• 3. Plug in the USB cable and tap 'Allow' on the target phone.", color = Silver, fontSize = 12.sp)
+                            
+                            Spacer(Modifier.height(8.dp))
+                            Text("FOR COMPUTERS (BLUETOOTH):", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("• 1. Turn on Bluetooth on your PC/Mac.", color = Silver, fontSize = 12.sp)
+                            Text("• 2. Select your computer from the 'Nearby Discoveries' list below.", color = Silver, fontSize = 12.sp)
+                        }
                     }
                 }
             }

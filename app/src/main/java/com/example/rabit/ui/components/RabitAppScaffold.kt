@@ -55,6 +55,7 @@ fun RabitAppScaffold(
     activeApp: String? = null,
     onBack: (() -> Unit)? = null,
     topBarActions: @Composable RowScope.() -> Unit = {},
+    onPanicLock: (() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -142,7 +143,30 @@ fun RabitAppScaffold(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // ── Tactical Search ──
+                    var searchQuery by remember { mutableStateOf("") }
+                    
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        placeholder = { Text("Search Labs...", color = TextTertiary, fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = TextTertiary, modifier = Modifier.size(16.dp)) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentBlue.copy(alpha = 0.5f),
+                            unfocusedBorderColor = BorderColor,
+                            focusedContainerColor = Surface1.copy(alpha = 0.5f),
+                            unfocusedContainerColor = Color.Transparent
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = TextPrimary)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // ── Scrollable Navigation ──
                     Column(
@@ -151,85 +175,111 @@ fun RabitAppScaffold(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
+                        fun matches(label: String) = searchQuery.isBlank() || label.contains(searchQuery, ignoreCase = true)
+
                         // ── Primary ──
-                        DrawerNavItem(
-                            label = "Home",
-                            icon = Icons.Default.Home,
-                            isSelected = currentRoute == "home",
-                            onClick = { onNavigate("home"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Control Hub",
-                            icon = Icons.AutoMirrored.Filled.Dvr,
-                            isSelected = currentRoute == "main" || currentRoute == "keyboard",
-                            onClick = { onNavigate("main"); scope.launch { drawerState.close() } }
-                        )
-
-                        // ── Connectivity ──
-                        DrawerSectionLabel("Connectivity")
-
-                        if (featureWebBridgeVisible) {
+                        if (matches("Home")) {
                             DrawerNavItem(
-                                label = "Web Bridge",
-                                icon = Icons.Default.CloudSync,
-                                isSelected = currentRoute == "web_bridge",
-                                onClick = { onNavigate("web_bridge"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Web Hub",
-                                icon = Icons.Default.CloudUpload,
-                                isSelected = currentRoute == "web_hub",
-                                onClick = { onNavigate("web_hub"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Remote Lab",
-                                icon = Icons.Default.BugReport,
-                                isSelected = currentRoute == "remote_deck",
-                                onClick = { onNavigate("remote_deck"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Network Auditor",
-                                icon = Icons.Default.WifiFind,
-                                isSelected = currentRoute == "network_auditor",
-                                onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
+                                label = "Home",
+                                icon = Icons.Default.Home,
+                                isSelected = currentRoute == "home",
+                                onClick = { onNavigate("home"); scope.launch { drawerState.close() } }
                             )
                         }
-                        DrawerNavItem(
-                            label = "Hackie Helper",
-                            icon = Icons.Default.Devices,
-                            isSelected = currentRoute == "helper",
-                            onClick = { onNavigate("helper"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "AirPlay Receiver",
-                            icon = Icons.Default.Speaker,
-                            isSelected = currentRoute == "airplay_receiver",
-                            onClick = { onNavigate("airplay_receiver"); scope.launch { drawerState.close() } }
-                        )
+                        if (matches("Control Hub")) {
+                            DrawerNavItem(
+                                label = "Control Hub",
+                                icon = Icons.AutoMirrored.Filled.Dvr,
+                                isSelected = currentRoute == "main" || currentRoute == "keyboard",
+                                onClick = { onNavigate("main"); scope.launch { drawerState.close() } }
+                            )
+                        }
+
+                        // ── Connectivity ──
+                        if (matches("Connectivity") || matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab") || matches("Network Auditor") || matches("Hackie Helper") || matches("AirPlay")) {
+                            DrawerSectionLabel("Connectivity")
+
+                            if (featureWebBridgeVisible) {
+                                if (matches("Web Bridge")) {
+                                    DrawerNavItem(
+                                        label = "Web Bridge",
+                                        icon = Icons.Default.CloudSync,
+                                        isSelected = currentRoute == "web_bridge",
+                                        onClick = { onNavigate("web_bridge"); scope.launch { drawerState.close() } }
+                                    )
+                                }
+                                if (matches("Web Hub")) {
+                                    DrawerNavItem(
+                                        label = "Web Hub",
+                                        icon = Icons.Default.CloudUpload,
+                                        isSelected = currentRoute == "web_hub",
+                                        onClick = { onNavigate("web_hub"); scope.launch { drawerState.close() } }
+                                    )
+                                }
+                                if (matches("Remote Lab")) {
+                                    DrawerNavItem(
+                                        label = "Remote Lab",
+                                        icon = Icons.Default.BugReport,
+                                        isSelected = currentRoute == "remote_deck",
+                                        onClick = { onNavigate("remote_deck"); scope.launch { drawerState.close() } }
+                                    )
+                                }
+                                if (matches("Network Auditor")) {
+                                    DrawerNavItem(
+                                        label = "Network Auditor",
+                                        icon = Icons.Default.WifiFind,
+                                        isSelected = currentRoute == "network_auditor",
+                                        onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
+                                    )
+                                }
+                            }
+                            if (matches("Hackie Helper")) {
+                                DrawerNavItem(
+                                    label = "Hackie Helper",
+                                    icon = Icons.Default.Devices,
+                                    isSelected = currentRoute == "helper",
+                                    onClick = { onNavigate("helper"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("AirPlay")) {
+                                DrawerNavItem(
+                                    label = "AirPlay Receiver",
+                                    icon = Icons.Default.Speaker,
+                                    isSelected = currentRoute == "airplay_receiver",
+                                    onClick = { onNavigate("airplay_receiver"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                        }
 
                         // ── Tools ──
-                        if (featureAutomationVisible) {
+                        if (featureAutomationVisible && (matches("Tools") || matches("Automation") || matches("Macro") || matches("HID") || matches("SSH") || matches("Remote Explorer") || matches("ADB") || matches("Process") || matches("Stats") || matches("Auto Clicker") || matches("Injector") || matches("Wake-on-LAN"))) {
                             DrawerSectionLabel("Tools")
 
-                            DrawerNavItem(
-                                label = "Automation",
-                                icon = Icons.Default.Bolt,
-                                isSelected = currentRoute == "automation",
-                                onClick = { onNavigate("automation"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Macro Orchestrator",
-                                icon = Icons.Default.SettingsInputComponent,
-                                isSelected = currentRoute == "macro_orchestrator",
-                                onClick = { onNavigate("macro_orchestrator"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "HID Brute Force",
-                                icon = Icons.Default.Security,
-                                isSelected = currentRoute == "hid_brute_force",
-                                onClick = { onNavigate("hid_brute_force"); scope.launch { drawerState.close() } }
-                            )
-                            if (featureSshTerminalVisible) {
+                            if (matches("Automation")) {
+                                DrawerNavItem(
+                                    label = "Automation",
+                                    icon = Icons.Default.Bolt,
+                                    isSelected = currentRoute == "automation",
+                                    onClick = { onNavigate("automation"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Macro Orchestrator")) {
+                                DrawerNavItem(
+                                    label = "Macro Orchestrator",
+                                    icon = Icons.Default.SettingsInputComponent,
+                                    isSelected = currentRoute == "macro_orchestrator",
+                                    onClick = { onNavigate("macro_orchestrator"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("HID Brute Force")) {
+                                DrawerNavItem(
+                                    label = "HID Brute Force",
+                                    icon = Icons.Default.Security,
+                                    isSelected = currentRoute == "hid_brute_force",
+                                    onClick = { onNavigate("hid_brute_force"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (featureSshTerminalVisible && matches("SSH Terminal")) {
                                 DrawerNavItem(
                                     label = "SSH Terminal",
                                     icon = Icons.Default.Terminal,
@@ -237,43 +287,55 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("ssh_terminal"); scope.launch { drawerState.close() } }
                                 )
                             }
-                            DrawerNavItem(
-                                label = "Remote Explorer",
-                                icon = Icons.Default.FolderZip,
-                                isSelected = currentRoute == "remote_explorer",
-                                onClick = { onNavigate("remote_explorer"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "ADB Manager",
-                                icon = Icons.Default.PhoneAndroid,
-                                isSelected = currentRoute == "adb_manager",
-                                onClick = { onNavigate("adb_manager"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Process Manager",
-                                icon = Icons.Default.Memory,
-                                isSelected = currentRoute == "process_manager",
-                                onClick = { onNavigate("process_manager"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "System Stats",
-                                icon = Icons.Default.Speed,
-                                isSelected = currentRoute == "system_stats",
-                                onClick = { onNavigate("system_stats"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Auto Clicker",
-                                icon = Icons.Default.AdsClick,
-                                isSelected = currentRoute == "auto_clicker",
-                                onClick = { onNavigate("auto_clicker"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Payload Injector",
-                                icon = Icons.Default.ElectricBolt,
-                                isSelected = currentRoute == "injector",
-                                onClick = { onNavigate("injector"); scope.launch { drawerState.close() } }
-                            )
-                            if (featureWakeOnLanVisible) {
+                            if (matches("Remote Explorer")) {
+                                DrawerNavItem(
+                                    label = "Remote Explorer",
+                                    icon = Icons.Default.FolderZip,
+                                    isSelected = currentRoute == "remote_explorer",
+                                    onClick = { onNavigate("remote_explorer"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("ADB Manager")) {
+                                DrawerNavItem(
+                                    label = "ADB Manager",
+                                    icon = Icons.Default.PhoneAndroid,
+                                    isSelected = currentRoute == "adb_manager",
+                                    onClick = { onNavigate("adb_manager"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Process Manager")) {
+                                DrawerNavItem(
+                                    label = "Process Manager",
+                                    icon = Icons.Default.Memory,
+                                    isSelected = currentRoute == "process_manager",
+                                    onClick = { onNavigate("process_manager"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("System Stats")) {
+                                DrawerNavItem(
+                                    label = "System Stats",
+                                    icon = Icons.Default.Speed,
+                                    isSelected = currentRoute == "system_stats",
+                                    onClick = { onNavigate("system_stats"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Auto Clicker")) {
+                                DrawerNavItem(
+                                    label = "Auto Clicker",
+                                    icon = Icons.Default.AdsClick,
+                                    isSelected = currentRoute == "auto_clicker",
+                                    onClick = { onNavigate("auto_clicker"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Payload Injector")) {
+                                DrawerNavItem(
+                                    label = "Payload Injector",
+                                    icon = Icons.Default.ElectricBolt,
+                                    isSelected = currentRoute == "injector",
+                                    onClick = { onNavigate("injector"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (featureWakeOnLanVisible && matches("Wake-on-LAN")) {
                                 DrawerNavItem(
                                     label = "Wake-on-LAN",
                                     icon = Icons.Default.PowerSettingsNew,
@@ -320,85 +382,134 @@ fun RabitAppScaffold(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // ── Strategic Labs ──
-                        DrawerSectionLabel("Strategic Labs")
-                        DrawerNavItem(
-                            label = "Tactical Terminal",
-                            icon = Icons.Default.Terminal,
-                            isSelected = currentRoute == "tactical_terminal",
-                            onClick = { onNavigate("tactical_terminal"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Local Terminal",
-                            icon = Icons.Default.Code,
-                            isSelected = currentRoute == "local_terminal",
-                            onClick = { onNavigate("local_terminal"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Ghost Recon",
-                            icon = Icons.Default.Radar,
-                            isSelected = currentRoute == "ghost_recon",
-                            onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "BLE Auditor",
-                            icon = Icons.Default.BluetoothConnected,
-                            isSelected = currentRoute == "ble_auditor",
-                            onClick = { onNavigate("ble_auditor"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Wi-Fi Attacker",
-                            icon = Icons.Default.WifiTethering,
-                            isSelected = currentRoute == "wifi_attacker",
-                            onClick = { onNavigate("wifi_attacker"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Neural QA Auditor",
-                            icon = Icons.Default.BugReport,
-                            isSelected = currentRoute == "neural_qa",
-                            onClick = { onNavigate("neural_qa"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Neural Web Auditor",
-                            icon = Icons.Default.Public,
-                            isSelected = currentRoute == "neural_web_auditor",
-                            onClick = { onNavigate("neural_web_auditor"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Neural Payload Forge",
-                            icon = Icons.Default.Bolt,
-                            isSelected = currentRoute == "payload_forge",
-                            onClick = { onNavigate("payload_forge"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Rogue Horizon",
-                            icon = Icons.Default.WifiTetheringError,
-                            isSelected = currentRoute == "rogue_horizon",
-                            onClick = { onNavigate("rogue_horizon"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Sensor Lab",
-                            icon = Icons.Default.Stream,
-                            isSelected = currentRoute == "sensor_lab",
-                            onClick = { onNavigate("sensor_lab"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "OSINT Ghost",
-                            icon = Icons.Default.Radar,
-                            isSelected = currentRoute == "osint_ghost",
-                            onClick = { onNavigate("osint_ghost"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Bluetooth Shadow",
-                            icon = Icons.Default.BluetoothAudio,
-                            isSelected = currentRoute == "bluetooth_shadow",
-                            onClick = { onNavigate("bluetooth_shadow"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "Neural Mirror Lab",
-                            icon = Icons.Default.Flip,
-                            isSelected = currentRoute == "bluetooth_mirror",
-                            onClick = { onNavigate("bluetooth_mirror"); scope.launch { drawerState.close() } }
-                        )
+                        if (matches("Strategic Labs") || matches("Terminal") || matches("Recon") || matches("Auditor") || matches("Attacker") || matches("QA") || matches("Web") || matches("Forge") || matches("Horizon") || matches("Sensor") || matches("OSINT") || matches("Shadow") || matches("Mirror")) {
+                            DrawerSectionLabel("Strategic Labs")
+                            if (matches("Tactical Terminal")) {
+                                DrawerNavItem(
+                                    label = "Tactical Terminal",
+                                    icon = Icons.Default.Terminal,
+                                    isSelected = currentRoute == "tactical_terminal",
+                                    onClick = { onNavigate("tactical_terminal"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Local Terminal")) {
+                                DrawerNavItem(
+                                    label = "Local Terminal",
+                                    icon = Icons.Default.Code,
+                                    isSelected = currentRoute == "local_terminal",
+                                    onClick = { onNavigate("local_terminal"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Ghost Recon")) {
+                                DrawerNavItem(
+                                    label = "Ghost Recon",
+                                    icon = Icons.Default.Radar,
+                                    isSelected = currentRoute == "ghost_recon",
+                                    onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("BLE Auditor")) {
+                                DrawerNavItem(
+                                    label = "BLE Auditor",
+                                    icon = Icons.Default.BluetoothConnected,
+                                    isSelected = currentRoute == "ble_auditor",
+                                    onClick = { onNavigate("ble_auditor"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Wi-Fi Attacker")) {
+                                DrawerNavItem(
+                                    label = "Wi-Fi Attacker",
+                                    icon = Icons.Default.WifiTethering,
+                                    isSelected = currentRoute == "wifi_attacker",
+                                    onClick = { onNavigate("wifi_attacker"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Neural QA Auditor")) {
+                                DrawerNavItem(
+                                    label = "Neural QA Auditor",
+                                    icon = Icons.Default.BugReport,
+                                    isSelected = currentRoute == "neural_qa",
+                                    onClick = { onNavigate("neural_qa"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Neural Web Auditor")) {
+                                DrawerNavItem(
+                                    label = "Neural Web Auditor",
+                                    icon = Icons.Default.Public,
+                                    isSelected = currentRoute == "neural_web_auditor",
+                                    onClick = { onNavigate("neural_web_auditor"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Neural Payload Forge")) {
+                                DrawerNavItem(
+                                    label = "Neural Payload Forge",
+                                    icon = Icons.Default.Bolt,
+                                    isSelected = currentRoute == "payload_forge",
+                                    onClick = { onNavigate("payload_forge"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Rogue Horizon")) {
+                                DrawerNavItem(
+                                    label = "Rogue Horizon",
+                                    icon = Icons.Default.WifiTetheringError,
+                                    isSelected = currentRoute == "rogue_horizon",
+                                    onClick = { onNavigate("rogue_horizon"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Sensor Lab")) {
+                                DrawerNavItem(
+                                    label = "Sensor Lab",
+                                    icon = Icons.Default.Stream,
+                                    isSelected = currentRoute == "sensor_lab",
+                                    onClick = { onNavigate("sensor_lab"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("OSINT Ghost")) {
+                                DrawerNavItem(
+                                    label = "OSINT Ghost",
+                                    icon = Icons.Default.Radar,
+                                    isSelected = currentRoute == "osint_ghost",
+                                    onClick = { onNavigate("osint_ghost"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Bluetooth Shadow")) {
+                                DrawerNavItem(
+                                    label = "Bluetooth Shadow",
+                                    icon = Icons.Default.BluetoothAudio,
+                                    isSelected = currentRoute == "bluetooth_shadow",
+                                    onClick = { onNavigate("bluetooth_shadow"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Neural Mirror Lab")) {
+                                DrawerNavItem(
+                                    label = "Neural Mirror Lab",
+                                    icon = Icons.Default.Flip,
+                                    isSelected = currentRoute == "bluetooth_mirror",
+                                    onClick = { onNavigate("bluetooth_mirror"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                        }
+
+                        // ── Ethical Hacking ──
+                        if (matches("Ethical Hacking") || matches("Auditor") || matches("Security") || matches("NVA")) {
+                            DrawerSectionLabel("Ethical Hacking")
+                            if (matches("Neural Auditor")) {
+                                DrawerNavItem(
+                                    label = "Neural Auditor",
+                                    icon = Icons.Default.Shield,
+                                    isSelected = currentRoute == "security_auditor",
+                                    onClick = { onNavigate("security_auditor"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                            if (matches("Neural Packet Inspector") || matches("Sniffer") || matches("Traffic")) {
+                                DrawerNavItem(
+                                    label = "Neural Packet Inspector",
+                                    icon = Icons.Default.Monitor,
+                                    isSelected = currentRoute == "traffic_analyzer",
+                                    onClick = { onNavigate("traffic_analyzer"); scope.launch { drawerState.close() } }
+                                )
+                            }
+                        }
                         
                         Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
                         
@@ -509,6 +620,26 @@ fun RabitAppScaffold(
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
                         )
+                        if (onPanicLock != null) {
+                            Surface(
+                                onClick = { 
+                                    onPanicLock()
+                                    scope.launch { drawerState.close() }
+                                },
+                                color = Color.Red.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Lock, null, tint = Color.Red, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Text("LOCK SESSION", color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
                         DrawerNavItem(
                             label = "Panic Terminal",
                             icon = Icons.Default.Warning,

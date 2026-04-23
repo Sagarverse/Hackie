@@ -600,8 +600,16 @@ object RemoteStorageManager {
         val client = adbClient ?: return emptyList()
         val safePath = if (path.isBlank() || path == "/") "/sdcard" else path.replace("'", "'\\''")
         
-        val cmd = "for f in '$safePath'/.* '$safePath'/*; do stat -c '%A|%s|%Y|%n' \"\$f\" 2>/dev/null; done"
-        val out = client.executeCommand(cmd)
+        // Strategy 1: Stat (Fastest, precise)
+        val cmdStat = "for f in '$safePath'/.* '$safePath'/*; do stat -c '%A|%s|%Y|%n' \"\$f\" 2>/dev/null; done"
+        var out = client.executeCommand(cmdStat)
+        
+        // Strategy 2: ls -la (Fallback if stat fails or is missing)
+        if (out.trim().isBlank()) {
+            Log.d(TAG, "Stat failed, falling back to ls parsing for $safePath")
+            out = client.executeCommand("ls -la '$safePath'")
+            return parseLsOutput(out, safePath)
+        }
         
         val entries = mutableListOf<RemoteFileEntry>()
         val lines = out.trim().split("\n")
@@ -612,11 +620,11 @@ object RemoteStorageManager {
                 val perms = p[0]
                 val size = p[1].toLongOrNull() ?: 0L
                 val time = (p[2].toLongOrNull() ?: 0L) * 1000L
-                val fullPath = line.substring(line.indexOf('|', line.indexOf('|', line.indexOf('|') + 1) + 1) + 1).trim()
-                val name = fullPath.substringAfterLast("/")
+                val lastPipe = line.lastIndexOf("|")
+                val name = line.substring(lastPipe + 1).substringAfterLast("/")
                 
                 if (name == "." || name == "..") continue
-                if (name == "*") continue // unresolved glob
+                if (name == "*") continue
                 
                 val isDir = perms.startsWith("d")
                 entries.add(
@@ -632,6 +640,34 @@ object RemoteStorageManager {
             }
         }
         return entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+    }
+
+    private fun parseLsOutput(output: String, parentPath: String): List<RemoteFileEntry> {
+        val entries = mutableListOf<RemoteFileEntry>()
+        val lines = output.trim().split("\n")
+        for (line in lines) {
+            val parts = line.split(Regex("\\s+"))
+            if (parts.size >= 8) {
+                val perms = parts[0]
+                val size = parts[4].toLongOrNull() ?: 0L
+                val name = parts.subList(7, parts.size).joinToString(" ")
+                
+                if (name == "." || name == "..") continue
+                
+                val isDir = perms.startsWith("d")
+                entries.add(
+                    RemoteFileEntry(
+                        name = name,
+                        path = "$parentPath/$name".replace("//", "/"),
+                        isDirectory = isDir,
+                        size = size,
+                        lastModified = System.currentTimeMillis(), // ls doesn't always give easy-to-parse unix time
+                        mimeType = if (isDir) "vnd.android.document/directory" else guessMimeType(name)
+                    )
+                )
+            }
+        }
+        return entries
     }
 
     private suspend fun statFileAdb(remotePath: String): RemoteFileEntry? {

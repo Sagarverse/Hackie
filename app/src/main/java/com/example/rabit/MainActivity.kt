@@ -87,6 +87,24 @@ class MainActivity : FragmentActivity() {
     private val osintGhostViewModel: com.example.rabit.ui.osint.OsintGhostViewModel by viewModels()
     private val bluetoothShadowViewModel: com.example.rabit.ui.network.BluetoothShadowViewModel by viewModels()
     private val bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel by viewModels()
+    private val securityAuditorViewModel: com.example.rabit.ui.security.SecurityAuditorViewModel by viewModels {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                val adbClient = com.example.rabit.data.storage.RemoteStorageManager.adbClient ?: throw IllegalStateException("ADB client not ready")
+                val storageManager = com.example.rabit.data.security.TacticalStorageManager(applicationContext)
+                return com.example.rabit.ui.security.SecurityAuditorViewModel(adbClient, storageManager) as T
+            }
+        }
+    }
+    private val trafficAnalyzerViewModel: com.example.rabit.ui.security.TrafficAnalyzerViewModel by viewModels {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                val adbClient = com.example.rabit.data.storage.RemoteStorageManager.adbClient ?: throw IllegalStateException("ADB client not ready")
+                val storageManager = com.example.rabit.data.security.TrafficStorageManager(applicationContext)
+                return com.example.rabit.ui.security.TrafficAnalyzerViewModel(adbClient, storageManager) as T
+            }
+        }
+    }
     private val decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,10 +145,19 @@ class MainActivity : FragmentActivity() {
                         val isStealthActive by decoyViewModel.isStealthMode.collectAsState()
                         val isUnlocked by decoyViewModel.isSessionUnlocked.collectAsState()
 
-                        if (isStealthActive && !isUnlocked) {
+                        val isVaultUnlocked by decoyViewModel.isVaultUnlocked.collectAsState()
+
+                        if (isStealthActive && !isUnlocked && !isVaultUnlocked) {
                             com.example.rabit.ui.stealth.DecoyCalculatorScreen(
                                 viewModel = decoyViewModel,
                                 onUnlock = { decoyViewModel.unlockHackie() }
+                            )
+                        } else if (isStealthActive && isVaultUnlocked) {
+                            // VAULT VIEW - Show a unified list of forensic exfiltrations
+                            com.example.rabit.ui.security.VaultScreen(
+                                auditorViewModel = securityAuditorViewModel,
+                                trafficViewModel = trafficAnalyzerViewModel,
+                                onLock = { decoyViewModel.lockAll() }
                             )
                         } else {
                             val biometricEnabled by viewModel.biometricLockEnabled.collectAsState()
@@ -150,6 +177,8 @@ class MainActivity : FragmentActivity() {
                                     osintGhostViewModel = osintGhostViewModel,
                                     bluetoothShadowViewModel = bluetoothShadowViewModel,
                                     bluetoothMirrorViewModel = bluetoothMirrorViewModel,
+                                    securityAuditorViewModel = securityAuditorViewModel,
+                                    trafficAnalyzerViewModel = trafficAnalyzerViewModel,
                                     decoyViewModel = decoyViewModel
                                 )
                             }
@@ -227,6 +256,8 @@ fun AppNavigation(
     osintGhostViewModel: com.example.rabit.ui.osint.OsintGhostViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     bluetoothShadowViewModel: com.example.rabit.ui.network.BluetoothShadowViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    securityAuditorViewModel: com.example.rabit.ui.security.SecurityAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    trafficAnalyzerViewModel: com.example.rabit.ui.security.TrafficAnalyzerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
@@ -612,6 +643,18 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("security_auditor") {
+                    com.example.rabit.ui.security.SecurityAuditorScreen(
+                        viewModel = securityAuditorViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("traffic_analyzer") {
+                    com.example.rabit.ui.security.TrafficAnalyzerScreen(
+                        viewModel = trafficAnalyzerViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 // --- Wave 6: Web Sniper ---
                 composable("auto_pwn") {
                     com.example.rabit.ui.websniper.AutoPwnScreen(
@@ -725,6 +768,8 @@ fun AppNavigation(
                         add("tactical_terminal")
                         add("screenshot_lab")
                         add("keystroke_monitor")
+                        add("security_auditor")
+                        add("traffic_analyzer")
                         add("browser")
                     }
                     val availableActions = buildSet {
@@ -800,6 +845,7 @@ fun AppNavigation(
             featureWakeOnLanVisible = featureWakeOnLanVisible,
             featureSshTerminalVisible = featureSshTerminalVisible,
             activeApp = activeApp,
+            onPanicLock = { decoyViewModel.lockAll() },
             onBack = { navController.popBackStack() },
             topBarActions = {
                 val route = currentRoute.split("?").first()

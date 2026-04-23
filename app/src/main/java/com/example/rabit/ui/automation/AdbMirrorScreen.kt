@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -19,12 +20,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.rabit.data.adb.AdbMirrorStreamer
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.AccentBlue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.rabit.ui.theme.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 import com.example.rabit.ui.theme.Obsidian
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun AdbMirrorScreen(
     viewModel: AutomationViewModel,
@@ -74,57 +79,104 @@ fun AdbMirrorScreen(
         }
     }
 
+    var showMirrorOverlay by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = Obsidian,
-        bottomBar = {
-            Surface(color = Color.Black.copy(alpha = 0.8f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+        topBar = {
+            TopAppBar(
+                title = { Text("ADB Mirror Center", color = TextPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = TextPrimary) }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface0)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // --- Tactical Briefing ---
+            var showBriefing by remember { mutableStateOf(true) }
+            if (showBriefing) {
+                Surface(
+                    color = AccentBlue.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 ) {
-                    IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 4") } }) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
-                    }
-                    IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 3") } }) {
-                        Icon(Icons.Default.Home, "Home", tint = Color.White)
-                    }
-                    IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 187") } }) {
-                        Icon(Icons.Default.Menu, "Recents", tint = Color.White)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("MIRRORING BRIEFING", color = AccentBlue, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { showBriefing = false }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, null, tint = Silver, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "This window lets you see and touch the target phone from your own screen. Perfect for checking files or controlling apps remotely.",
+                            color = Platinum, fontSize = 13.sp, lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("HOW TO CONNECT:", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("• 1. Use a high-quality USB cable for the best speed.", color = Silver, fontSize = 12.sp)
+                        Text("• 2. Ensure 'USB Debugging' is ON in the target's settings.", color = Silver, fontSize = 12.sp)
+                        Text("• 3. Hit 'LAUNCH' below to open the separate window.", color = Silver, fontSize = 12.sp)
                     }
                 }
             }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            var surfaceView by remember { mutableStateOf<SurfaceView?>(null) }
+
+            Icon(Icons.Default.Cast, null, tint = AccentBlue, modifier = Modifier.size(64.dp))
+            Spacer(Modifier.height(24.dp))
+            Text("Ready for Neural Mirroring", color = TextPrimary, style = MaterialTheme.typography.headlineSmall)
+            Text("Device: ${if (isUsb) "USB Connected" else "Wireless ($deviceWidth x $deviceHeight)"}", color = TextSecondary)
             
-            AndroidView(
-                factory = { ctx ->
-                    SurfaceView(ctx).apply {
-                        surfaceView = this
-                        holder.addCallback(object : SurfaceHolder.Callback {
-                            override fun surfaceCreated(holder: SurfaceHolder) {
-                                isMirroring = true
-                                val bitrate = if (isUsb) 8_000_000 else 2_000_000
-                                streamer.startMirroring(holder.surface, deviceWidth / 2, deviceHeight / 2, bitrate)
-                            }
-                            override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {}
-                            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                                isMirroring = false
-                                streamer.stopMirroring()
-                            }
-                        })
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInteropFilter { event ->
+            Spacer(Modifier.height(32.dp))
+            
+            Button(
+                onClick = { showMirrorOverlay = true },
+                modifier = Modifier.fillMaxWidth(0.7f),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+            ) {
+                Icon(Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text("LAUNCH MIRROR SESSION")
+            }
+        }
+    }
+
+    if (showMirrorOverlay) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showMirrorOverlay = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+                var surfaceView by remember { mutableStateOf<SurfaceView?>(null) }
+                
+                AndroidView(
+                    factory = { ctx ->
+                        SurfaceView(ctx).apply {
+                            surfaceView = this
+                            holder.addCallback(object : SurfaceHolder.Callback {
+                                override fun surfaceCreated(holder: SurfaceHolder) {
+                                    isMirroring = true
+                                    val bitrate = if (isUsb) 8_000_000 else 2_000_000
+                                    streamer.startMirroring(holder.surface, deviceWidth / 2, deviceHeight / 2, bitrate)
+                                }
+                                override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {}
+                                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                                    isMirroring = false
+                                    streamer.stopMirroring()
+                                }
+                            })
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize().pointerInteropFilter { event ->
                         val view = surfaceView ?: return@pointerInteropFilter false
                         val x = (event.x / view.width) * deviceWidth
                         val y = (event.y / view.height) * deviceHeight
@@ -153,10 +205,51 @@ fun AdbMirrorScreen(
                             else -> false
                         }
                     }
-            )
+                )
 
-            if (!isMirroring) {
-                CircularProgressIndicator(color = AccentBlue)
+                // Tactical Controls Overlay
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Button(
+                            onClick = { showMirrorOverlay = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
+                        ) {
+                            Icon(Icons.Default.ExitToApp, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("EXIT SESSION")
+                        }
+                    }
+                    
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 32.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 4") } }) {
+                                Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                            }
+                            IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 3") } }) {
+                                Icon(Icons.Default.Home, "Home", tint = Color.White)
+                            }
+                            IconButton(onClick = { scope.launch { adbClient.executeCommand("input keyevent 187") } }) {
+                                Icon(Icons.Default.Menu, "Recents", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+
+                if (!isMirroring) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = AccentBlue)
+                    }
+                }
             }
         }
     }
@@ -168,4 +261,4 @@ fun AdbMirrorScreen(
     }
 }
 
-private annotation class ExperimentalComposeUiApi
+

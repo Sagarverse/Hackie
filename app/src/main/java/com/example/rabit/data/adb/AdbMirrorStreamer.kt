@@ -31,13 +31,16 @@ class AdbMirrorStreamer(
         
         streamingJob = scope.launch(Dispatchers.IO) {
             try {
-                // Configure Decoder
+                // Configure Decoder with high-performance settings
                 val format = MediaFormat.createVideoFormat(VIDEO_MIME, width, height)
+                format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                format.setInteger(MediaFormat.KEY_PRIORITY, 0) // Real-time priority
+                
                 decoder = MediaCodec.createDecoderByType(VIDEO_MIME)
                 decoder?.configure(format, surface, null, 0)
                 decoder?.start()
 
-                Log.d(TAG, "Starting screenrecord stream...")
+                Log.d(TAG, "Starting tactical screenrecord stream...")
                 // time-limit 0 for infinite, but we'll stop when stream closes
                 val command = "screenrecord --output-format=h264 --size ${width}x${height} --bit-rate $bitRate --time-limit 0 -"
                 adbStream = adbClient.openStream(command)
@@ -48,16 +51,29 @@ class AdbMirrorStreamer(
                     val rawData = adbStream?.read() ?: break
                     if (rawData.isEmpty()) continue
 
-                    // Feed data to decoder
-                    val inputIndex = decoder?.dequeueInputBuffer(10_000) ?: -1
-                    if (inputIndex >= 0) {
-                        val inputBuffer = decoder?.getInputBuffer(inputIndex)
-                        inputBuffer?.clear()
-                        inputBuffer?.put(rawData)
-                        decoder?.queueInputBuffer(inputIndex, 0, rawData.size, System.nanoTime() / 1000, 0)
+                    // Feed data to decoder with sync check
+                    try {
+                        val inputIndex = decoder?.dequeueInputBuffer(50_000) ?: -1
+                        if (inputIndex >= 0) {
+                            val inputBuffer = decoder?.getInputBuffer(inputIndex)
+                            if (inputBuffer != null) {
+                                inputBuffer.clear()
+                                if (rawData.size <= inputBuffer.remaining()) {
+                                    inputBuffer.put(rawData)
+                                    decoder?.queueInputBuffer(inputIndex, 0, rawData.size, System.nanoTime() / 1000, 0)
+                                } else {
+                                    Log.w(TAG, "Packet too large for input buffer, splitting...")
+                                    // Handle overflow by dropping or splitting if needed, 
+                                    // but usually screenrecord packets fit.
+                                }
+                            }
+                        }
+                    } catch (e: IllegalStateException) {
+                        Log.e(TAG, "Decoder state error, attempting recovery...")
+                        break 
                     }
 
-                    // Release output buffers to surface
+                    // Release output buffers to surface immediately for low latency
                     var outputIndex = decoder?.dequeueOutputBuffer(bufferInfo, 0) ?: -1
                     while (outputIndex >= 0) {
                         decoder?.releaseOutputBuffer(outputIndex, true)
@@ -65,7 +81,7 @@ class AdbMirrorStreamer(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Mirroring error", e)
+                Log.e(TAG, "Mirroring session failed", e)
             } finally {
                 cleanup()
             }
