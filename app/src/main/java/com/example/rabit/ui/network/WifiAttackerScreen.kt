@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.security.FindingCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,34 +95,59 @@ fun WifiNetworkList(networks: List<WifiNetwork>, viewModel: WifiAttackerViewMode
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(networks) { network ->
-            Surface(
-                onClick = { onAttack(network) },
-                color = Color.White.copy(alpha = 0.03f),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        if (network.signalLevel > -60) Icons.Default.Wifi else Icons.Default.Wifi2Bar,
-                        null,
-                        tint = if (network.isWpsSupported) Color(0xFFEAB308) else Platinum
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(network.ssid, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        val entropy = viewModel.calculateEntropy(network)
-                        val crackTime = viewModel.getEstimatedCrackTime(entropy)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(network.security, color = if (network.security.contains("VULNERABLE")) Color.Red else Silver.copy(alpha = 0.6f), fontSize = 10.sp)
+            var expanded by remember { mutableStateOf(false) }
+            val vulnerabilities = viewModel.getVulnerabilities(network)
+
+            Column {
+                Surface(
+                    onClick = { expanded = !expanded },
+                    color = Color.White.copy(alpha = 0.03f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (vulnerabilities.isNotEmpty()) Color.Red.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.05f))
+                ) {
+                    Column {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (network.signalLevel > -60) Icons.Default.Wifi else Icons.Default.Wifi2Bar,
+                                null,
+                                tint = if (network.isWpsSupported || vulnerabilities.isNotEmpty()) Color(0xFFEAB308) else Platinum
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(network.ssid, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                val entropy = viewModel.calculateEntropy(network)
+                                val crackTime = viewModel.getEstimatedCrackTime(entropy)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(network.security, color = if (network.security.contains("VULNERABLE")) Color.Red else Silver.copy(alpha = 0.6f), fontSize = 10.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("•", color = Silver.copy(alpha = 0.3f), fontSize = 10.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("$crackTime Crack", color = if (entropy < 40) Color.Red else SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                if (vulnerabilities.isNotEmpty()) {
+                                    Text("${vulnerabilities.size} Vulnerabilities Detected", color = Color.Red, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
+                            if (network.isWpsSupported) {
+                                Surface(color = Color(0xFFEAB308).copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
+                                    Text("WPS", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFEAB308), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
                             Spacer(Modifier.width(8.dp))
-                            Text("•", color = Silver.copy(alpha = 0.3f), fontSize = 10.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("$crackTime Crack", color = if (entropy < 40) Color.Red else SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { onAttack(network) }) {
+                                Icon(Icons.Default.FlashOn, "Attack", tint = Color.Red)
+                            }
                         }
                     }
-                    if (network.isWpsSupported) {
-                        Surface(color = Color(0xFFEAB308).copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                            Text("WPS", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFEAB308), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                }
+                
+                AnimatedVisibility(visible = expanded) {
+                    Column(modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        vulnerabilities.forEach { finding ->
+                            FindingCard(finding)
+                        }
+                        if (vulnerabilities.isEmpty()) {
+                            Text("No major vulnerabilities detected beyond standard crack times.", color = SuccessGreen, fontSize = 11.sp, modifier = Modifier.padding(8.dp))
                         }
                     }
                 }

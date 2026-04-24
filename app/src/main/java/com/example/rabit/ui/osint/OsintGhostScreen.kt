@@ -130,6 +130,16 @@ fun OsintDashboard(
                         Text("NEW SEARCH")
                     }
                 }
+            } else if (status is OsintStatus.Error) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Error, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(status.message, color = Color.Red, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = { viewModel.reset() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.Magenta)) {
+                        Text("TRY AGAIN", fontWeight = FontWeight.Bold)
+                    }
+                }
             } else {
                 LazyColumn(modifier = Modifier.padding(12.dp), reverseLayout = true) {
                     items(logs.reversed()) { log ->

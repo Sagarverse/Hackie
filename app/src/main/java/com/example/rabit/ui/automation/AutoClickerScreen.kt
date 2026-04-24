@@ -24,6 +24,7 @@ import com.example.rabit.ui.components.*
 
 @Composable
 fun AutoClickerScreen(
+    mainViewModel: MainViewModel,
     viewModel: AutomationViewModel,
     onBack: () -> Unit
 ) {
@@ -32,6 +33,7 @@ fun AutoClickerScreen(
     val loops by viewModel.autoClickLoops.collectAsState()
     val unit by viewModel.autoClickUnit.collectAsState()
     val currentCount by viewModel.currentClickCount.collectAsState()
+    val isMouseJigglerEnabled by mainViewModel.isMouseJigglerEnabled.collectAsState()
 
     var intervalText by remember(interval) { mutableStateOf(interval.toString()) }
     var loopsText by remember(loops) { mutableStateOf(loops.toString()) }
@@ -141,6 +143,28 @@ fun AutoClickerScreen(
                             Text("Reset Loops", fontSize = 11.sp)
                         }
                     }
+                }
+            }
+
+            PremiumGlassCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Mouse, null, tint = AccentBlue, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Wireless Mouse Jiggler", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            Text("Move mouse to keep Mac/PC awake", color = Silver, fontSize = 12.sp)
+                        }
+                    }
+                    Switch(
+                        checked = isMouseJigglerEnabled,
+                        onCheckedChange = { mainViewModel.setMouseJigglerEnabled(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = AccentBlue, checkedTrackColor = AccentBlue.copy(alpha = 0.5f))
+                    )
                 }
             }
 

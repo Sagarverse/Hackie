@@ -43,6 +43,8 @@ class NetworkAuditorViewModel(application: Application) : AndroidViewModel(appli
     data class NetworkDevice(
         val ip: String,
         val hostname: String = "Unknown",
+        val userName: String = "Unknown",
+        val macAddress: String = "Unknown",
         val services: List<String> = emptyList(),
         val manufacturer: String = "Generic Device",
         val isReachable: Boolean = true
@@ -66,10 +68,14 @@ class NetworkAuditorViewModel(application: Application) : AndroidViewModel(appli
                     jobs.add(launch {
                         if (InetAddress.getByName(ip).isReachable(500)) {
                             val hostname = resolveHostname(ip)
+                            val userName = extractUserNameFromHostname(hostname)
+                            val macAddress = getMacAddressFromArp(ip)
                             val services = probeCommonServices(ip)
                             val device = NetworkDevice(
                                 ip = ip,
                                 hostname = hostname,
+                                userName = userName,
+                                macAddress = macAddress,
                                 services = services,
                                 manufacturer = "Station Node"
                             )
@@ -115,6 +121,54 @@ class NetworkAuditorViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    private fun extractUserNameFromHostname(hostname: String): String {
+        if (hostname == "Unidentified Node" || hostname.isBlank()) return "Unknown"
+        // Common patterns: "Sagars-MacBook-Pro", "Sagar-PC", "iPhone-von-Sagar"
+        val regex = Regex("(?i)^([a-z0-9]+)s?-(?:macbook|pc|iphone|ipad|laptop|desktop|imac|macmini)", RegexOption.IGNORE_CASE)
+        val match = regex.find(hostname)
+        if (match != null) {
+            val rawName = match.groupValues[1]
+            if (rawName.endsWith("s", ignoreCase = true)) {
+                 return rawName.dropLast(1).replaceFirstChar { it.uppercase() }
+            }
+            return rawName.replaceFirstChar { it.uppercase() }
+        }
+        
+        // Split by dashes and take the first reasonably sized part as a guess
+        val parts = hostname.split("-")
+        if (parts.isNotEmpty() && parts[0].length > 2 && !parts[0].equals("android", ignoreCase = true)) {
+            val name = parts[0]
+            if (name.endsWith("s", ignoreCase = true)) {
+                return name.dropLast(1).replaceFirstChar { it.uppercase() }
+            }
+            return name.replaceFirstChar { it.uppercase() }
+        }
+
+        return "Unknown"
+    }
+
+    private fun getMacAddressFromArp(ip: String): String {
+        var mac = "Unknown"
+        try {
+            java.io.BufferedReader(java.io.FileReader("/proc/net/arp")).use { reader ->
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val splitted = line!!.split(Regex(" +"))
+                    if (splitted.size >= 4 && ip == splitted[0]) {
+                        val potentialMac = splitted[3]
+                        if (potentialMac.matches(Regex("([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}")) && potentialMac != "00:00:00:00:00:00") {
+                            mac = potentialMac.uppercase()
+                        }
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // /proc/net/arp is restricted on Android 10+, this might fail gracefully and return "Unknown"
+        }
+        return mac
+    }
+
     private fun probeCommonServices(ip: String): List<String> {
         val services = mutableListOf<String>()
         val ports = mapOf(
@@ -132,7 +186,7 @@ class NetworkAuditorViewModel(application: Application) : AndroidViewModel(appli
             try {
                 Socket().use { socket ->
                     socket.connect(InetSocketAddress(ip, port), 100)
-                    services.add(name)
+                    services.add("$port ($name)")
                 }
             } catch (_: Exception) {}
         }

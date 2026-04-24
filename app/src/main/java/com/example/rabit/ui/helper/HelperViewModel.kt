@@ -123,6 +123,14 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     val isRemoteMounted = _isRemoteMounted.asStateFlow()
     private val _remoteMountStatus = MutableStateFlow("")
     val remoteMountStatus = _remoteMountStatus.asStateFlow()
+    private val _remoteSource = MutableStateFlow("SSH") // "SSH" or "ADB"
+    val remoteSource = _remoteSource.asStateFlow()
+    private val _filePreviewContent = MutableStateFlow<String?>(null)
+    val filePreviewContent = _filePreviewContent.asStateFlow()
+    private val _filePreviewName = MutableStateFlow("")
+    val filePreviewName = _filePreviewName.asStateFlow()
+    private val _downloadProgress = MutableStateFlow<String?>(null)
+    val downloadProgress = _downloadProgress.asStateFlow()
 
     // Process Manager & Stats
     private val _remoteProcesses = MutableStateFlow<List<RemoteProcess>>(emptyList())
@@ -758,24 +766,38 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refreshRemoteFiles() {
+        val source = _remoteSource.value
+        if (source == "ADB") {
+            refreshAdbFiles()
+            return
+        }
         if (!_sshConnected.value) return
         _isRemoteLoading.value = true
         _remoteError.value = null
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val path = _currentRemotePath.value
-                val output = executeSshCommandSilent("ls -FA1 \"$path\"")
-                val lines = output.lines().filter { it.isNotBlank() }
+                val output = executeSshCommandSilent("ls -lAh \"$path\" 2>/dev/null")
+                val lines = output.lines().filter { it.isNotBlank() && !it.startsWith("total ") }
                 
-                val files = lines.map { line ->
-                    val isDir = line.endsWith("/")
-                    val name = line.removeSuffix("/")
+                val files = lines.mapNotNull { line ->
+                    // Parse ls -lAh output: drwxr-xr-x  2 user group  4.0K Jan 01 12:00 filename
+                    val parts = line.split("\\s+".toRegex(), limit = 9)
+                    if (parts.size < 9) return@mapNotNull null
+                    val perms = parts[0]
+                    val isDir = perms.startsWith("d")
+                    val sizeStr = parts[4]
+                    val name = parts[8]
+                    if (name == "." || name == "..") return@mapNotNull null
+                    
+                    val size = parseHumanSize(sizeStr)
+                    
                     RemoteFile(
                         name = name,
                         path = if (path.endsWith("/")) "$path$name" else "$path/$name",
                         isDirectory = isDir,
-                        extension = name.substringAfterLast(".", ""),
-                        size = 0L,
+                        extension = if (!isDir) name.substringAfterLast(".", "") else "",
+                        size = size,
                         modifiedTime = System.currentTimeMillis()
                     )
                 }.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
@@ -789,31 +811,213 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun parseHumanSize(s: String): Long {
+        val clean = s.uppercase().trim()
+        return try {
+            when {
+                clean.endsWith("K") -> (clean.removeSuffix("K").toDouble() * 1024).toLong()
+                clean.endsWith("M") -> (clean.removeSuffix("M").toDouble() * 1048576).toLong()
+                clean.endsWith("G") -> (clean.removeSuffix("G").toDouble() * 1073741824).toLong()
+                clean.endsWith("T") -> (clean.removeSuffix("T").toDouble() * 1099511627776).toLong()
+                else -> clean.toLongOrNull() ?: 0L
+            }
+        } catch (_: Exception) { 0L }
+    }
+
     fun downloadRemoteFile(file: RemoteFile, context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val localFile = RemoteStorageManager.readFile(file.path)
-                if (localFile != null && localFile.exists()) {
-                    val resolver = context.contentResolver
-                    val values = android.content.ContentValues().apply {
-                        put(android.provider.MediaStore.Downloads.DISPLAY_NAME, file.name)
-                        put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
-                        put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Hackie")
-                    }
-                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    if (uri != null) {
-                        resolver.openOutputStream(uri)?.use { out ->
-                            java.io.FileInputStream(localFile).use { fis -> fis.copyTo(out) }
+                _downloadProgress.value = "Downloading ${file.name}..."
+                
+                if (_remoteSource.value == "ADB") {
+                    // ADB download via adb pull
+                    val client = RemoteStorageManager.adbClient
+                    if (client != null) {
+                        val output = client.executeCommand("cat \"${file.path}\"")
+                        if (output.isNotBlank()) {
+                            val resolver = context.contentResolver
+                            val values = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, file.name)
+                                put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Hackie")
+                            }
+                            val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                            uri?.let { resolver.openOutputStream(it)?.use { out -> out.write(output.toByteArray()) } }
+                            _downloadProgress.value = "✓ Saved to Downloads/Hackie/${file.name}"
                         }
-                        appendTerminalLine("Downloaded: ${file.name} → Downloads/Hackie/")
                     }
                 } else {
-                    appendTerminalLine("Download failed: Could not fetch ${file.name}")
+                    // SSH download via SCP/cat
+                    val localFile = RemoteStorageManager.readFile(file.path)
+                    if (localFile != null && localFile.exists()) {
+                        val resolver = context.contentResolver
+                        val values = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, file.name)
+                            put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Hackie")
+                        }
+                        val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        if (uri != null) {
+                            resolver.openOutputStream(uri)?.use { out ->
+                                java.io.FileInputStream(localFile).use { fis -> fis.copyTo(out) }
+                            }
+                            _downloadProgress.value = "✓ Saved to Downloads/Hackie/${file.name}"
+                        }
+                    } else {
+                        _downloadProgress.value = "✗ Download failed"
+                    }
                 }
+                appendTerminalLine("Downloaded: ${file.name} → Downloads/Hackie/")
+                delay(3000)
+                _downloadProgress.value = null
             } catch (e: Exception) {
+                _downloadProgress.value = "✗ ${e.message}"
                 appendTerminalLine("Download error: ${e.message}")
+                delay(3000)
+                _downloadProgress.value = null
             }
         }
+    }
+
+    fun previewRemoteFile(file: RemoteFile) {
+        _filePreviewContent.value = null
+        _filePreviewName.value = file.name
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val content = if (_remoteSource.value == "ADB") {
+                    val client = RemoteStorageManager.adbClient ?: throw Exception("ADB not connected")
+                    client.executeCommand("cat \"${file.path}\"")
+                } else {
+                    executeSshCommandSilent("head -c 100000 \"${file.path}\"")
+                }
+                _filePreviewContent.value = content
+            } catch (e: Exception) {
+                _filePreviewContent.value = "[Error reading file: ${e.message}]"
+            }
+        }
+    }
+
+    fun closePreview() {
+        _filePreviewContent.value = null
+        _filePreviewName.value = ""
+    }
+
+    fun deleteRemoteFile(file: RemoteFile) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cmd = if (file.isDirectory) "rm -rf \"${file.path}\"" else "rm -f \"${file.path}\""
+                if (_remoteSource.value == "ADB") {
+                    RemoteStorageManager.adbClient?.executeCommand(cmd)
+                } else {
+                    executeSshCommandSilent(cmd)
+                }
+                appendTerminalLine("Deleted: ${file.name}")
+                refreshRemoteFiles()
+            } catch (e: Exception) {
+                appendTerminalLine("Delete failed: ${e.message}")
+            }
+        }
+    }
+
+    fun renameRemoteFile(file: RemoteFile, newName: String) {
+        if (newName.isBlank()) return
+        val parentPath = file.path.substringBeforeLast("/")
+        val newPath = "$parentPath/$newName"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cmd = "mv \"${file.path}\" \"$newPath\""
+                if (_remoteSource.value == "ADB") {
+                    RemoteStorageManager.adbClient?.executeCommand(cmd)
+                } else {
+                    executeSshCommandSilent(cmd)
+                }
+                appendTerminalLine("Renamed: ${file.name} → $newName")
+                refreshRemoteFiles()
+            } catch (e: Exception) {
+                appendTerminalLine("Rename failed: ${e.message}")
+            }
+        }
+    }
+
+    fun createRemoteFolder(name: String) {
+        if (name.isBlank()) return
+        val path = _currentRemotePath.value
+        val fullPath = if (path.endsWith("/")) "$path$name" else "$path/$name"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cmd = "mkdir -p \"$fullPath\""
+                if (_remoteSource.value == "ADB") {
+                    RemoteStorageManager.adbClient?.executeCommand(cmd)
+                } else {
+                    executeSshCommandSilent(cmd)
+                }
+                appendTerminalLine("Created folder: $name")
+                refreshRemoteFiles()
+            } catch (e: Exception) {
+                appendTerminalLine("Mkdir failed: ${e.message}")
+            }
+        }
+    }
+
+    fun switchRemoteSource(source: String) {
+        _remoteSource.value = source
+        _remoteFiles.value = emptyList()
+        _remoteError.value = null
+        if (source == "ADB") {
+            _currentRemotePath.value = "/sdcard"
+        } else {
+            _currentRemotePath.value = "/"
+        }
+        refreshRemoteFiles()
+    }
+
+    private fun refreshAdbFiles() {
+        val client = RemoteStorageManager.adbClient
+        if (client == null) {
+            _remoteError.value = "ADB not connected. Connect via ADB Manager first."
+            return
+        }
+        _isRemoteLoading.value = true
+        _remoteError.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val path = _currentRemotePath.value
+                val output = client.executeCommand("ls -lAh \"$path\" 2>/dev/null")
+                val lines = output.lines().filter { it.isNotBlank() && !it.startsWith("total ") }
+
+                val files = lines.mapNotNull { line ->
+                    val parts = line.split("\\s+".toRegex(), limit = 9)
+                    if (parts.size < 9) return@mapNotNull null
+                    val perms = parts[0]
+                    val isDir = perms.startsWith("d")
+                    val sizeStr = parts[4]
+                    val name = parts[8]
+                    if (name == "." || name == "..") return@mapNotNull null
+
+                    RemoteFile(
+                        name = name,
+                        path = if (path.endsWith("/")) "$path$name" else "$path/$name",
+                        isDirectory = isDir,
+                        extension = if (!isDir) name.substringAfterLast(".", "") else "",
+                        size = parseHumanSize(sizeStr),
+                        modifiedTime = System.currentTimeMillis()
+                    )
+                }.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+
+                _remoteFiles.value = files
+            } catch (e: Exception) {
+                _remoteError.value = "ADB Error: ${e.message}"
+            } finally {
+                _isRemoteLoading.value = false
+            }
+        }
+    }
+
+    fun goUpRemote() {
+        val path = _currentRemotePath.value.trimEnd('/')
+        if (path.isBlank() || path == "/" || path == "/sdcard") return
+        val parent = path.substringBeforeLast("/")
+        navigateRemote(if (parent.isBlank()) "/" else parent)
     }
 
     fun toggleRemoteMount() {

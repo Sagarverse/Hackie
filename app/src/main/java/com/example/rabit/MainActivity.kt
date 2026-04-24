@@ -262,6 +262,15 @@ fun AppNavigation(
     bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     securityAuditorViewModel: com.example.rabit.ui.security.SecurityAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     trafficAnalyzerViewModel: com.example.rabit.ui.security.TrafficAnalyzerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    hashCrackerViewModel: com.example.rabit.ui.security.HashCrackerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    encoderDecoderViewModel: com.example.rabit.ui.crypto.EncoderDecoderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    subdomainScannerViewModel: com.example.rabit.ui.osint.SubdomainScannerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    exifForensicsViewModel: com.example.rabit.ui.forensics.ExifForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    reverseShellViewModel: com.example.rabit.ui.exploit.ReverseShellViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    portScannerViewModel: com.example.rabit.ui.network.PortScannerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    steganographyViewModel: com.example.rabit.ui.steganography.SteganographyViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    killSwitchViewModel: com.example.rabit.ui.opsec.KillSwitchViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    pingTraceViewModel: com.example.rabit.ui.network.PingTraceViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
@@ -327,6 +336,15 @@ fun AppNavigation(
             "bluetooth_shadow" -> true
             "bluetooth_mirror" -> true
             "hid_brute_force" -> featureAutomationVisible
+            "hash_cracker" -> true
+            "crypto_encoder" -> true
+            "subdomain_scanner" -> true
+            "exif_forensics" -> true
+            "reverse_shell_gen" -> true
+            "port_scanner" -> true
+            "stego_lab" -> true
+            "kill_switch" -> true
+            "ping_trace" -> true
             "web_hub" -> true
             "global_search" -> true
             else -> true
@@ -512,6 +530,7 @@ fun AppNavigation(
                 }
                 composable("auto_clicker") {
                     com.example.rabit.ui.automation.AutoClickerScreen(
+                        mainViewModel = viewModel,
                         viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
@@ -569,6 +588,7 @@ fun AppNavigation(
                 composable("local_terminal") {
                     com.example.rabit.ui.automation.LocalTerminalScreen(
                         viewModel = localTerminalViewModel,
+                        apiKey = settingsViewModel.geminiApiKey,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -595,6 +615,61 @@ fun AppNavigation(
                 composable("neural_qa") {
                     com.example.rabit.ui.qa.NeuralQaScreen(
                         viewModel = neuralQaViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("hash_cracker") {
+                    com.example.rabit.ui.security.HashCrackerScreen(
+                        viewModel = hashCrackerViewModel,
+                        apiKey = settingsViewModel.geminiApiKey,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("crypto_encoder") {
+                    com.example.rabit.ui.crypto.EncoderDecoderScreen(
+                        viewModel = encoderDecoderViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("subdomain_scanner") {
+                    com.example.rabit.ui.osint.SubdomainScannerScreen(
+                        viewModel = subdomainScannerViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("exif_forensics") {
+                    com.example.rabit.ui.forensics.ExifForensicsScreen(
+                        viewModel = exifForensicsViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("reverse_shell_gen") {
+                    com.example.rabit.ui.exploit.ReverseShellScreen(
+                        viewModel = reverseShellViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("port_scanner") {
+                    com.example.rabit.ui.network.PortScannerScreen(
+                        viewModel = portScannerViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("stego_lab") {
+                    com.example.rabit.ui.steganography.SteganographyScreen(
+                        viewModel = steganographyViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("kill_switch") {
+                    com.example.rabit.ui.opsec.KillSwitchScreen(
+                        viewModel = killSwitchViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("ping_trace") {
+                    com.example.rabit.ui.network.PingTraceScreen(
+                        viewModel = pingTraceViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -879,9 +954,12 @@ fun BluetoothPermissions(content: @Composable () -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
         } else {
             add(Manifest.permission.BLUETOOTH)
             add(Manifest.permission.BLUETOOTH_ADMIN)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
     }
 

@@ -85,7 +85,7 @@ fun SettingsScreen(
     val proximityLiveDistanceMeters by viewModel.proximityLiveDistanceMeters.collectAsState()
     val proximityUnlockArmed by viewModel.proximityUnlockArmed.collectAsState()
     val proximityMacLockStateGuess by viewModel.proximityMacLockStateGuess.collectAsState()
-    val isMouseJigglerEnabled by viewModel.isMouseJigglerEnabled.collectAsState()
+
 
     val biometricEnabled by viewModel.biometricLockEnabled.collectAsState()
     val biometricMacAutofillEnabled by viewModel.biometricMacAutofillEnabled.collectAsState()
@@ -472,15 +472,7 @@ fun SettingsScreen(
                         prefs.edit().putBoolean("auto_wake_lock_on_connect", it).apply()
                     }
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Wireless Mouse Jiggler (Caffeine)",
-                    subtitle = "Move mouse out of view to keep Mac/PC awake",
-                    icon = Icons.Default.Mouse,
-                    iconColor = AccentBlue,
-                    checked = isMouseJigglerEnabled,
-                    onCheckedChange = { viewModel.setMouseJigglerEnabled(it) }
-                )
+
             }
 
             // ─── Voice & Speech ───

@@ -167,9 +167,9 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
                 ) {
                     Icon(
                         imageVector = when {
-                            device.services.contains("SSH") -> Icons.Default.Terminal
-                            device.services.contains("HTTP") -> Icons.Default.Language
-                            device.services.contains("AirPlay") -> Icons.Default.Cast
+                            device.services.any { it.contains("SSH") } -> Icons.Default.Terminal
+                            device.services.any { it.contains("HTTP") } -> Icons.Default.Language
+                            device.services.any { it.contains("AirPlay") } -> Icons.Default.Cast
                             else -> Icons.Default.Dns
                         },
                         contentDescription = null,
@@ -182,7 +182,11 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = device.hostname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(text = device.ip, fontSize = 12.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = device.ip, fontSize = 12.sp, color = accentColor, fontFamily = FontFamily.Monospace)
+                        Text(text = "•", fontSize = 12.sp, color = Color.Gray)
+                        Text(text = device.macAddress, fontSize = 12.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                    }
                 }
                 
                 Icon(
@@ -192,10 +196,39 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
                     tint = Color.Gray
                 )
             }
+
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = Color.White.copy(alpha = 0.1f))
+            Spacer(Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("INFERRED USER", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(text = device.userName, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                    }
+                }
+                
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("MANUFACTURER", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(text = device.manufacturer, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                }
+            }
             
             if (device.services.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(16.dp))
+                Text("OPEN PORTS / SERVICES", fontSize = 9.sp, color = Color(0xFFBC13FE), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(8.dp))
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     device.services.forEach { service ->
                         ServiceTag(service)
                     }

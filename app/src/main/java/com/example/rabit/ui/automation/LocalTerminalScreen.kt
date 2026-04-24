@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.rabit.ui.theme.AccentBlue
 import com.example.rabit.ui.theme.BorderColor
 import com.example.rabit.ui.theme.Graphite
@@ -35,10 +36,11 @@ import com.example.rabit.ui.theme.SuccessGreen
 @Composable
 fun LocalTerminalScreen(
     viewModel: LocalTerminalViewModel,
+    apiKey: String,
     onBack: () -> Unit
 ) {
     val lines by viewModel.terminalLines.collectAsState()
-    var input by remember { mutableStateOf("") }
+    val input by viewModel.inputText.collectAsState()
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -114,8 +116,8 @@ fun LocalTerminalScreen(
     }
 
     val screenBuffer by viewModel.screenBuffer.collectAsState()
+    val isInteractiveMode by viewModel.isInteractiveMode.collectAsStateWithLifecycle()
     
-    // --- Terminal Monitor ---
     Surface(
         modifier = Modifier
             .weight(1f)
@@ -124,7 +126,7 @@ fun LocalTerminalScreen(
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor.copy(alpha = 0.2f))
     ) {
-        if (lines.any { it.contains("cmatrix") } || screenBuffer.any { row -> row.any { it != ' ' } }) {
+        if (isInteractiveMode) {
             // High-Definition Matrix Grid
             Column(
                 modifier = Modifier
@@ -165,6 +167,38 @@ fun LocalTerminalScreen(
             }
         }
     }
+    
+    // --- Terminal Control Bar ---
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val ctrlActive by viewModel.ctrlActive.collectAsStateWithLifecycle()
+        val altActive by viewModel.altActive.collectAsStateWithLifecycle()
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            ControlChip("CTRL", active = ctrlActive, onClick = { viewModel.toggleCtrl() })
+            ControlChip("ALT", active = altActive, onClick = { viewModel.toggleAlt() })
+            ControlChip("TAB", active = false, onClick = { viewModel.sendTab() })
+            ControlChip("STOP", active = false, onClick = { viewModel.stopExecution() })
+        }
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            IconButton(onClick = { viewModel.sendArrow("up") }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.ArrowUpward, null, tint = Silver, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = { viewModel.sendArrow("down") }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.ArrowDownward, null, tint = Silver, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = { viewModel.sendArrow("left") }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.ArrowBack, null, tint = Silver, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = { viewModel.sendArrow("right") }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.ArrowForward, null, tint = Silver, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -194,7 +228,7 @@ fun LocalTerminalScreen(
             ) {
                 OutlinedTextField(
                     value = input,
-                    onValueChange = { input = it },
+                    onValueChange = { viewModel.onInputChange(it) },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("$ ", color = Silver.copy(alpha = 0.4f), fontSize = 14.sp, fontFamily = FontFamily.Monospace) },
                     colors = OutlinedTextFieldDefaults.colors(
@@ -211,16 +245,36 @@ fun LocalTerminalScreen(
                     keyboardActions = KeyboardActions(onSend = {
                         if (input.isNotBlank()) {
                             viewModel.sendCommand(input)
-                            input = ""
                         }
                     })
                 )
                 Spacer(modifier = Modifier.width(8.dp))
+                
+                val isGeneratingPrompt by viewModel.isGeneratingPrompt.collectAsState()
+                
+                IconButton(
+                    onClick = {
+                        if (input.isNotBlank() && !isGeneratingPrompt) {
+                            viewModel.generateCommandFromPrompt(input, apiKey)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                ) {
+                    if (isGeneratingPrompt) {
+                        CircularProgressIndicator(color = AccentBlue, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "AI Generate", tint = AccentBlue)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
                 IconButton(
                     onClick = {
                         if (input.isNotBlank()) {
                             viewModel.sendCommand(input)
-                            input = ""
                         }
                     },
                     modifier = Modifier
@@ -231,5 +285,28 @@ fun LocalTerminalScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ControlChip(label: String, active: Boolean = false, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = if (active) AccentBlue.copy(alpha = 0.3f) else Graphite.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(4.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            if (active) AccentBlue else BorderColor.copy(alpha = 0.3f)
+        )
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = if (active) AccentBlue else Platinum,
+                fontWeight = FontWeight.Bold
+            )
+        )
     }
 }

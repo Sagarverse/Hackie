@@ -14,7 +14,7 @@ android {
     defaultConfig {
         applicationId = "com.example.rabit"
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 28
         versionCode = 1
         versionName = "1.0"
 

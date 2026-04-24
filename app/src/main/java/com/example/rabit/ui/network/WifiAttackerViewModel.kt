@@ -171,4 +171,61 @@ class WifiAttackerViewModel(application: Application) : AndroidViewModel(applica
             getApplication<Application>().unregisterReceiver(wifiScanReceiver)
         } catch (e: Exception) {}
     }
+
+    fun getVulnerabilities(network: WifiNetwork): List<com.example.rabit.data.security.NeuralAuditEngine.Finding> {
+        val findings = mutableListOf<com.example.rabit.data.security.NeuralAuditEngine.Finding>()
+        
+        if (network.security.contains("WEP")) {
+            findings.add(com.example.rabit.data.security.NeuralAuditEngine.Finding(
+                id = "WIFI-WEP-001",
+                title = "WEP Encryption (Deprecated)",
+                description = "Wired Equivalent Privacy is mathematically broken and can be cracked in minutes regardless of password length.",
+                severity = com.example.rabit.data.security.NeuralAuditEngine.Severity.CRITICAL,
+                category = com.example.rabit.data.security.NeuralAuditEngine.Category.NETWORK,
+                remediation = "Upgrade access point to WPA2-AES or WPA3 immediately."
+            ))
+        }
+        if (network.security.contains("OPEN")) {
+            findings.add(com.example.rabit.data.security.NeuralAuditEngine.Finding(
+                id = "WIFI-OPN-001",
+                title = "Open Network Detected",
+                description = "All traffic is transmitted in plaintext. Susceptible to packet sniffing and session hijacking.",
+                severity = com.example.rabit.data.security.NeuralAuditEngine.Severity.CRITICAL,
+                category = com.example.rabit.data.security.NeuralAuditEngine.Category.NETWORK,
+                remediation = "Enable WPA2/WPA3 encryption on the access point."
+            ))
+        }
+        if (network.isWpsSupported) {
+            findings.add(com.example.rabit.data.security.NeuralAuditEngine.Finding(
+                id = "WIFI-WPS-001",
+                title = "WPS Enabled",
+                description = "Wi-Fi Protected Setup is vulnerable to Pixie Dust and offline PIN brute-force attacks.",
+                severity = com.example.rabit.data.security.NeuralAuditEngine.Severity.HIGH,
+                category = com.example.rabit.data.security.NeuralAuditEngine.Category.NETWORK,
+                remediation = "Disable WPS PIN authentication in the router settings."
+            ))
+        }
+        val entropy = calculateEntropy(network)
+        if (entropy > 0 && entropy < 40) {
+            findings.add(com.example.rabit.data.security.NeuralAuditEngine.Finding(
+                id = "WIFI-ENT-001",
+                title = "Weak Key Entropy",
+                description = "The network's security protocol suggests a short or predictable passphrase.",
+                severity = com.example.rabit.data.security.NeuralAuditEngine.Severity.MEDIUM,
+                category = com.example.rabit.data.security.NeuralAuditEngine.Category.NETWORK,
+                remediation = "Use a password of at least 16 characters with mixed casing and symbols."
+            ))
+        }
+        if (network.ssid.equals("NETGEAR", ignoreCase = true) || network.ssid.equals("linksys", ignoreCase = true) || network.ssid.equals("admin", ignoreCase = true)) {
+            findings.add(com.example.rabit.data.security.NeuralAuditEngine.Finding(
+                id = "WIFI-DEF-001",
+                title = "Default SSID",
+                description = "Indicates the router may also be using default admin credentials.",
+                severity = com.example.rabit.data.security.NeuralAuditEngine.Severity.MEDIUM,
+                category = com.example.rabit.data.security.NeuralAuditEngine.Category.NETWORK,
+                remediation = "Change the SSID and router admin password."
+            ))
+        }
+        return findings
+    }
 }
