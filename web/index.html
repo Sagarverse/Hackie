@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackie | File Bridge Hub</title>
+    <meta name="description" content="Hackie Bridge Hub — Secure peer-to-peer file, text, and clipboard bridge between your phone and browser.">
+    <link rel="icon" type="image/png" href="../helper_app/web/favicon.png"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../helper_app/web/icons/Icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --obsidian: #050505;
+            --graphite: #121214;
+            --platinum: #FFFFFF;
+            --accent-blue: #2E5BFF;
+            --accent-glow: rgba(46, 91, 255, 0.4);
+            --accent-gold: #FFD60A;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --danger: #FF3B30;
+            --ok: #32D74B;
+            --muted: rgba(255, 255, 255, 0.5);
+            --card-radius: 28px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        body {
+            background-color: var(--obsidian);
+            background-image:
+                radial-gradient(at 0% 0%, hsla(225, 100%, 15%, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(50, 100%, 15%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, hsla(225, 100%, 10%, 0.1) 0px, transparent 50%);
+            color: var(--platinum);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding: 40px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 840px;
+            padding: 48px;
+            background: var(--glass);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--card-radius);
+            box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8);
+            position: relative;
+            z-index: 10;
+        }
+
+        .container::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            z-index: 11;
+        }
+
+        h1 {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -3px;
+            line-height: 0.95;
+            background: linear-gradient(135deg, #FFF 0%, #AAA 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            font-size: 14px;
+            color: var(--muted);
+            margin-bottom: 40px;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .status-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 20px;
+            margin-bottom: 32px;
+            border: 1px solid var(--border);
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            box-shadow: 0 0 15px var(--accent-blue);
+            position: relative;
+        }
+
+        .indicator::after {
+            content: "";
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-blue);
+            opacity: 0.4;
+            animation: ripple 2s infinite cubic-bezier(0, 0, 0.2, 1);
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.4; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        .pin-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        input[type="text"] {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            color: #FFF;
+            padding: 24px;
+            font-size: 32px;
+            border-radius: 20px;
+            text-align: center;
+            font-weight: 700;
+            letter-spacing: 8px;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 30px var(--accent-glow);
+            background: rgba(0,0,0,0.4);
+        }
+
+        button {
+            padding: 18px 24px;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: #FFF;
+            box-shadow: 0 10px 20px -5px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px var(--accent-glow);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--platinum);
+        }
+
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: var(--muted);
+        }
+
+        .upload-box {
+            background: rgba(255,255,255,0.02);
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            margin-top: 24px;
+            text-align: left;
+        }
+
+        .file-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+        }
+
+        .file-item:hover {
+            background: rgba(255,255,255,0.06);
+            transform: translateX(4px);
+        }
+
+        #file-hub {
+            display: none;
+        }
+
+        #connect-log {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 16px;
+            min-height: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 2px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--ok));
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+
+        .footer {
+            margin-top: 32px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.2);
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 32px 20px;
+                border-radius: 0;
+            }
+            h1 { font-size: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hackie Bridge Hub</h1>
+        <p class="subtitle">Secure Internet file, text, and device bridge</p>
+
+        <div class="status-box">
+            <div class="indicator" id="status-light"></div>
+            <span id="status-text">Ready. Enter PIN to connect.</span>
+        </div>
+
+        <!-- PIN Authorization -->
+        <div class="pin-input-group" id="auth-section">
+            <p style="font-size: 12px; margin-bottom: 8px; opacity: 0.6">Enter the 4-digit security PIN from your phone</p>
+            <input type="text" id="pin-field" maxlength="4" placeholder="••••" autocomplete="off">
+            <button id="authorize-btn" class="btn-primary" onclick="connect()">Authorize Bridge Handshake</button>
+            <div id="connect-log">Ready to connect...</div>
+        </div>
+
+        <div id="file-hub">
+            <!-- Clipboard Card -->
+            <div class="upload-box" style="border:1px solid rgba(46,91,255,0.2); background:rgba(46,91,255,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div style="font-size:13px; font-weight:700;">📋 Universal Clipboard</div>
+                    <span id="clip-sync-badge" style="font-size:10px; padding:4px 10px; border-radius:8px; background:rgba(50,215,75,0.1); color:#32D74B; border:1px solid rgba(50,215,75,0.2); font-weight:700;">SYNC</span>
+                </div>
+                <textarea id="clipboard-area" placeholder="Clipboard content will appear here..." style="width:100%; min-height:72px; resize:vertical; padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.2); color:var(--platinum); font-family:inherit; font-size:13px;"></textarea>
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button id="clip-pull-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">⬇ Pull from Phone</button>
+                    <button id="clip-push-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">⬆ Push to Phone</button>
+                    <button id="clip-copy-local" class="btn-outline" style="padding:10px 14px; font-size:12px;">📄 Copy</button>
+                </div>
+                <div id="clip-status" style="font-size:11px; opacity:0.6; margin-top:8px;">Clipboard sync idle</div>
+            </div>
+
+            <!-- Notes Card -->
+            <div class="upload-box">
+                <div style="text-align:left; min-width:220px; width:100%; margin-bottom:12px;">
+                    <div style="font-size:13px; font-weight:700; margin-bottom:8px;">📝 Shared Notes (Hackie + Web)</div>
+                    <textarea id="note-input" placeholder="Type a note and click Add Note" style="width:100%; min-height:96px; resize:vertical; padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--platinum); font-family:inherit; font-size:13px;"></textarea>
+                </div>
+                <div style="display:flex; gap:8px; width:100%; flex-wrap:wrap;">
+                    <button id="add-note-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">＋ Add Note</button>
+                    <button id="refresh-notes-btn" class="btn-outline" style="padding:10px 14px; font-size:12px;">↻ Refresh Notes</button>
+                </div>
+                <div id="notes-status" style="font-size:12px; opacity:0.75; width:100%; margin-top:8px;">No notes loaded yet.</div>
+                <div id="notes-list" style="width:100%; display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:300px; overflow:auto;"></div>
+            </div>
+
+            <!-- File Upload Card -->
+            <div class="upload-box">
+                <div style="text-align:left; min-width:220px; margin-bottom:12px;">
+                    <div style="font-size:13px; font-weight:700;">⬆ Send Files To Phone</div>
+                </div>
+                <div id="drag-drop-zone" style="padding:28px 16px; border:2px dashed var(--border); border-radius:14px; background:rgba(10,132,255,0.05); text-align:center; cursor:pointer;">
+                    <div style="font-size:12px; opacity:0.7;">Drag files here or click to browse</div>
+                    <div id="selected-files-preview" style="display:flex; flex-direction:column; gap:6px; margin-top:10px;"></div>
+                </div>
+                <input id="mac-upload-input" type="file" multiple style="display:none;" />
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button id="send-files-btn" class="btn-outline" style="padding:10px 14px; font-size:12px; border:1px solid var(--accent-blue); color:var(--accent-blue);">Send Files</button>
+                    <button id="clear-files-btn" class="btn-outline" style="padding:10px 14px; font-size:12px;">Clear</button>
+                </div>
+                <div id="upload-status" style="font-size:12px; opacity:0.75; width:100%; margin-top:8px;">Ready.</div>
+                <div class="upload-progress" id="upload-progress"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
+            </div>
+
+            <!-- Files on Phone Card -->
+            <div class="upload-box">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div style="font-size:13px; font-weight:700;">📱 Files on Phone</div>
+                    <button id="refresh-files-btn" class="btn-outline" style="padding:8px 12px; font-size:11px;">↻ Refresh</button>
+                </div>
+                <div id="files-status" style="font-size:12px; opacity:0.6; margin-bottom:10px;">Connect to view files.</div>
+                <div id="download-action" style="margin-bottom:12px;"></div>
+                <div id="items" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+
+            <div style="margin-top:32px; display:flex; justify-content:center;">
+                <button id="disconnect-btn" class="btn-outline" style="border-color:var(--danger); color:var(--danger); width:100%; max-width:200px;">⏻ Disconnect Bridge</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">Encrypted Peer-to-Peer Hub Security</div>
+
+    <script>
+        // --- Synchronous UI Logic (runs immediately) ---
+        window.isConnecting = false;
+        window.db = null;
+        window.app = null;
+
+        window.addEventListener('error', (event) => {
+            const log = document.getElementById('connect-log');
+            if (log) {
+                log.innerText += `\n[RUNTIME ERROR] ${event.message}`;
+                log.style.color = "#FF453A";
+            }
+        });
+
+        window.connect = async function() {
+            if (window.isConnecting) return;
+            const log = document.getElementById('connect-log');
+            const pinField = document.getElementById('pin-field');
+            const pin = (pinField.value || '').trim();
+
+            if (log) {
+                log.innerText = "Connecting to phone bridge...";
+                log.style.color = "var(--platinum)";
+                log.style.opacity = "1";
+            }
+
+            if (!/^\d{4}$/.test(pin)) {
+                if (log) log.innerText = "[✘] Please enter the 4-digit security PIN.";
+                return;
+            }
+
+            if (!window.db) {
+                if (log) log.innerText = "[⏳] Engine starting... Please wait 2 seconds and click again.";
+                return;
+            }
+
+            if (window.startHandshake) {
+                window.isConnecting = true;
+                const statusText = document.getElementById('status-text');
+                const statusLight = document.getElementById('status-light');
+                if (statusText) statusText.innerText = "Handshaking...";
+                if (statusLight) statusLight.style.background = "#FFD60A";
+
+                try {
+                    const roomId = `rabit_p2p_${pin}`;
+                    if (log) log.innerText = `[1/2] Publishing offer to ${roomId}...\n`;
+                    await window.startHandshake({ pin, log, roomId });
+                    if (log) log.innerText += "[2/2] Offer published! Waiting for phone's response...\n    (Open Hackie app > Web Bridge screen)";
+                } catch (e) {
+                    console.error(e);
+                    if (log) log.innerText += `\n[✘] ${e?.message || "Handshake Failed"}`;
+                } finally {
+                    window.isConnecting = false;
+                }
+            } else {
+                if (log) log.innerText = "[⏳] Handshake module loading... click again in 1s.";
+            }
+        };
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        async function resolveFirebaseConfig() {
+            try {
+                const res = await fetch('/__/firebase/init.json', { cache: 'no-store' });
+                if (res.ok) {
+                    const hostedConfig = await res.json();
+                    if (hostedConfig?.projectId) return hostedConfig;
+                }
+            } catch (_) {}
+            return {
+                apiKey: "AIzaSyBSMSWoUFHBIzoFornMm1srEDyPl-TcoYo",
+                authDomain: "hackie-260414-01.firebaseapp.com",
+                projectId: "hackie-260414-01",
+                storageBucket: "hackie-260414-01.firebasestorage.app",
+                messagingSenderId: "253843381811"
+            };
+        }
+
+        // Initialize Firebase
+        const fc = await resolveFirebaseConfig();
+        window.app = initializeApp(fc);
+        window.db = getFirestore(window.app);
+
+        // --- DOM Elements ---
+        const statusText = document.getElementById('status-text');
+        const authSection = document.getElementById('auth-section');
+        const fileHub = document.getElementById('file-hub');
+        const statusLight = document.getElementById('status-light');
+        const authorizeBtn = document.getElementById('authorize-btn');
+        const filesStatus = document.getElementById('files-status');
+        const filesContainer = document.getElementById('items');
+        const refreshFilesBtn = document.getElementById('refresh-files-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const sendFilesBtn = document.getElementById('send-files-btn');
+        const uploadInput = document.getElementById('mac-upload-input');
+        const uploadStatus = document.getElementById('upload-status');
+        const uploadProgress = document.getElementById('upload-progress');
+        const uploadProgressFill = document.getElementById('upload-progress-fill');
+        const downloadAction = document.getElementById('download-action');
+        const noteInput = document.getElementById('note-input');
+        const addNoteBtn = document.getElementById('add-note-btn');
+        const refreshNotesBtn = document.getElementById('refresh-notes-btn');
+        const syncClipboardBtn = document.getElementById('sync-clipboard-btn');
+        const notesStatus = document.getElementById('notes-status');
+        const notesList = document.getElementById('notes-list');
+        const dragDropZone = document.getElementById('drag-drop-zone');
+        const selectedFilesPreview = document.getElementById('selected-files-preview');
+        const clearFilesBtn = document.getElementById('clear-files-btn');
+        const clipboardAreaEl = document.getElementById('clipboard-area');
+        const clipPullBtn = document.getElementById('clip-pull-btn');
+        const clipPushBtn = document.getElementById('clip-push-btn');
+        const clipCopyLocal = document.getElementById('clip-copy-local');
+        const clipStatusEl = document.getElementById('clip-status');
+        const clipSyncBadge = document.getElementById('clip-sync-badge');
+        let notesAutoRefreshTimer = null;
+
+        // --- Connection State ---
+        let pc = null;
+        let dataChannel = null;
+        let signalUnsub = null;
+        let connectTimeout = null;
+        let fileListTimeout = null;
+        let remoteFiles = [];
+        let activeDownload = null;
+        let downloadInactivityTimer = null;
+        let downloadAckTimer = null;
+        let pendingDownloadRequestId = null;
+        let isUploading = false;
+        let downloadChunkCount = 0;
+        let sharedNotes = [];
+        let lastWebClipboard = '';
+        let lastPhoneClipboard = '';
+        let signalingRoomId = null;
+        let hackieFeatures = null;
+
+        // --- Utility Functions ---
+        function setAuthorizeInProgress(active, label = "Authorize Device Bridge") {
+            if (!authorizeBtn) return;
+            authorizeBtn.disabled = active;
+            authorizeBtn.textContent = active ? label : "Authorize Device Bridge";
+            authorizeBtn.style.opacity = active ? "0.75" : "1";
+            authorizeBtn.style.cursor = active ? "wait" : "pointer";
+        }
+
+        function humanizeFirebaseError(err) {
+            const code = err?.code || "";
+            const msg = err?.message || "";
+            if (code.includes("permission-denied")) return "Firestore permission denied for signaling.";
+            if (code.includes("unauthenticated")) return "Firestore auth required for signaling.";
+            if (code.includes("unavailable")) return "Firestore unavailable. Check internet/firewall.";
+            if (code.includes("failed-precondition") || msg.toLowerCase().includes("firestore api")) {
+                return "Firestore API disabled for project. Enable firestore.googleapis.com.";
+            }
+            return msg || "Unknown Firebase signaling error.";
+        }
+
+        function withTimeout(promise, ms, label) {
+            let timer = null;
+            const timeoutPromise = new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error(label)), ms);
+            });
+            return Promise.race([promise, timeoutPromise]).finally(() => {
+                if (timer) clearTimeout(timer);
+            });
+        }
+
+        function formatSize(bytes) {
+            if (!Number.isFinite(bytes) || bytes < 0) return "Unknown";
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+            return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+        }
+
+        function showFilesStatus(text, isError = false) {
+            filesStatus.style.display = "block";
+            filesStatus.innerText = text;
+            filesStatus.style.color = isError ? "#FF453A" : "rgba(255,255,255,0.7)";
+        }
+
+        function clearDownloadAction() {
+            downloadAction.style.display = "none";
+            downloadAction.innerHTML = "";
+        }
+
+        function showUploadStatus(text, isError = false) {
+            uploadStatus.innerText = text;
+            uploadStatus.style.color = isError ? "#FF453A" : "rgba(255,255,255,0.75)";
+        }
+
+        function showNotesStatus(text, isError = false) {
+            notesStatus.innerText = text;
+            notesStatus.style.color = isError ? "#FF453A" : "rgba(255,255,255,0.75)";
+        }
+
+        function setUploadProgress(pct) {
+            const clamped = Math.max(0, Math.min(100, pct));
+            uploadProgress.style.display = clamped > 0 && clamped < 100 ? "block" : "none";
+            uploadProgressFill.style.width = `${clamped}%`;
+        }
+
+        // --- Notes ---
+        function renderNotes() {
+            if (!sharedNotes.length) {
+                notesList.innerHTML = '<div style="opacity:0.6; font-size:13px;">No notes yet.</div>';
+                return;
+            }
+            notesList.innerHTML = sharedNotes.slice(0, 100).map((entry) => `
+                <div style="padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,0.03);">
+                    <div style="font-size:10px; opacity:0.55; margin-bottom:4px;">${entry.source || 'Hackie'} • ${new Date(entry.createdAtMs || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style="font-size:12px; white-space:pre-wrap; word-break:break-word; line-height:1.4;">${entry.text}</div>
+                    <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:6px;">
+                        <button data-note="${encodeURIComponent(entry.text || '')}" class="copy-note-btn" style="padding:6px 10px; font-size:11px; border:1px solid var(--accent-blue); background:transparent; color:var(--accent-blue); border-radius:8px; cursor:pointer;">Copy</button>
+                        <button data-id="${entry.id || ''}" data-note="${encodeURIComponent(entry.text || '')}" class="edit-note-btn" ${entry.id ? '' : 'disabled'} style="padding:6px 10px; font-size:11px; border:1px solid var(--border); background:transparent; color:var(--platinum); border-radius:8px; cursor:pointer; ${entry.id ? '' : 'opacity:0.4; cursor:not-allowed;'}">Edit</button>
+                        <button data-id="${entry.id || ''}" class="delete-note-btn" ${entry.id ? '' : 'disabled'} style="padding:6px 10px; font-size:11px; border:1px solid rgba(255,69,58,0.5); background:transparent; color:#FF453A; border-radius:8px; cursor:pointer; ${entry.id ? '' : 'opacity:0.4; cursor:not-allowed;'}">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.querySelectorAll('.copy-note-btn').forEach((button) => {
+                button.onclick = async () => {
+                    const text = decodeURIComponent(button.getAttribute('data-note') || '');
+                    try { await navigator.clipboard.writeText(text); } catch (_) {}
+                };
+            });
+
+            document.querySelectorAll('.edit-note-btn').forEach((button) => {
+                button.onclick = () => {
+                    const noteId = button.getAttribute('data-id') || '';
+                    const currentText = decodeURIComponent(button.getAttribute('data-note') || '');
+                    if (!noteId) return;
+                    const nextText = prompt('Edit note', currentText);
+                    if (nextText === null) return;
+                    const trimmed = nextText.trim();
+                    if (!trimmed) { showNotesStatus('Edited note cannot be empty.', true); return; }
+                    if (!dataChannel || dataChannel.readyState !== 'open') { showNotesStatus('Bridge channel not ready.', true); return; }
+                    dataChannel.send(JSON.stringify({ type: 'UPDATE_NOTE', id: noteId, text: trimmed, source: 'Web' }));
+                    showNotesStatus('Note update sent to Hackie.');
+                };
+            });
+
+            document.querySelectorAll('.delete-note-btn').forEach((button) => {
+                button.onclick = () => {
+                    const noteId = button.getAttribute('data-id') || '';
+                    if (!noteId) return;
+                    if (!confirm('Delete this note?')) return;
+                    if (!dataChannel || dataChannel.readyState !== 'open') { showNotesStatus('Bridge channel not ready.', true); return; }
+                    dataChannel.send(JSON.stringify({ type: 'DELETE_NOTE', id: noteId }));
+                    showNotesStatus('Delete request sent to Hackie.');
+                };
+            });
+        }
+
+        function requestNotesFromPhone() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            dataChannel.send(JSON.stringify({ type: 'LIST_NOTES' }));
+        }
+
+        function addNoteFromWeb() {
+            const text = (noteInput.value || '').trim();
+            if (!text) { showNotesStatus('Enter a note first.', true); return; }
+            if (!dataChannel || dataChannel.readyState !== 'open') { showNotesStatus('Bridge channel not ready.', true); return; }
+            dataChannel.send(JSON.stringify({ type: 'ADD_NOTE', text, source: 'Web' }));
+            noteInput.value = '';
+            showNotesStatus('Note sent to Hackie.');
+        }
+
+        // --- Clipboard Sync ---
+        function updateClipStatusP2P(text) {
+            if (clipStatusEl) clipStatusEl.innerText = text;
+        }
+
+        async function syncClipboardFromWebToPhone() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            try {
+                const text = (await navigator.clipboard.readText() || '').trim();
+                if (!text || text === lastWebClipboard || text === lastPhoneClipboard) return;
+                lastWebClipboard = text;
+                if (clipboardAreaEl) clipboardAreaEl.value = text;
+                dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PUSH', text }));
+                updateClipStatusP2P('✓ Clipboard pushed to phone');
+            } catch (_) {}
+        }
+
+        async function pullClipboardP2P() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PULL' }));
+            updateClipStatusP2P('Pulling from phone...');
+        }
+
+        async function pushClipboardP2P() {
+            if (!dataChannel || dataChannel.readyState !== 'open') {
+                updateClipStatusP2P('Bridge not connected');
+                return;
+            }
+            const text = (clipboardAreaEl?.value || '').trim();
+            if (!text) { updateClipStatusP2P('Nothing to push'); return; }
+            lastWebClipboard = text;
+            dataChannel.send(JSON.stringify({ type: 'WEB_CLIPBOARD_PUSH', text }));
+            updateClipStatusP2P('✓ Pushed to phone clipboard');
+        }
+
+        async function applyClipboardFromPhone(text) {
+            const normalized = (text || '').trim();
+            if (!normalized || normalized === lastPhoneClipboard) return;
+            lastPhoneClipboard = normalized;
+            lastWebClipboard = normalized;
+            if (clipboardAreaEl) clipboardAreaEl.value = normalized;
+            try {
+                await navigator.clipboard.writeText(normalized);
+                updateClipStatusP2P('✓ Phone clipboard synced to browser');
+                if (clipSyncBadge) clipSyncBadge.textContent = 'SYNCED';
+            } catch (err) {
+                updateClipStatusP2P('✓ Phone clipboard shown above (click Copy)');
+                console.warn("Clipboard write failed:", err);
+            }
+        }
+
+        // --- Files ---
+        function renderFiles(items) {
+            if (!items || !items.length) {
+                filesContainer.innerHTML = '<div style="opacity:0.6; font-size:13px;">No files available from phone.</div>';
+                return;
+            }
+            filesContainer.innerHTML = items.map((f) => {
+                const name = f.name || "Unnamed file";
+                const size = formatSize(Number(f.size || 0));
+                const ext = (f.extension || "").toString().trim();
+                const kind = f.isFolder ? "Folder" : (ext ? `${ext.toUpperCase()} file` : "File");
+                const path = encodeURIComponent(f.path || "");
+                return `
+                    <div class="file-item">
+                        <div>
+                            <p style="font-weight: bold; font-size: 14px;">${name}</p>
+                            <p style="font-size: 11px; opacity: 0.5;">${kind} • ${size}</p>
+                        </div>
+                        <button class="remote-download-btn" data-path="${path}" style="padding: 8px 16px; font-size: 12px; background: transparent; border: 1px solid var(--accent-blue); color: var(--accent-blue); border-radius: 8px; cursor:pointer;">Download</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function requestFileList() {
+            if (!dataChannel || dataChannel.readyState !== "open") {
+                showFilesStatus("Bridge channel not ready. Reconnect and try again.", true);
+                return;
+            }
+            showFilesStatus("Requesting files from phone...");
+            clearDownloadAction();
+            if (fileListTimeout) clearTimeout(fileListTimeout);
+            fileListTimeout = setTimeout(() => {
+                showFilesStatus("Phone did not return files. Tap Refresh again.", true);
+            }, 8000);
+            dataChannel.send(JSON.stringify({ type: "LIST_FILES", path: "/" }));
+        }
+
+        window.requestRemoteDownload = function(path) {
+            if (!path) return;
+            if (!dataChannel || dataChannel.readyState !== "open") {
+                showFilesStatus("Bridge channel not ready for download request.", true);
+                return;
+            }
+            if (activeDownload) {
+                showFilesStatus("Another download is in progress. Please wait.", true);
+                return;
+            }
+            clearDownloadAction();
+            downloadChunkCount = 0;
+            const requestId = `dl-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            pendingDownloadRequestId = requestId;
+            dataChannel.send(JSON.stringify({ type: "DOWNLOAD_FILE", path, requestId }));
+            showFilesStatus("Download request sent to phone. Waiting for acknowledgement...");
+
+            if (downloadAckTimer) clearTimeout(downloadAckTimer);
+            downloadAckTimer = setTimeout(() => {
+                if (pendingDownloadRequestId === requestId) {
+                    pendingDownloadRequestId = null;
+                    showFilesStatus("Phone did not acknowledge download request. Try again.", true);
+                }
+            }, 5000);
+        };
+
+        // --- Upload ---
+        function encodeChunkToBase64(u8) {
+            let binary = "";
+            const step = 0x2000;
+            for (let i = 0; i < u8.length; i += step) {
+                const slice = u8.subarray(i, i + step);
+                binary += String.fromCharCode.apply(null, slice);
+            }
+            return btoa(binary);
+        }
+
+        async function sendFilesToPhone(fileList) {
+            if (!fileList || !fileList.length) return;
+            if (!dataChannel || dataChannel.readyState !== "open") {
+                Array.from(fileList).forEach((file) => {
+                    hackieFeatures?.addToOfflineQueue({ type: 'file', content: file.name, sizeBytes: file.size || 0 });
+                });
+                showUploadStatus("Bridge not connected. Connect first.", true);
+                return;
+            }
+            if (isUploading) {
+                showUploadStatus("Another upload is in progress.", true);
+                return;
+            }
+
+            isUploading = true;
+            sendFilesBtn.disabled = true;
+
+            try {
+                const files = Array.from(fileList);
+                for (let fi = 0; fi < files.length; fi++) {
+                    const file = files[fi];
+                    const transferId = `up-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                    showUploadStatus(`Uploading ${file.name} (${fi + 1}/${files.length})...`);
+                    hackieFeatures?.addToTransferHistory('File Upload', file.name);
+                    setUploadProgress(1);
+
+                    dataChannel.send(JSON.stringify({
+                        type: "UPLOAD_START",
+                        transferId,
+                        fileName: file.name,
+                        mimeType: file.type || "application/octet-stream",
+                        sizeBytes: file.size || 0
+                    }));
+
+                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    const chunkSize = 3 * 1024;
+                    let sent = 0;
+
+                    while (sent < bytes.length) {
+                        while (dataChannel.bufferedAmount > 512 * 1024) {
+                            await new Promise((r) => setTimeout(r, 16));
+                        }
+                        const part = bytes.subarray(sent, Math.min(sent + chunkSize, bytes.length));
+                        dataChannel.send(JSON.stringify({
+                            type: "UPLOAD_CHUNK",
+                            transferId,
+                            dataBase64: encodeChunkToBase64(part)
+                        }));
+                        sent += part.length;
+                        const pct = bytes.length > 0 ? (sent / bytes.length) * 100 : 100;
+                        setUploadProgress(pct);
+                    }
+
+                    dataChannel.send(JSON.stringify({ type: "UPLOAD_END", transferId }));
+                    setUploadProgress(100);
+                    showUploadStatus(`Uploaded ${file.name}. Waiting for phone save...`);
+                    await new Promise((r) => setTimeout(r, 250));
+                }
+
+                showUploadStatus("Upload finished. Syncing available files...");
+                setTimeout(() => requestFileList(), 250);
+            } catch (err) {
+                console.error(err);
+                showUploadStatus("Upload failed while sending chunks.", true);
+            } finally {
+                isUploading = false;
+                sendFilesBtn.disabled = false;
+                setTimeout(() => setUploadProgress(0), 800);
+                uploadInput.value = "";
+            }
+        }
+
+        // --- Download ---
+        async function handleBinaryPayload(binaryData) {
+            if (!activeDownload) return;
+            let bytes = null;
+            if (binaryData instanceof ArrayBuffer) {
+                bytes = new Uint8Array(binaryData);
+            } else if (binaryData instanceof Blob) {
+                bytes = new Uint8Array(await binaryData.arrayBuffer());
+            } else {
+                return;
+            }
+            activeDownload.chunks.push(bytes);
+            activeDownload.bytesReceived += bytes.byteLength;
+            downloadChunkCount += 1;
+
+            if (downloadInactivityTimer) clearTimeout(downloadInactivityTimer);
+            downloadInactivityTimer = setTimeout(() => {
+                if (!activeDownload) return;
+                const expected = Number(activeDownload.sizeBytes || 0);
+                if (activeDownload.bytesReceived > 0 && (expected === 0 || activeDownload.bytesReceived >= expected)) {
+                    finalizeDownload();
+                }
+            }, 1800);
+
+            const expected = activeDownload.sizeBytes || 0;
+            if (expected > 0) {
+                const pct = Math.min(100, (activeDownload.bytesReceived / expected) * 100).toFixed(1);
+                showFilesStatus(`Downloading ${activeDownload.name}... ${pct}% (${downloadChunkCount} chunks)`);
+            } else {
+                showFilesStatus(`Downloading ${activeDownload.name}... ${formatSize(activeDownload.bytesReceived)} (${downloadChunkCount} chunks)`);
+            }
+        }
+
+        function finalizeDownload() {
+            if (!activeDownload) return;
+            if (downloadInactivityTimer) { clearTimeout(downloadInactivityTimer); downloadInactivityTimer = null; }
+
+            const blob = new Blob(activeDownload.chunks, { type: activeDownload.mimeType || "application/octet-stream" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = activeDownload.name || "hackie-file";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+            const manualName = activeDownload.name || "hackie-file";
+            downloadAction.style.display = "block";
+            downloadAction.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="font-size:12px; opacity:0.8;">If download didn't start automatically:</span>
+                    <a href="${url}" download="${manualName}" style="padding:8px 12px; border:1px solid var(--accent-blue); border-radius:8px; color:var(--accent-blue); text-decoration:none; font-size:12px; font-weight:700;">Save file now</a>
+                </div>
+            `;
+            showFilesStatus(`Download complete: ${activeDownload.name} (${formatSize(activeDownload.bytesReceived)})`);
+            activeDownload = null;
+        }
+
+        // --- Data Channel Message Handler ---
+        function handleDataPayload(payload) {
+            let json = null;
+            try { json = JSON.parse(payload); } catch (_) { return; }
+
+            if (json.type === "AUTH_SUCCESS") {
+                setAuthorizeInProgress(false);
+                statusText.innerText = "Pro Bridge Active & Secure";
+                authSection.style.display = 'none';
+                fileHub.style.display = 'block';
+                statusLight.style.background = "#32D74B";
+                statusLight.style.boxShadow = "0 0 10px #32D74B";
+                requestFileList();
+                requestNotesFromPhone();
+                renderNotes();
+                hackieFeatures?.retryOfflineQueue();
+                // Pull clipboard on auth success
+                pullClipboardP2P();
+                syncClipboardFromWebToPhone();
+                // Start auto-refresh intervals
+                if (notesAutoRefreshTimer) clearInterval(notesAutoRefreshTimer);
+                notesAutoRefreshTimer = setInterval(() => {
+                    requestNotesFromPhone();
+                }, 8000);
+                return;
+            }
+
+            if (json.type === "AUTH_ERROR") {
+                const msg = json.message || "Invalid PIN";
+                statusText.innerText = "Authentication Failed";
+                statusLight.style.background = "#FF453A";
+                statusLight.style.boxShadow = "0 0 10px #FF453A";
+                cleanupHandshake();
+                return;
+            }
+
+            if (json.type === "FILE_LIST") {
+                if (fileListTimeout) { clearTimeout(fileListTimeout); fileListTimeout = null; }
+                remoteFiles = Array.isArray(json.files) ? json.files : [];
+                showFilesStatus(`Loaded ${remoteFiles.length} item(s) from phone.`);
+                renderFiles(remoteFiles);
+                return;
+            }
+
+            if (json.type === "FILE_DOWNLOAD_START") {
+                if (downloadAckTimer) { clearTimeout(downloadAckTimer); downloadAckTimer = null; }
+                pendingDownloadRequestId = null;
+                activeDownload = {
+                    transferId: json.transferId || "download",
+                    name: json.name || "hackie-file",
+                    sizeBytes: Number(json.sizeBytes || 0),
+                    mimeType: json.mimeType || "application/octet-stream",
+                    chunks: [],
+                    bytesReceived: 0
+                };
+                downloadChunkCount = 0;
+                clearDownloadAction();
+                showFilesStatus(`Starting download: ${activeDownload.name}`);
+                return;
+            }
+
+            if (json.type === "FILE_DOWNLOAD_ACK") {
+                if (json.requestId && pendingDownloadRequestId && json.requestId !== pendingDownloadRequestId) return;
+                if (downloadAckTimer) { clearTimeout(downloadAckTimer); downloadAckTimer = null; }
+                pendingDownloadRequestId = null;
+                if (json.accepted === false) { showFilesStatus(json.message || "Phone rejected download request.", true); return; }
+                showFilesStatus("Phone acknowledged request. Preparing stream...");
+                return;
+            }
+
+            if (json.type === "FILE_DOWNLOAD_PROGRESS") {
+                if (!activeDownload) return;
+                const sent = Number(json.bytesSent || activeDownload.bytesReceived);
+                const total = Number(json.sizeBytes || activeDownload.sizeBytes || 0);
+                if (total > 0) {
+                    const pct = Math.min(100, (sent / total) * 100).toFixed(1);
+                    showFilesStatus(`Downloading ${activeDownload.name}... ${pct}%`);
+                }
+                return;
+            }
+
+            if (json.type === "FILE_DOWNLOAD_CHUNK") {
+                if (!activeDownload) return;
+                if (json.transferId && activeDownload.transferId && json.transferId !== activeDownload.transferId) return;
+                const b64 = json.dataBase64 || "";
+                if (!b64) return;
+                const raw = atob(b64);
+                const bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+                activeDownload.chunks.push(bytes);
+                activeDownload.bytesReceived += bytes.byteLength;
+                downloadChunkCount += 1;
+
+                if (downloadInactivityTimer) clearTimeout(downloadInactivityTimer);
+                downloadInactivityTimer = setTimeout(() => {
+                    if (!activeDownload) return;
+                    const expected = Number(activeDownload.sizeBytes || 0);
+                    if (activeDownload.bytesReceived > 0 && (expected === 0 || activeDownload.bytesReceived >= expected)) {
+                        finalizeDownload();
+                    }
+                }, 1800);
+
+                const total = activeDownload.sizeBytes || 0;
+                if (total > 0) {
+                    const pct = Math.min(100, (activeDownload.bytesReceived / total) * 100).toFixed(1);
+                    showFilesStatus(`Downloading ${activeDownload.name}... ${pct}% (${downloadChunkCount} chunks)`);
+                }
+                return;
+            }
+
+            if (json.type === "FILE_DOWNLOAD_END") {
+                if (downloadInactivityTimer) { clearTimeout(downloadInactivityTimer); downloadInactivityTimer = null; }
+                finalizeDownload();
+                return;
+            }
+
+            if (json.type === "NOTES_LIST") {
+                sharedNotes = Array.isArray(json.notes) ? json.notes.map((item) => ({
+                    id: item.id || '',
+                    text: item.text || '',
+                    source: item.source || 'Hackie',
+                    createdAtMs: Number(item.createdAtMs || Date.now())
+                })) : [];
+                renderNotes();
+                showNotesStatus(`Loaded ${sharedNotes.length} note(s).`);
+                return;
+            }
+
+            if (json.type === "CLIPBOARD_STATE" || json.type === "WEB_CLIPBOARD_STATE") {
+                applyClipboardFromPhone(json.text || '');
+                return;
+            }
+
+            if (json.type === "ERROR") {
+                showFilesStatus(json.message || "Phone returned an error.", true);
+                activeDownload = null;
+                clearDownloadAction();
+                if (downloadAckTimer) { clearTimeout(downloadAckTimer); downloadAckTimer = null; }
+                pendingDownloadRequestId = null;
+                if (downloadInactivityTimer) { clearTimeout(downloadInactivityTimer); downloadInactivityTimer = null; }
+                if (json.message && json.message.toLowerCase().includes("upload")) {
+                    showUploadStatus(json.message, true);
+                }
+                return;
+            }
+
+            if (json.type === "UPLOAD_ACK") {
+                showUploadStatus(`Phone accepted upload: ${json.fileName || "file"}`);
+                return;
+            }
+
+            if (json.type === "UPLOAD_PROGRESS") {
+                const r = Number(json.bytesReceived || 0);
+                const t = Number(json.sizeBytes || 0);
+                if (t > 0) {
+                    const pct = Math.min(100, (r / t) * 100);
+                    setUploadProgress(pct);
+                    showUploadStatus(`Phone receiving ${json.fileName || "file"}: ${pct.toFixed(1)}%`);
+                }
+                return;
+            }
+
+            if (json.type === "UPLOAD_DONE") {
+                setUploadProgress(100);
+                showUploadStatus(`Saved on phone: ${json.fileName || "file"}`);
+                setTimeout(() => requestFileList(), 100);
+                setTimeout(() => requestFileList(), 600);
+                return;
+            }
+        }
+
+        // --- WebRTC Handshake ---
+        function cleanupHandshake() {
+            if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+            if (signalUnsub) { signalUnsub(); signalUnsub = null; }
+            if (fileListTimeout) { clearTimeout(fileListTimeout); fileListTimeout = null; }
+            if (downloadInactivityTimer) { clearTimeout(downloadInactivityTimer); downloadInactivityTimer = null; }
+            if (downloadAckTimer) { clearTimeout(downloadAckTimer); downloadAckTimer = null; }
+            pendingDownloadRequestId = null;
+            clearDownloadAction();
+            if (pc) { try { pc.close(); } catch (_) {} }
+            pc = null;
+            dataChannel = null;
+        }
+        window.cleanupHandshake = cleanupHandshake;
+
+        async function startHandshake(opts = {}) {
+            const log = opts.log || document.getElementById('connect-log');
+            const pin = (opts.pin || '').trim();
+            if (!pin) throw new Error("Security PIN missing from handshake request.");
+
+            signalingRoomId = opts.roomId || `rabit_p2p_${pin}`;
+            cleanupHandshake();
+
+            statusText.innerText = "Initializing WebRTC engine...";
+            log.textContent = "Initializing WebRTC engine...";
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }]
+            });
+
+            dataChannel = pc.createDataChannel("file_hub");
+            setupDataChannel(dataChannel, log);
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    // Only serialize the fields Android expects
+                    const candObj = {
+                        sdpMid: event.candidate.sdpMid,
+                        sdpMLineIndex: event.candidate.sdpMLineIndex,
+                        candidate: event.candidate.candidate
+                    };
+                    const signalRef = doc(window.db, "signals", signalingRoomId);
+                    setDoc(signalRef, {
+                        web_candidates: arrayUnion(JSON.stringify(candObj))
+                    }, { merge: true }).catch((err) => {
+                        console.error("Failed to publish web ICE candidate", err);
+                    });
+                }
+            };
+
+            statusText.innerText = "Generating secure offer...";
+            log.textContent = "Generating secure offer...";
+            const offer = await withTimeout(pc.createOffer(), 7000, "Offer generation timed out. Retry bridge setup.");
+            await withTimeout(pc.setLocalDescription(offer), 7000, "Local session setup timed out.");
+
+            // Write Offer to Firestore
+            const signalRef = doc(window.db, "signals", signalingRoomId);
+            statusText.innerText = "Publishing secure offer...";
+            log.textContent = "Publishing secure offer...";
+            try {
+                await withTimeout(
+                    setDoc(signalRef, { web_offer: offer.sdp, timestamp: Date.now() }, { merge: true }),
+                    7000,
+                    "Signaling publish timed out. Check internet or Firebase access."
+                );
+            } catch (err) {
+                log.textContent = "Failed to publish offer: " + (err?.message || err);
+                throw new Error(humanizeFirebaseError(err));
+            }
+
+            statusText.innerText = "Awaiting phone response...";
+            log.textContent = "Awaiting phone response. Open Hackie > Web Bridge and verify the same PIN is shown.";
+
+            connectTimeout = setTimeout(() => {
+                if (pc && pc.connectionState !== 'connected') {
+                    cleanupHandshake();
+                    statusText.innerText = "Phone connection timed out.";
+                    log.textContent = "Ensure Hackie app is open on 'Web Bridge' screen with matching PIN.";
+                    statusLight.style.background = "var(--danger)";
+                    statusLight.style.boxShadow = "0 0 15px var(--danger)";
+                }
+            }, 25000);
+
+            // Listen for Answer and Candidates from Phone
+            signalUnsub = onSnapshot(signalRef, async (snapshot) => {
+                const data = snapshot.data();
+                if (!data) return;
+
+                if (data.android_answer && !pc.remoteDescription) {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.android_answer }));
+                        statusText.innerText = "Phone Handshake Verified";
+                        log.textContent = "Establishing secure peer tunnel...";
+                        // Flush any buffered ICE candidates now that remote desc is set
+                        if (window._bufferedAndroidCandidates) {
+                            window._bufferedAndroidCandidates.forEach(candStr => {
+                                try {
+                                    const candidate = JSON.parse(candStr);
+                                    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+                                } catch (_) {}
+                            });
+                            window._bufferedAndroidCandidates = [];
+                        }
+                    } catch (err) {
+                        console.error("Failed to set remote description", err);
+                        log.textContent = "Handshake error: " + err.message;
+                    }
+                }
+
+                if (data.android_candidates) {
+                    const processedSet = window._processedAndroidCandidates || new Set();
+                    window._processedAndroidCandidates = processedSet;
+                    data.android_candidates.forEach(candStr => {
+                        if (processedSet.has(candStr)) return;
+                        processedSet.add(candStr);
+                        if (!pc.remoteDescription) {
+                            // Buffer candidates until remote description is set
+                            window._bufferedAndroidCandidates = window._bufferedAndroidCandidates || [];
+                            window._bufferedAndroidCandidates.push(candStr);
+                            return;
+                        }
+                        try {
+                            const candidate = JSON.parse(candStr);
+                            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+                                console.warn("Failed to add ICE candidate", e);
+                            });
+                        } catch (e) { console.warn('Bad ICE candidate JSON', e); }
+                    });
+                }
+            });
+        }
+        window.startHandshake = startHandshake;
+
+        function setupDataChannel(dc, log) {
+            dc.binaryType = "arraybuffer";
+            if (hackieFeatures) hackieFeatures.setDataChannel(dc);
+
+            dc.onopen = () => {
+                if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+                statusText.innerText = "Authenticating...";
+                if (log) log.innerText += "\n[✔] Data channel opened! Verifying PIN...";
+                const pin = (document.getElementById('pin-field').value || '').trim();
+                dc.send(JSON.stringify({ type: 'AUTH', pin: pin }));
+            };
+
+            dc.onmessage = async (event) => {
+                if (typeof event.data === "string") {
+                    handleDataPayload(event.data);
+                    return;
+                }
+                await handleBinaryPayload(event.data);
+            };
+
+            dc.onclose = () => {
+                if (hackieFeatures) hackieFeatures.setDataChannel(null);
+                if (fileHub.style.display === 'block') {
+                    statusText.innerText = "Bridge disconnected. Reconnect to continue.";
+                    statusLight.style.background = "#FFD60A";
+                    statusLight.style.boxShadow = "0 0 10px #FFD60A";
+                    authSection.style.display = 'flex';
+                    fileHub.style.display = 'none';
+                    showFilesStatus("Disconnected.", true);
+                    activeDownload = null;
+                }
+            };
+        }
+
+        // --- Initialize Features ---
+        const timestamp = Date.now();
+        import(`./hackie-advanced-features.js?v=${timestamp}`).then(module => {
+            const HackieAdvancedFeatures = module.default;
+            hackieFeatures = new HackieAdvancedFeatures({
+                dragDropZone,
+                selectedFilesPreview,
+                clearFilesBtn,
+                uploadInput,
+                sendFilesBtn,
+                noteInputField: noteInput,
+                showStatus: showNotesStatus,
+                formatSize
+            });
+            hackieFeatures.init();
+            window.hackieFeatures = hackieFeatures;
+            
+            // Set initial UI state only after module loads
+            if (statusText) statusText.innerText = "Ready. Enter PIN to connect.";
+            if (authSection) authSection.style.display = 'flex';
+            if (statusLight) {
+                statusLight.style.background = "#0A84FF";
+                statusLight.style.boxShadow = "0 0 10px #0A84FF";
+            }
+        }).catch(err => {
+            console.error("Failed to load advanced features:", err);
+            const log = document.getElementById('connect-log');
+            if (log) log.innerText += `\n[CRITICAL ERROR] Failed to load modules: ${err.message}`;
+        });
+
+        // --- Event Listeners ---
+        refreshFilesBtn?.addEventListener('click', () => requestFileList());
+        addNoteBtn?.addEventListener('click', () => addNoteFromWeb());
+        refreshNotesBtn?.addEventListener('click', () => requestNotesFromPhone());
+
+        clipPullBtn?.addEventListener('click', () => pullClipboardP2P());
+        clipPushBtn?.addEventListener('click', () => pushClipboardP2P());
+        clipCopyLocal?.addEventListener('click', async () => {
+            const text = clipboardAreaEl?.value || '';
+            if (text) {
+                try { await navigator.clipboard.writeText(text); updateClipStatusP2P('✓ Copied'); } catch (_) {}
+            }
+        });
+
+        clearFilesBtn?.addEventListener('click', () => hackieFeatures?.clearSelectedFiles());
+
+        disconnectBtn?.addEventListener('click', () => {
+            cleanupHandshake();
+            authSection.style.display = 'flex';
+            fileHub.style.display = 'none';
+            statusText.innerText = "Disconnected";
+            statusLight.style.background = "#FFD60A";
+            statusLight.style.boxShadow = "0 0 10px #FFD60A";
+            showUploadStatus("Disconnected.", true);
+            setUploadProgress(0);
+        });
+
+        sendFilesBtn?.addEventListener('click', () => {
+            if (isUploading) return;
+            const files = hackieFeatures?.getSelectedFiles?.() || [];
+            if (files.length > 0) {
+                sendFilesToPhone(files);
+                hackieFeatures.clearSelectedFiles();
+                return;
+            }
+            uploadInput.click();
+        });
+
+        filesContainer?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.remote-download-btn');
+            if (!btn) return;
+            const encodedPath = btn.getAttribute('data-path') || '';
+            const path = decodeURIComponent(encodedPath);
+            window.requestRemoteDownload(path);
+        });
+
+        uploadInput?.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            hackieFeatures?.addSelectedFiles(files);
+            showUploadStatus(`${files.length} file(s) selected. Tap Send Files.`);
+        });
+
+        window.addEventListener('online', () => {
+            showNotesStatus('Connection restored. Syncing queued items...');
+            hackieFeatures?.retryOfflineQueue();
+        });
+
+        window.addEventListener('offline', () => {
+            showNotesStatus('Offline mode active. New actions will be queued.', true);
+        });
+
+        // Clipboard sync interval (auto-push web clipboard changes to phone)
+        setInterval(() => { syncClipboardFromWebToPhone(); }, 3500);
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "253843381811",
+    "project_id": "hackie-260414-01",
+    "storage_bucket": "hackie-260414-01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:253843381811:android:2ff066a84d4ba9dfc54d46",
+        "android_client_info": {
+          "package_name": "com.example.rabit.helper"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWSQosAbTF0JnYLlgIOC7IZdVxn0ht9jc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

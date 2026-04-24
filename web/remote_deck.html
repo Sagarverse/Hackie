@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackie | Remote Deck C2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@300;500;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-purple: #bc13fe;
+            --cyber-bg: #05050a;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(0, 242, 255, 0.2);
+            --success: #39ff14;
+            --warning: #ff3131;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--cyber-bg);
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .grid {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 242, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 242, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            height: 90vh;
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            display: grid;
+            grid-template-columns: 320px 1fr 280px;
+            overflow: hidden;
+            box-shadow: 0 0 80px rgba(0, 242, 255, 0.15);
+            position: relative;
+        }
+
+        /* Panels */
+        .panel { padding: 25px; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+        .sidebar { border-right: 1px solid var(--border); background: rgba(0,0,0,0.4); }
+        .vault { border-left: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+
+        /* Typography */
+        .section-label { font-size: 9px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-weight: 800; }
+        .stat-card { background: rgba(255,255,255,0.02); padding: 15px; border-radius: 14px; border-left: 3px solid var(--neon-purple); }
+        .stat-value { font-size: 14px; font-family: 'JetBrains Mono', monospace; color: var(--neon-blue); }
+
+        /* File List */
+        .file-scroller { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .file-item {
+            background: rgba(255,255,255,0.03);
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .file-item:hover { border-borderColor: var(--neon-blue); background: rgba(0,242,255,0.05); }
+        .file-info { flex: 1; min-width: 0; }
+        .file-name { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-meta { font-size: 9px; opacity: 0.5; font-family: 'JetBrains Mono'; }
+
+        /* Action Buttons */
+        .btn-action {
+            width: 100%;
+            padding: 14px;
+            background: var(--neon-blue);
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.1s;
+        }
+        .btn-action:active { transform: scale(0.98); }
+
+        /* Main Stream */
+        .main-content { padding: 30px; display: flex; flex-direction: column; }
+        .stream-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .stream-item {
+            background: rgba(255,255,255,0.03);
+            padding: 20px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.05);
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Auth Overlay */
+        #auth-overlay {
+            position: absolute; inset: 0; background: var(--cyber-bg); z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+        }
+        .pin-input {
+            background: transparent; border: 1px solid var(--border); padding: 18px;
+            font-size: 42px; color: #fff; text-align: center; width: 200px; border-radius: 15px;
+            font-family: 'JetBrains Mono'; letter-spacing: 10px;
+        }
+
+        #notification-box {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            background: var(--neon-purple); padding: 15px 30px; border-radius: 0 0 15px 15px;
+            box-shadow: 0 10px 30px rgba(188, 19, 254, 0.4); transition: top 0.4s;
+            z-index: 200; font-weight: 800;
+        }
+        #notification-box.active { top: 0; }
+    </style>
+</head>
+<body>
+    <div class="grid"></div>
+    <div id="notification-box">UPLINK SYNCHRONIZED</div>
+
+    <div class="container">
+        <!-- Sidebar: Vitals -->
+        <div class="panel sidebar">
+            <h2 style="font-size: 20px; font-weight: 800; color: var(--neon-blue);">REMOTE ORCHESTRATOR</h2>
+            <div id="status-badge" style="font-size: 10px; padding: 6px; border: 1px solid var(--neon-blue); border-radius: 6px; text-align: center;">STANDBY</div>
+            
+            <div class="stats-group">
+                <div class="stat-card">
+                    <div class="section-label">IDENTIFIER</div>
+                    <div id="stat-os" class="stat-value">Detecting...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="section-label">CPU / MEMORY</div>
+                    <div id="stat-hardware" class="stat-value">Scanning...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="section-label">LBS_COORD</div>
+                    <div id="stat-gps" class="stat-value">Not Authorization</div>
+                </div>
+            </div>
+
+            <button class="btn-action" style="margin-top: auto;" onclick="toggleFullscreen()">Immersive Mode</button>
+            <div style="font-size: 9px; opacity: 0.3; font-family: 'JetBrains Mono'; text-align: center;">SECURE_P2P_V2.4</div>
+        </div>
+
+        <!-- Main: Feed -->
+        <div class="main-content">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 25px;">
+                <h1 style="font-size: 32px; font-weight: 800; letter-spacing: -1px;">Neural Stream</h1>
+                <div style="font-size: 11px; color: var(--neon-purple); font-weight: 800;">LIVE FEED</div>
+            </div>
+            <div id="stream-container" class="stream-container">
+                <div class="stream-item" style="border-style: dashed;">
+                    <div class="section-label">SYSTEM_LOG</div>
+                    <div style="opacity: 0.6;">Awaiting synchronization with remote phone...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vault: File Exfiltration -->
+        <div class="panel vault">
+            <h3 style="font-size: 14px; font-weight: 800; color: var(--neon-purple);">FILE VAULT</h3>
+            <div class="section-label">REMOTE ASSETS</div>
+            
+            <div id="file-scroller" class="file-scroller">
+                <!-- Discovered Files Go Here -->
+            </div>
+
+            <button class="btn-action" style="background: var(--neon-purple); color: #fff;" onclick="openFilePicker()">PUSH PAYLOAD</button>
+            <input type="file" id="file-input" multiple style="display: none;" onchange="uploadFiles(event)">
+        </div>
+
+        <!-- Handshake Overlay -->
+        <div id="auth-overlay">
+            <h2 style="font-size: 28px; font-weight: 800;">Secure Handshake</h2>
+            <input type="text" id="pin-input" class="pin-input" maxlength="4" placeholder="••••">
+            <button class="btn-action" style="width: 200px;" onclick="connect()">Connect Link</button>
+            <div id="auth-log" style="font-size: 11px; opacity: 0.4; font-family: 'JetBrains Mono';">Awaiting Authorization Sequence...</div>
+        </div>
+    </div>
+
+    <!-- P2P Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBSMSWoUFHBIzoFornMm1srEDyPl-TcoYo",
+            authDomain: "hackie-260414-01.firebaseapp.com",
+            projectId: "hackie-260414-01",
+            storageBucket: "hackie-260414-01.firebasestorage.app",
+            messagingSenderId: "253843381811"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        let pc, dc;
+        let fileIndex = [];
+
+        // Collect Vitals
+        async function updateVitals() {
+            document.getElementById('stat-os').innerText = `${navigator.platform} (${navigator.language})`;
+            const ram = navigator.deviceMemory || '?';
+            const cores = navigator.hardwareConcurrency || '?';
+            document.getElementById('stat-hardware').innerText = `${ram}GB RAM / ${cores} Cores`;
+        }
+        updateVitals();
+
+        window.openFilePicker = () => document.getElementById('file-input').click();
+
+        window.uploadFiles = async (event) => {
+            const files = event.target.files;
+            if (!files.length || !dc || dc.readyState !== 'open') return;
+
+            for (const file of files) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const payload = {
+                        type: 'REMOTE_FILE_PUSH',
+                        name: file.name,
+                        size: file.size,
+                        dataBase64: btoa(String.fromCharCode.apply(null, new Uint8Array(reader.result)))
+                    };
+                    dc.send(JSON.stringify(payload));
+                    addFileToVault(file.name, file.size);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            notify("PAYLOAD DESPATCHED");
+        };
+
+        function addFileToVault(name, size) {
+            const container = document.getElementById('file-scroller');
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            div.innerHTML = `
+                <div style="width: 32px; height: 32px; background: rgba(188, 19, 254, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" fill="var(--neon-purple)" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">${name}</div>
+                    <div class="file-meta">${(size / 1024).toFixed(1)} KB</div>
+                </div>
+            `;
+            container.prepend(div);
+        }
+
+        window.toggleFullscreen = () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        };
+
+        function notify(msg) {
+            const box = document.getElementById('notification-box');
+            box.innerText = msg;
+            box.classList.add('active');
+            setTimeout(() => box.classList.remove('active'), 3000);
+        }
+
+        window.connect = async () => {
+            const pin = document.getElementById('pin-input').value;
+            if (pin.length !== 4) return;
+
+            const roomId = `rabit_p2p_${pin}`;
+            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            
+            pc.ondatachannel = (e) => { dc = e.channel; setupDC(); };
+            pc.onicecandidate = (e) => {
+                if (e.candidate) {
+                    setDoc(doc(db, "signals", roomId), {
+                        web_candidates: arrayUnion(JSON.stringify({
+                            sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, candidate: e.candidate.candidate
+                        }))
+                    }, { merge: true });
+                }
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await setDoc(doc(db, "signals", roomId), { web_offer: offer.sdp, timestamp: Date.now() }, { merge: true });
+
+            onSnapshot(doc(db, "signals", roomId), async (snap) => {
+                const d = snap.data();
+                if (!d) return;
+                if (d.android_answer && !pc.remoteDescription) {
+                    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: d.android_answer }));
+                }
+                if (d.android_candidates) d.android_candidates.forEach(c => pc.addIceCandidate(new RTCIceCandidate(JSON.parse(c))));
+            });
+        };
+
+        function setupDC() {
+            dc.onopen = () => {
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('status-badge').innerText = 'CONNECTED';
+                document.getElementById('status-badge').style.borderColor = 'var(--success)';
+                notify("CRYPTO LINK SECURED");
+            };
+            dc.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                const stream = document.getElementById('stream-container');
+                const div = document.createElement('div');
+                div.className = 'stream-item';
+                div.innerHTML = `<div class="section-label">${d.type.toUpperCase()}</div><div>${d.text || d.message || "Action Received"}</div>`;
+                stream.prepend(div);
+                if (d.type === 'remote_alert') notify(d.text);
+            };
+        }
+    </script>
+</body>
+</html>
