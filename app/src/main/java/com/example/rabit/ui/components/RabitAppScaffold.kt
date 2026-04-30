@@ -75,7 +75,6 @@ fun RabitAppScaffold(
         "password_manager" -> "Passwords"
         "snippets" -> "Snippets"
         "shortcuts" -> "Automation"
-        "wake_on_lan" -> "Wake on LAN"
         "ssh_terminal" -> "SSH Terminal"
         "airplay_receiver" -> "AirPlay"
         "global_search" -> "Search"
@@ -331,14 +330,6 @@ fun RabitAppScaffold(
                                     icon = Icons.Default.ElectricBolt,
                                     isSelected = currentRoute == "injector",
                                     onClick = { onNavigate("injector"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Wake-on-LAN")) {
-                                DrawerNavItem(
-                                    label = "Wake-on-LAN",
-                                    icon = Icons.Default.PowerSettingsNew,
-                                    isSelected = currentRoute == "automation",
-                                    onClick = { onNavigate("automation"); scope.launch { drawerState.close() } }
                                 )
                             }
                         }
