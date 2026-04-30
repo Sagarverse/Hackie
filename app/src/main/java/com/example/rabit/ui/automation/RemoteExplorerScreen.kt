@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +36,11 @@ import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RemoteExplorerScreen(viewModel: HelperViewModel, onBack: () -> Unit) {
+fun RemoteExplorerScreen(
+    viewModel: HelperViewModel, 
+    onBack: () -> Unit,
+    onNavigateToDesktop: () -> Unit = {}
+) {
     val context = LocalContext.current
     val files by viewModel.remoteFiles.collectAsState()
     val currentPath by viewModel.currentRemotePath.collectAsState()
@@ -45,7 +50,9 @@ fun RemoteExplorerScreen(viewModel: HelperViewModel, onBack: () -> Unit) {
     val error by viewModel.remoteError.collectAsState()
     val sshConnected by viewModel.sshConnected.collectAsState()
     val remoteSource by viewModel.remoteSource.collectAsState()
+    val isReverseShellActive by viewModel.isReverseShellActive.collectAsState()
     val previewContent by viewModel.filePreviewContent.collectAsState()
+    val previewBitmap by viewModel.filePreviewBitmap.collectAsState()
     val previewName by viewModel.filePreviewName.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
@@ -57,20 +64,36 @@ fun RemoteExplorerScreen(viewModel: HelperViewModel, onBack: () -> Unit) {
     var renameValue by remember { mutableStateOf("") }
     var selectedFileForActions by remember { mutableStateOf<RemoteFile?>(null) }
 
+    // File Picker
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let { viewModel.uploadLocalFileToRemote(it) }
+    }
+
     // Preview overlay
-    if (previewContent != null) {
+    if (previewContent != null || previewBitmap != null) {
         AlertDialog(
             onDismissRequest = { viewModel.closePreview() },
             title = { Text(previewName, color = Platinum, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1) },
             text = {
                 Surface(color = Obsidian, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    Text(
-                        previewContent ?: "",
-                        color = Platinum,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())
-                    )
+                    if (previewBitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = previewBitmap!!.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            previewContent ?: "",
+                            color = Platinum,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -181,11 +204,26 @@ fun RemoteExplorerScreen(viewModel: HelperViewModel, onBack: () -> Unit) {
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum) } },
                 actions = {
+                    if (isReverseShellActive) {
+                        IconButton(onClick = onNavigateToDesktop) {
+                            Icon(Icons.Default.Monitor, "Remote Desktop", tint = AccentBlue)
+                        }
+                    }
                     IconButton(onClick = { showNewFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, null, tint = AccentBlue) }
                     IconButton(onClick = { viewModel.refreshRemoteFiles() }) { Icon(Icons.Default.Refresh, null, tint = AccentTeal) }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { filePickerLauncher.launch("*/*") },
+                containerColor = AccentBlue,
+                contentColor = Color.White,
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.Add, "Upload File")
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -216,6 +254,19 @@ fun RemoteExplorerScreen(viewModel: HelperViewModel, onBack: () -> Unit) {
                         containerColor = Color.Transparent, labelColor = Silver
                     ), modifier = Modifier.weight(1f)
                 )
+                if (isReverseShellActive) {
+                    FilterChip(
+                        selected = remoteSource == "REVERSE_SHELL",
+                        onClick = { viewModel.switchRemoteSource("REVERSE_SHELL") },
+                        label = { Text("SHELL", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Terminal, null, modifier = Modifier.size(14.dp)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color.Red.copy(alpha = 0.2f),
+                            selectedLabelColor = Color.Red,
+                            containerColor = Color.Transparent, labelColor = Silver
+                        ), modifier = Modifier.weight(1f)
+                    )
+                }
                 if (remoteSource == "SSH" && sshConnected) {
                     FilterChip(
                         selected = isMounted,
@@ -392,7 +443,8 @@ private fun isPreviewable(ext: String): Boolean {
         "txt", "md", "log", "csv", "json", "xml", "yaml", "yml", "ini", "conf", "cfg",
         "py", "java", "kt", "js", "ts", "sh", "swift", "go", "rs", "c", "cpp", "h",
         "html", "css", "sql", "rb", "pl", "php", "lua", "r", "m", "toml", "env",
-        "gitignore", "dockerfile", "makefile", "gradle", "properties"
+        "gitignore", "dockerfile", "makefile", "gradle", "properties",
+        "jpg", "jpeg", "png", "gif", "webp", "bmp"
     )
 }
 

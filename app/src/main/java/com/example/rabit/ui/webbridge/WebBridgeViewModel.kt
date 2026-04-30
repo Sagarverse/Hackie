@@ -117,7 +117,7 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     val screenshots = _screenshots.asStateFlow()
 
     private val _keystrokes = MutableStateFlow<List<String>>(emptyList())
-    val keystrokes = _keystrokes.asStateFlow()
+    val keystrokes: StateFlow<List<String>> = com.example.rabit.data.TacticalBuffer.keystrokes
 
     private val _isPulseModeEnabled = MutableStateFlow(false)
     val isPulseModeEnabled = _isPulseModeEnabled.asStateFlow()
@@ -930,7 +930,7 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun clearKeystrokes() {
-        _keystrokes.value = emptyList()
+        com.example.rabit.data.TacticalBuffer.clear()
     }
 
     fun togglePulseMode() {

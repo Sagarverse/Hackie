@@ -45,6 +45,7 @@ import android.util.Log
 import com.example.rabit.domain.model.RemoteProcess
 import com.example.rabit.domain.model.SystemStats
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class HelperViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs: SharedPreferences = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
@@ -123,7 +124,7 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     val isRemoteMounted = _isRemoteMounted.asStateFlow()
     private val _remoteMountStatus = MutableStateFlow("")
     val remoteMountStatus = _remoteMountStatus.asStateFlow()
-    private val _remoteSource = MutableStateFlow("SSH") // "SSH" or "ADB"
+    private val _remoteSource = MutableStateFlow("SSH") // "SSH", "ADB", or "REVERSE_SHELL"
     val remoteSource = _remoteSource.asStateFlow()
     private val _filePreviewContent = MutableStateFlow<String?>(null)
     val filePreviewContent = _filePreviewContent.asStateFlow()
@@ -132,6 +133,9 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     private val _downloadProgress = MutableStateFlow<String?>(null)
     val downloadProgress = _downloadProgress.asStateFlow()
 
+    private val _filePreviewBitmap = MutableStateFlow<android.graphics.Bitmap?>(null)
+    val filePreviewBitmap = _filePreviewBitmap.asStateFlow()
+
     // Process Manager & Stats
     private val _remoteProcesses = MutableStateFlow<List<RemoteProcess>>(emptyList())
     val remoteProcesses = _remoteProcesses.asStateFlow()
@@ -139,6 +143,9 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
     val isRefreshingProcesses = _isRefreshingProcesses.asStateFlow()
     private val _systemStats = MutableStateFlow(SystemStats(0f, 0f, 0f, "Unknown"))
     val systemStats = _systemStats.asStateFlow()
+
+    private val _isReverseShellActive = MutableStateFlow(false)
+    val isReverseShellActive = _isReverseShellActive.asStateFlow()
 
     private var helperHealthPollJob: Job? = null
     private var helperAutoDiscoverJob: Job? = null
@@ -173,6 +180,7 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
         helperHealthPollJob = viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
                 fetchHelperDeviceDetails()
+                _isReverseShellActive.value = RemoteStorageManager.reverseShellExecutor != null
                 delay(5000)
             }
         }
@@ -771,6 +779,10 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
             refreshAdbFiles()
             return
         }
+        if (source == "REVERSE_SHELL") {
+            refreshReverseShellFiles()
+            return
+        }
         if (!_sshConnected.value) return
         _isRemoteLoading.value = true
         _remoteError.value = null
@@ -822,6 +834,46 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
                 else -> clean.toLongOrNull() ?: 0L
             }
         } catch (_: Exception) { 0L }
+    }
+
+    fun uploadLocalFileToRemote(uri: Uri) {
+        val currentPath = _currentRemotePath.value
+        _isRemoteLoading.value = true
+        _downloadProgress.value = "Preparing upload..."
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+                val fileName = queryDisplayName(uri) ?: "upload_${System.currentTimeMillis()}"
+                val targetPath = if (currentPath.endsWith("/")) "$currentPath$fileName" else "$currentPath/$fileName"
+                
+                // Copy URI to a temp file first
+                val tempFile = File(app.cacheDir, fileName)
+                app.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                _downloadProgress.value = "Uploading $fileName..."
+                val success = RemoteStorageManager.writeFile(targetPath, tempFile)
+                
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        _downloadProgress.value = "✓ Uploaded $fileName"
+                        refreshRemoteFiles()
+                    } else {
+                        _downloadProgress.value = "Error: Upload failed"
+                    }
+                }
+                tempFile.delete()
+            } catch (e: Exception) {
+                _downloadProgress.value = "Error: ${e.message}"
+            } finally {
+                _isRemoteLoading.value = false
+                delay(3000)
+                _downloadProgress.value = null
+            }
+        }
     }
 
     fun downloadRemoteFile(file: RemoteFile, context: Context) {
@@ -881,24 +933,36 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
 
     fun previewRemoteFile(file: RemoteFile) {
         _filePreviewContent.value = null
+        _filePreviewBitmap.value = null
         _filePreviewName.value = file.name
+        _isRemoteLoading.value = true
+        
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val content = if (_remoteSource.value == "ADB") {
-                    val client = RemoteStorageManager.adbClient ?: throw Exception("ADB not connected")
-                    client.executeCommand("cat \"${file.path}\"")
+                val cacheFile = RemoteStorageManager.readFile(file.path)
+                if (cacheFile != null && cacheFile.exists()) {
+                    val ext = file.extension.lowercase()
+                    if (ext in listOf("jpg", "jpeg", "png", "gif", "webp", "bmp")) {
+                        val bitmap = android.graphics.BitmapFactory.decodeFile(cacheFile.absolutePath)
+                        _filePreviewBitmap.value = bitmap
+                    } else {
+                        val content = cacheFile.readText()
+                        _filePreviewContent.value = if (content.length > 50000) content.take(50000) + "\n... [Truncated]" else content
+                    }
                 } else {
-                    executeSshCommandSilent("head -c 100000 \"${file.path}\"")
+                    _filePreviewContent.value = "[Error: Could not retrieve file for preview]"
                 }
-                _filePreviewContent.value = content
             } catch (e: Exception) {
                 _filePreviewContent.value = "[Error reading file: ${e.message}]"
+            } finally {
+                _isRemoteLoading.value = false
             }
         }
     }
 
     fun closePreview() {
         _filePreviewContent.value = null
+        _filePreviewBitmap.value = null
         _filePreviewName.value = ""
     }
 
@@ -959,15 +1023,38 @@ class HelperViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun refreshReverseShellFiles() {
+        _isRemoteLoading.value = true
+        _remoteError.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val path = _currentRemotePath.value
+                val entries = RemoteStorageManager.listFiles(path)
+                val files = entries.map { entry ->
+                    RemoteFile(
+                        name = entry.name,
+                        path = entry.path,
+                        isDirectory = entry.isDirectory,
+                        extension = entry.name.substringAfterLast(".", ""),
+                        size = entry.size
+                    )
+                }
+                _remoteFiles.value = files
+                _isRemoteMounted.value = true
+                _remoteMountStatus.value = "Active"
+            } catch (e: Exception) {
+                _remoteError.value = "Reverse shell error: ${e.message}"
+            } finally {
+                _isRemoteLoading.value = false
+            }
+        }
+    }
+
     fun switchRemoteSource(source: String) {
         _remoteSource.value = source
         _remoteFiles.value = emptyList()
         _remoteError.value = null
-        if (source == "ADB") {
-            _currentRemotePath.value = "/sdcard"
-        } else {
-            _currentRemotePath.value = "/"
-        }
+        _currentRemotePath.value = if (source == "ADB") "/sdcard" else "/"
         refreshRemoteFiles()
     }
 

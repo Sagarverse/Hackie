@@ -62,10 +62,7 @@ fun AutomationDashboardScreen(
             MacroDefinition("Screen Cap", Icons.Default.Screenshot, AccentTeal, "SHOT_CMD"),
             MacroDefinition("Mute Mic", Icons.Default.MicOff, AccentBlue, "MUTE_CMD"),
             MacroDefinition("Sleep Mac", Icons.Default.NightsStay, Silver, "SLEEP_CMD"),
-            MacroDefinition("Say Hello", Icons.Default.RecordVoiceOver, Platinum, "SAY_HELLO_CMD"),
-            MacroDefinition("Dark Mode", Icons.Default.DarkMode, AccentBlue, "TOGGLE_DARK_MODE_CMD"),
-            MacroDefinition("Sys Info", Icons.Default.Info, AccentBlue, "INFO_CMD"),
-            MacroDefinition("Force Quit", Icons.Default.Cancel, AccentBlue, "FORCE_QUIT_CMD")
+            MacroDefinition("Sys Info", Icons.Default.Info, AccentBlue, "INFO_CMD")
         )
     }
     val webMacros = remember {
@@ -90,7 +87,6 @@ fun AutomationDashboardScreen(
     }
     val creativeMacros = remember {
         listOf(
-            MacroDefinition("Play/Pause", Icons.Default.PlayCircle, Platinum, "PLAY_CMD"),
             MacroDefinition("Zoom In", Icons.Default.ZoomIn, Silver, "ZI_CMD"),
             MacroDefinition("Zoom Out", Icons.Default.ZoomOut, Silver, "ZO_CMD"),
             MacroDefinition("Render", Icons.Default.Movie, AccentBlue, "RENDER_CMD"),
@@ -164,36 +160,58 @@ fun AutomationDashboardScreen(
 
 
                 if (searchQuery.isBlank()) {
-                    item {
-                        QuickToolPanel(
-                            onSystemStats = { onNavigateTo("system_stats") },
-                            onProcessManager = { onNavigateTo("process_manager") },
-                            onSshTerminal = { onNavigateTo("ssh_terminal") },
-                            onRemoteExplorer = { onNavigateTo("remote_explorer") },
-                            onAutoClicker = { onNavigateTo("auto_clicker") }
-                        )
-                        
-                        if (showTerminalLab) {
-                            TerminalLabSection(
-                                onScan = { onNavigateTo("terminal_scanner") },
-                                onUnlockSsh = {
-                                    viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(400) && TEXT(Terminal) && KEY(ENTER) && WAIT(1500) && TEXT(ssh local-mac) && KEY(ENTER)")
-                                    showTerminalLab = false
-                                }
+                // ─── QUICK COMMAND BAR ───
+                item {
+                    var quickCmd by remember { mutableStateOf("") }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Graphite.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("QUICK HID COMMAND", color = Platinum.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
+                                value = quickCmd,
+                                onValueChange = { quickCmd = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Type command to send to host...", fontSize = 13.sp) },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            if (quickCmd.isNotBlank()) {
+                                                viewModel.executeMacro2Script("TEXT($quickCmd) && KEY(ENTER)")
+                                                quickCmd = ""
+                                            }
+                                        },
+                                        enabled = isConnected
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (isConnected) AccentBlue else Silver)
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AccentBlue,
+                                    unfocusedBorderColor = BorderColor,
+                                    focusedTextColor = Platinum
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
                             )
+                            Text("Hits ENTER automatically. For raw text use shortcuts below.", color = Silver.copy(alpha = 0.5f), fontSize = 10.sp)
                         }
-                    }
-
-                    item {
-                        EmergencyControlPanel(
-                            status = emergencyStatus,
-                            onAction = { viewModel.runEmergencyAction(it) }
-                        )
                     }
                 }
 
                 item {
+                    EmergencyControlPanel(
+                        status = emergencyStatus,
+                        onAction = { viewModel.runEmergencyAction(it) }
+                    )
+                }
+
+                item {
                     IntegratedShortcutPanel(automationViewModel = viewModel, mainViewModel = mainViewModel, query = searchQuery)
+                }
                 }
 
                 // ─── SYSTEM CORE ───

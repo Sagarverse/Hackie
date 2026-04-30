@@ -271,10 +271,16 @@ fun AppNavigation(
     killSwitchViewModel: com.example.rabit.ui.opsec.KillSwitchViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     pingTraceViewModel: com.example.rabit.ui.network.PingTraceViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     pentestToolkitViewModel: com.example.rabit.ui.pentest.PentestToolkitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    phishPortalViewModel: com.example.rabit.ui.automation.PhishPortalViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    lootViewModel: com.example.rabit.ui.loot.LootViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    sessionClonerViewModel: com.example.rabit.ui.zero_touch.SessionClonerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    signalLabViewModel: com.example.rabit.ui.zero_touch.SignalLabViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    mediaExploitViewModel: com.example.rabit.ui.zero_touch.MediaExploitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    missionViewModel: com.example.rabit.ui.mission.MissionCommandViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
-    val startDest = if (viewModel.onboardingCompleted) "home" else "onboarding"
+    val startDest = if (viewModel.onboardingCompleted) "mission_command" else "onboarding"
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: startDest
     val featureWebBridgeVisible by viewModel.featureWebBridgeVisible.collectAsState()
@@ -381,6 +387,12 @@ fun AppNavigation(
                                 launchSingleTop = true
                             }
                         }
+                    )
+                }
+                composable("mission_command") {
+                    com.example.rabit.ui.mission.MissionCommandScreen(
+                        viewModel = missionViewModel,
+                        onNavigate = { navController.navigate(it) }
                     )
                 }
                 composable("pairing") {
@@ -509,10 +521,12 @@ fun AppNavigation(
                     )
                 }
                 composable("injector") {
-                    com.example.rabit.ui.automation.InjectorScreen(
-                        viewModel = viewModel,
+                    com.example.rabit.ui.payload.PayloadForgeScreen(
+                        viewModel = payloadForgeViewModel,
                         automationViewModel = automationViewModel,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onExecuteHid = { /* ... */ },
+                        onDeployAdb = { /* ... */ }
                     )
                 }
                 composable("auto_clicker") {
@@ -532,11 +546,26 @@ fun AppNavigation(
                 composable("remote_explorer") {
                     com.example.rabit.ui.automation.RemoteExplorerScreen(
                         viewModel = helperViewModel,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onNavigateToDesktop = { navController.navigate("remote_desktop") }
                     )
                 }
                 composable("reverse_shell") {
                     com.example.rabit.ui.automation.ReverseShellScreen(
+                        viewModel = automationViewModel,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToDesktop = { navController.navigate("remote_desktop") }
+                    )
+                }
+                composable("c2_tunnel") {
+                    com.example.rabit.ui.automation.C2TunnelScreen(
+                        viewModel = automationViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("remote_desktop") {
+                    com.example.rabit.ui.automation.RemoteDesktopScreen(
                         viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
                     )
@@ -591,6 +620,36 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("phish_portal") {
+                    com.example.rabit.ui.automation.PhishPortalScreen(
+                        viewModel = phishPortalViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("loot_viewer") {
+                    com.example.rabit.ui.loot.LootViewerScreen(
+                        viewModel = lootViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("session_cloner") {
+                    com.example.rabit.ui.zero_touch.SessionClonerScreen(
+                        viewModel = sessionClonerViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("signal_lab") {
+                    com.example.rabit.ui.zero_touch.SignalLabScreen(
+                        viewModel = signalLabViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("media_exploit") {
+                    com.example.rabit.ui.zero_touch.MediaExploitScreen(
+                        viewModel = mediaExploitViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("crypto_encoder") {
                     com.example.rabit.ui.crypto.EncoderDecoderScreen(
                         viewModel = encoderDecoderViewModel,
@@ -607,7 +666,8 @@ fun AppNavigation(
                 composable("reverse_shell_gen") {
                     com.example.rabit.ui.exploit.ReverseShellScreen(
                         viewModel = reverseShellViewModel,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onNavigateToHub = { navController.navigate("reverse_shell") }
                     )
                 }
 
@@ -628,6 +688,7 @@ fun AppNavigation(
                     val scope = rememberCoroutineScope()
                     com.example.rabit.ui.payload.PayloadForgeScreen(
                         viewModel = payloadForgeViewModel,
+                        automationViewModel = automationViewModel,
                         onBack = { navController.popBackStack() },
                         onExecuteHid = { code -> viewModel.executeDuckyScript(code) },
                         onDeployAdb = { code -> 

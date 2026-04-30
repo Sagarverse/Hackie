@@ -29,6 +29,7 @@ import com.example.rabit.ui.theme.*
 @Composable
 fun PayloadForgeScreen(
     viewModel: PayloadForgeViewModel,
+    automationViewModel: com.example.rabit.ui.automation.AutomationViewModel,
     onBack: () -> Unit,
     onExecuteHid: (String) -> Unit,
     onDeployAdb: (String) -> Unit
@@ -37,9 +38,16 @@ fun PayloadForgeScreen(
     val isGenerating by viewModel.isGenerating.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    var targetOs by remember { mutableStateOf("Linux/Android") }
+    var targetOs by remember { mutableStateOf("Android") }
     var goal by remember { mutableStateOf("") }
-    var language by remember { mutableStateOf("Bash") }
+    var language by remember { mutableStateOf("APK") }
+    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val tunnelActive by automationViewModel.isTunnelActive.collectAsState()
+    val globalAddress by automationViewModel.globalC2Address.collectAsState()
+    
+    val currentIp = if (tunnelActive && globalAddress.isNotBlank()) globalAddress else (remember { com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String(context) ?: "127.0.0.1" })
+    var lport by remember { mutableStateOf("4444") }
 
     Scaffold(
         containerColor = Obsidian,
@@ -99,8 +107,38 @@ fun PayloadForgeScreen(
                     Spacer(Modifier.height(8.dp))
                     
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ForgeDropdown("OS: $targetOs", listOf("Linux/Android", "Windows", "macOS", "iOS", "Universal"), Modifier.weight(1f)) { targetOs = it }
-                        ForgeDropdown("Format: $language", listOf("Bash", "PowerShell", "Python", "DuckyScript", "C++"), Modifier.weight(1f)) { language = it }
+                        ForgeDropdown("OS: $targetOs", listOf("Android", "Windows", "Linux", "macOS", "Universal"), Modifier.weight(1f)) { targetOs = it }
+                        ForgeDropdown("Format: $language", listOf("APK", "Bash", "PowerShell", "Python", "DuckyScript"), Modifier.weight(1f)) { language = it }
+                    }
+                    
+                    if (targetOs == "Android" || targetOs == "Windows" || targetOs == "Linux") {
+                        Spacer(Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = currentIp,
+                                onValueChange = { },
+                                readOnly = true,
+                                label = { Text("LHOST", fontSize = 9.sp) },
+                                modifier = Modifier.weight(2f),
+                                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = AccentBlue.copy(alpha = 0.3f), focusedTextColor = Platinum, unfocusedTextColor = Platinum)
+                            )
+                            OutlinedTextField(
+                                value = lport,
+                                onValueChange = { lport = it },
+                                label = { Text("LPORT", fontSize = 9.sp) },
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, focusedTextColor = Platinum, unfocusedTextColor = Platinum)
+                            )
+                            IconButton(
+                                onClick = { 
+                                    val cmd = viewModel.generateMsfvenomCommand(targetOs, currentIp, lport)
+                                    viewModel.updateCode(cmd)
+                                },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Icon(Icons.Default.FlashOn, "Generate CMD", tint = SuccessGreen)
+                            }
+                        }
                     }
                     
                     Spacer(Modifier.height(8.dp))

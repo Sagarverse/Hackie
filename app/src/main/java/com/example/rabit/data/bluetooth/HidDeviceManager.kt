@@ -678,7 +678,7 @@ class HidDeviceManager private constructor(private val context: Context) {
             0x2A.toByte(), 0xFF.toByte(), 0x03.toByte(), // USAGE_MAXIMUM (1023)
             0x75.toByte(), 0x10.toByte(), //   REPORT_SIZE (16)
             0x95.toByte(), 0x01.toByte(), //   REPORT_COUNT (1)
-            0x81.toByte(), 0x02.toByte(), //   INPUT (Data,Var,Abs)
+            0x81.toByte(), 0x00.toByte(), //   INPUT (Data,Ary,Abs)
             0xC0.toByte(),                // END_COLLECTION
 
             // Mouse (ID 3)

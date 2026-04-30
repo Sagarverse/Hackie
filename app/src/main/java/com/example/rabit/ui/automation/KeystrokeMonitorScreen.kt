@@ -134,26 +134,30 @@ fun KeystrokeMonitorScreen(
 
 @Composable
 private fun KeystrokeLogEntry(log: String) {
+    val isCritical = log.startsWith("[CRITICAL]")
+    val displayLog = if (isCritical) log.removePrefix("[CRITICAL]").trim() else log
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.02f), RoundedCornerShape(8.dp))
+            .background(if (isCritical) Color.Red.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.02f), RoundedCornerShape(8.dp))
+            .border(if (isCritical) 1.dp else 0.dp, if (isCritical) Color.Red.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(8.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            Icons.Default.Keyboard, 
+            if (isCritical) Icons.Default.LockOpen else Icons.Default.Keyboard, 
             contentDescription = null, 
-            tint = AccentBlue.copy(alpha = 0.6f),
+            tint = if (isCritical) Color.Red else AccentBlue.copy(alpha = 0.6f),
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            log,
-            color = Platinum,
+            displayLog,
+            color = if (isCritical) Color.Red else Platinum,
             fontFamily = FontFamily.Monospace,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = if (isCritical) FontWeight.Black else FontWeight.Medium
         )
     }
 }

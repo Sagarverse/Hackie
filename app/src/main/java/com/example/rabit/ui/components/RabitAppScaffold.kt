@@ -177,6 +177,14 @@ fun RabitAppScaffold(
                         fun matches(label: String) = searchQuery.isBlank() || label.contains(searchQuery, ignoreCase = true)
 
                         // ── Primary ──
+                        if (matches("Mission Command")) {
+                            DrawerNavItem(
+                                label = "Mission Command",
+                                icon = Icons.Default.Adjust,
+                                isSelected = currentRoute == "mission_command",
+                                onClick = { onNavigate("mission_command"); scope.launch { drawerState.close() } }
+                            )
+                        }
                         if (matches("Home")) {
                             DrawerNavItem(
                                 label = "Home",
@@ -447,7 +455,59 @@ fun RabitAppScaffold(
                                     isSelected = currentRoute == "reverse_shell_gen",
                                     onClick = { onNavigate("reverse_shell_gen"); scope.launch { drawerState.close() } }
                                 )
+                                DrawerNavItem(
+                                    label = "Reverse Shell Hub",
+                                    icon = Icons.Default.Language,
+                                    isSelected = currentRoute == "reverse_shell",
+                                    onClick = { onNavigate("reverse_shell"); scope.launch { drawerState.close() } }
+                                )
+                                DrawerNavItem(
+                                    label = "Global C2 Tunnel",
+                                    icon = Icons.Default.CloudSync,
+                                    isSelected = currentRoute == "c2_tunnel",
+                                    onClick = { onNavigate("c2_tunnel"); scope.launch { drawerState.close() } }
+                                )
+                                DrawerNavItem(
+                                    label = "Phish Portal",
+                                    icon = Icons.Default.Radar,
+                                    isSelected = currentRoute == "phish_portal",
+                                    onClick = { onNavigate("phish_portal"); scope.launch { drawerState.close() } }
+                                )
+                                DrawerNavItem(
+                                    label = "Tactical Loot",
+                                    icon = Icons.Default.Inventory,
+                                    isSelected = currentRoute == "loot_viewer",
+                                    onClick = { onNavigate("loot_viewer"); scope.launch { drawerState.close() } }
+                                )
                             }
+                        }
+
+                        // --- Zero-Touch Ops ---
+                        Text(
+                            text = "ZERO-TOUCH OPS",
+                            color = Silver.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            DrawerNavItem(
+                                label = "Session Cloner",
+                                icon = Icons.Default.Fingerprint,
+                                isSelected = currentRoute == "session_cloner",
+                                onClick = { onNavigate("session_cloner"); scope.launch { drawerState.close() } }
+                            )
+                            DrawerNavItem(
+                                label = "Signal Lab",
+                                icon = Icons.Default.CellTower,
+                                isSelected = currentRoute == "signal_lab",
+                                onClick = { onNavigate("signal_lab"); scope.launch { drawerState.close() } }
+                            )
+                            DrawerNavItem(
+                                label = "Media Exploit",
+                                icon = Icons.Default.Science,
+                                isSelected = currentRoute == "media_exploit",
+                                onClick = { onNavigate("media_exploit"); scope.launch { drawerState.close() } }
+                            )
                         }
                         
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
