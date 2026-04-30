@@ -94,7 +94,13 @@ class AirPlayReceiverService : Service() {
                 serverSocket = runCatching { ServerSocket(PREFERRED_RAOP_PORT) }
                     .getOrElse { ServerSocket(0) }
                 val port = serverSocket?.localPort ?: return@launch
-                registerRaopService(port)
+                
+                val raopId = buildRaopId()
+                val serviceDisplayName = "Hackie"
+                
+                registerRaopService(port, raopId, serviceDisplayName)
+                registerAirPlayCompanionService(port, serviceDisplayName, raopId)
+                
                 updateRuntimeStatus("AirPlay ready on port $port")
 
                 acceptJob = launch {
@@ -225,31 +231,27 @@ class AirPlayReceiverService : Service() {
         return common.toString()
     }
 
-    private fun registerRaopService(port: Int) {
-        val raopId = buildRaopId()
-        val serviceDisplayName = "Hackie"
-
+    private fun registerRaopService(port: Int, raopId: String, serviceDisplayName: String) {
         val raopServiceName = "$raopId@$serviceDisplayName"
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = raopServiceName
             serviceType = "_raop._tcp"
             setPort(port)
             setAttribute("txtvers", "1")
-            // Force PCM-only negotiation with current native sink path.
-            setAttribute("cn", "0")
+            setAttribute("cn", "0,1")
             setAttribute("ch", "2")
             setAttribute("sr", "44100")
             setAttribute("ss", "16")
             setAttribute("tp", "UDP")
-            setAttribute("vn", "3")
+            setAttribute("vn", "65537")
             setAttribute("md", "0,1,2")
             setAttribute("sf", "0x4")
-            setAttribute("am", "HackieAndroid")
+            setAttribute("am", "Hackie,1")
             setAttribute("da", "true")
             setAttribute("pw", "false")
-            // We currently support unencrypted RTP only.
-            setAttribute("et", "0")
+            setAttribute("et", "0,1") // Indicate we can handle unencrypted (0) or encrypted (1) handshakes
             setAttribute("vs", "220.68")
+            setAttribute("pk", "0")
         }
 
         raopRegistrationListener = object : NsdManager.RegistrationListener {
@@ -270,7 +272,6 @@ class AirPlayReceiverService : Service() {
         }
 
         nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, raopRegistrationListener)
-        updateRuntimeStatus("Compatibility mode: RAOP advertisement enabled")
     }
 
     private fun registerAirPlayCompanionService(port: Int, serviceDisplayName: String, raopId: String) {
@@ -317,19 +318,20 @@ class AirPlayReceiverService : Service() {
             serviceType = "_raop._tcp"
             setPort(port)
             setAttribute("txtvers", "1")
-            setAttribute("cn", "0")
+            setAttribute("cn", "0,1")
             setAttribute("ch", "2")
             setAttribute("sr", "44100")
             setAttribute("ss", "16")
             setAttribute("tp", "UDP")
-            setAttribute("vn", "3")
+            setAttribute("vn", "65537")
             setAttribute("md", "0,1,2")
             setAttribute("sf", "0x4")
-            setAttribute("am", "HackieAndroid")
+            setAttribute("am", "Hackie,1")
             setAttribute("da", "true")
             setAttribute("pw", "false")
-            setAttribute("et", "0")
+            setAttribute("et", "0,1")
             setAttribute("vs", "220.68")
+            setAttribute("pk", "0")
         }
         runCatching {
             raopRegistrationListener?.let { nsdManager?.unregisterService(it) }
@@ -425,7 +427,7 @@ class AirPlayReceiverService : Service() {
         const val ACTION_START = "com.example.rabit.airplay.START"
         const val ACTION_STOP = "com.example.rabit.airplay.STOP"
         const val ACTION_TEST_TONE = "com.example.rabit.airplay.TEST_TONE"
-        private const val PREFERRED_RAOP_PORT = 7000
+        private const val PREFERRED_RAOP_PORT = 5000
         private const val CHANNEL_ID = "rabit_airplay_receiver"
         private const val NOTIFICATION_ID = 77
     }

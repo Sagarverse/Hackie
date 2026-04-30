@@ -58,6 +58,8 @@ import android.database.Cursor
 @Composable
 fun WebBridgeScreen(
     viewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
+    webHubViewModel: com.example.rabit.ui.webhub.WebHubViewModel,
+    remoteDeckViewModel: com.example.rabit.ui.remotedeck.RemoteDeckViewModel,
     onBack: () -> Unit
 ) {
     val isRunning by viewModel.isWebBridgeRunning.collectAsState(initial = RabitNetworkServer.isRunning)
@@ -103,6 +105,8 @@ fun WebBridgeScreen(
     // Connect Server Providers - Now handled in WebBridgeViewModel init
     // SideEffect block removed as logic migrated to ViewModel
 
+    var currentSubFeature by remember { mutableStateOf("bridge") } // "bridge", "hub", "lab"
+
     Scaffold(
         containerColor = Color.Transparent
     ) { padding ->
@@ -110,14 +114,128 @@ fun WebBridgeScreen(
             // High-End Mesh Gradient Background
             PremiumMeshBackground()
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Main Content Area
+                Box(modifier = Modifier.weight(1f)) {
+                    when (currentSubFeature) {
+                        "bridge" -> {
+                            WebBridgeContent(viewModel, filePickerLauncher, friendlyLanUrl, ipLanUrl, localUrl, p2pUrl, qrMode, onQrModeChange = { qrMode = it })
+                        }
+                        "hub" -> {
+                            com.example.rabit.ui.webhub.WebHubScreen(webHubViewModel, onBack = { currentSubFeature = "bridge" })
+                        }
+                        "lab" -> {
+                            com.example.rabit.ui.remotedeck.RemoteDeckScreen(remoteDeckViewModel)
+                        }
+                    }
+                }
+
+                // Right-side Mini Sidebar
+                Surface(
+                    color = Graphite.copy(alpha = 0.4f),
+                    modifier = Modifier
+                        .width(60.dp)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)),
+                    border = BorderStroke(1.dp, Platinum.copy(alpha = 0.05f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        MiniSidebarIcon(
+                            icon = Icons.Default.CloudSync,
+                            isSelected = currentSubFeature == "bridge",
+                            onClick = { currentSubFeature = "bridge" }
+                        )
+                        MiniSidebarIcon(
+                            icon = Icons.Default.CloudUpload,
+                            isSelected = currentSubFeature == "hub",
+                            onClick = { currentSubFeature = "hub" }
+                        )
+                        MiniSidebarIcon(
+                            icon = Icons.Default.BugReport,
+                            isSelected = currentSubFeature == "lab",
+                            onClick = { currentSubFeature = "lab" }
+                        )
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Silver.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniSidebarIcon(
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (isSelected) AccentBlue.copy(alpha = 0.15f) else Color.Transparent,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.size(44.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                icon,
+                null,
+                tint = if (isSelected) AccentBlue else Silver.copy(alpha = 0.4f),
+                modifier = Modifier.size(24.dp)
+            )
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                        .background(AccentBlue, CircleShape)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WebBridgeContent(
+    viewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
+    filePickerLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    friendlyLanUrl: String?,
+    ipLanUrl: String?,
+    localUrl: String,
+    p2pUrl: String,
+    qrMode: String,
+    onQrModeChange: (String) -> Unit
+) {
+    val isRunning by viewModel.isWebBridgeRunning.collectAsState(initial = RabitNetworkServer.isRunning)
+    val currentPin by viewModel.webBridgePin.collectAsState(initial = RabitNetworkServer.currentPin)
+    val localIp by viewModel.localIp.collectAsState(initial = "0.0.0.0")
+    val p2pEnabled by viewModel.p2pEnabled.collectAsState(initial = false)
+    val p2pStatus by viewModel.p2pStatus.collectAsState("Disconnected")
+    val sharedFiles by viewModel.sharedFiles.collectAsState()
+    val receivedFiles by viewModel.receivedFiles.collectAsState()
+    val activeSessions by viewModel.activeSessions.collectAsState()
+    val fileSensitivities by viewModel.fileSensitivities.collectAsState()
+    val isProfiling by viewModel.isProfiling.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Status Card with Pulse
@@ -264,7 +382,7 @@ fun WebBridgeScreen(
                             )
                         )
                         
-                        DiscoveryToggle(qrMode) { qrMode = it }
+                        DiscoveryToggle(qrMode) { onQrModeChange(it) }
                     }
 
                     // QR CARD
@@ -420,10 +538,7 @@ fun WebBridgeScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(60.dp))
                 }
-            }
-        }
     }
 }
 

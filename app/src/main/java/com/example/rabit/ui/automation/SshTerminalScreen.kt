@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -66,13 +67,19 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.clickable
 import kotlinx.coroutines.delay
 import android.util.Log
 
 import com.example.rabit.ui.helper.HelperViewModel
+import com.example.rabit.ui.automation.AutomationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,14 +145,76 @@ fun SshTerminalScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("SSH Terminal Setup (Step by Step)", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("1. Mac: System Settings > General > Sharing > enable Remote Login.", color = Silver, fontSize = 12.sp)
-                Text("2. Note your Mac username and local IP (for example 192.168.1.20).", color = Silver, fontSize = 12.sp)
-                Text("3. Enter Host/IP, Port (usually 22), Username, and Password below.", color = Silver, fontSize = 12.sp)
-                Text("4. Tap Connect. If it fails, verify both devices are on the same Wi-Fi network.", color = Silver, fontSize = 12.sp)
-                Text("5. If using a firewall, allow incoming SSH (TCP 22) on your Mac.", color = Silver, fontSize = 12.sp)
-                Text("6. After connected, run a simple command first: whoami or pwd.", color = Silver, fontSize = 12.sp)
-                Text("7. For better security, use a dedicated low-privilege user account for remote control.", color = Silver, fontSize = 12.sp)
+                Text("Remote Orchestration", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                
+                // --- Wake-on-LAN Integration ---
+                var showWol by remember { mutableStateOf(false) }
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showWol = !showWol }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Icon(Icons.Default.PowerSettingsNew, null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Wake-on-LAN (Magic Packet)", color = Platinum, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Icon(
+                            if (showWol) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            null,
+                            tint = Silver
+                        )
+                    }
+
+                    androidx.compose.animation.AnimatedVisibility(visible = showWol) {
+                        Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val wolMac by automationViewModel.wolMacAddress.collectAsState()
+                            val wolBroadcast by automationViewModel.wolBroadcastIp.collectAsState()
+                            val wolStatus by automationViewModel.wolStatus.collectAsState()
+                            
+                            var macInput by remember(wolMac) { mutableStateOf(wolMac) }
+                            
+                            OutlinedTextField(
+                                value = macInput,
+                                onValueChange = { 
+                                    macInput = it
+                                    automationViewModel.updateWolMac(it)
+                                },
+                                label = { Text("Target MAC (AA:BB:CC:DD:EE:FF)", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AccentBlue,
+                                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                                    focusedTextColor = Platinum
+                                )
+                            )
+
+                            Button(
+                                onClick = { automationViewModel.sendWakeOnLan() },
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue.copy(alpha = 0.2f)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Send Magic Packet", color = AccentBlue, fontWeight = FontWeight.Bold)
+                            }
+                            
+                            Text("Status: $wolStatus", color = Silver, fontSize = 10.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f), modifier = Modifier.padding(vertical = 4.dp))
+                
+                Text("SSH Terminal Setup", color = Silver, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("1. Mac: System Settings > General > Sharing > enable Remote Login.", color = Silver, fontSize = 11.sp)
+                Text("2. Note your Mac username and local IP (for example 192.168.1.20).", color = Silver, fontSize = 11.sp)
+                Text("3. Enter Host/IP, Port (usually 22), Username, and Password below.", color = Silver, fontSize = 11.sp)
             }
         }
 

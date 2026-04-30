@@ -49,6 +49,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> = repository.connectionState
     val scannedDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
     val isScanning: StateFlow<Boolean> = repository.isScanning
+    val isBluetoothConnected: StateFlow<Boolean> = repository.connectionState.map { 
+        it is HidDeviceManager.ConnectionState.Connected 
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val discoveredDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
+    
+    private val _isAdvertising = MutableStateFlow(false)
+    val isAdvertising = _isAdvertising.asStateFlow()
+    
     val isTextPushing = repository.isTextPushing
     val knownWorkstations = repository.knownWorkstations
     val activeModifiers: StateFlow<Byte> = MutableStateFlow(0.toByte()).asStateFlow()
@@ -143,6 +151,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Engage Decoy Mode immediately after nuking
         setDecoyMode(true)
     }
+
+    fun startAdvertising() {
+        _isAdvertising.value = true
+        repository.requestDiscoverable()
+        viewModelScope.launch {
+            delay(300_000) // Discoverable duration
+            _isAdvertising.value = false
+        }
+    }
+
+    fun stopAdvertising() {
+        _isAdvertising.value = false
+    }
+
 
     // AirPlay State (for Global UI)
     private val _airPlayStatus = MutableStateFlow("Idle")
@@ -361,7 +383,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Core Logic Methods
     fun startScanning() = repository.startScanning()
     fun stopScanning() = repository.stopScanning()
+    fun startScan() = repository.startScanning()
+    fun stopScan() = repository.stopScanning()
+    
     fun connectToDevice(device: BluetoothDevice) = repository.connect(device)
+    fun connectToDevice(address: String) {
+        val device = bluetoothAdapter?.getRemoteDevice(address)
+        if (device != null) {
+            repository.connect(device)
+        }
+    }
     fun connect(device: BluetoothDevice) = repository.connect(device)
     fun connectWithRetry(device: BluetoothDevice) = repository.connect(device) // Simplified for now
     fun disconnectKeyboard() = repository.disconnect()

@@ -242,7 +242,6 @@ fun AppNavigation(
     helperViewModel: com.example.rabit.ui.helper.HelperViewModel,
     browserViewModel: com.example.rabit.ui.browser.BrowserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     webHubViewModel: com.example.rabit.ui.webhub.WebHubViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    macroOrchestratorViewModel: com.example.rabit.ui.automation.MacroOrchestratorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     remoteDeckViewModel: com.example.rabit.ui.remotedeck.RemoteDeckViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     lockdownViewModel: com.example.rabit.ui.lockdown.LockdownViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     networkAuditorViewModel: com.example.rabit.ui.network.NetworkAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
@@ -271,6 +270,7 @@ fun AppNavigation(
     steganographyViewModel: com.example.rabit.ui.steganography.SteganographyViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     killSwitchViewModel: com.example.rabit.ui.opsec.KillSwitchViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     pingTraceViewModel: com.example.rabit.ui.network.PingTraceViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    pentestToolkitViewModel: com.example.rabit.ui.pentest.PentestToolkitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
@@ -282,7 +282,6 @@ fun AppNavigation(
     val featureAssistantVisible by viewModel.featureAssistantVisible.collectAsState()
     val featureSnippetsVisible by viewModel.featureSnippetsVisible.collectAsState()
     val featureShortcutsVisible by viewModel.featureShortcutsVisible.collectAsState()
-    val featureWakeOnLanVisible by viewModel.featureWakeOnLanVisible.collectAsState()
     val featureSshTerminalVisible by viewModel.featureSshTerminalVisible.collectAsState()
     val webBridgeEnabled by webBridgeViewModel.isWebBridgeRunning.collectAsState()
     val bluetoothState by viewModel.connectionState.collectAsState()
@@ -294,20 +293,20 @@ fun AppNavigation(
 
     fun routeAllowed(route: String): Boolean {
         return when (route) {
-            "web_bridge" -> featureWebBridgeVisible
-            "automation" -> featureAutomationVisible
-            "shortcuts" -> featureAutomationVisible
-            "assistant" -> featureAssistantVisible
-            "snippets" -> featureSnippetsVisible
-            "wake_on_lan" -> featureWakeOnLanVisible
-            "ssh_terminal" -> featureSshTerminalVisible
-            "auto_clicker" -> featureAutomationVisible
-            "process_manager" -> featureAutomationVisible
-            "system_stats" -> featureAutomationVisible
-            "remote_explorer" -> featureAutomationVisible
-            "reverse_shell" -> featureAutomationVisible
-            "terminal_scanner" -> featureAutomationVisible
-            "macro_orchestrator" -> featureAutomationVisible
+            "web_bridge" -> true
+            "automation" -> true
+            "shortcuts" -> true
+            "assistant" -> true
+            "snippets" -> true
+            "ssh_terminal" -> true
+            "auto_clicker" -> true
+            "system_monitor" -> true
+            "remote_explorer" -> true
+            "reverse_shell" -> true
+            "terminal_scanner" -> true
+            "process_manager" -> true
+            "system_stats" -> true
+            "wake_on_lan" -> true
             "remote_deck" -> true
             "lockdown" -> true
             "network_auditor" -> true
@@ -316,26 +315,19 @@ fun AppNavigation(
             "keystroke_monitor" -> true
             "vision_lab" -> true
             "macro_lab" -> true
-            "identity_lab" -> true
             "forensics_lab" -> true
-            "auto_pwn" -> true
-            "web_fuzzer" -> true
-            "directory_scanner" -> true
-            "request_repeater" -> true
+            "web_sniper" -> true
             "panic_terminal" -> true
+            "bluetooth_shadow" -> true
+            "forensic_vault" -> true
             "local_terminal" -> true
             "ghost_recon" -> true
-            "ble_auditor" -> true
-            "wifi_attacker" -> true
-            "neural_qa" -> true
-            "neural_web_auditor" -> true
+            "wireless_auditor" -> true
+            "neural_lab" -> true
             "payload_forge" -> true
             "rogue_horizon" -> true
             "sensor_lab" -> true
-            "osint_ghost" -> true
-            "bluetooth_shadow" -> true
-            "bluetooth_mirror" -> true
-            "hid_brute_force" -> featureAutomationVisible
+            "hid_brute_force" -> true
             "hash_cracker" -> true
             "crypto_encoder" -> true
             "subdomain_scanner" -> true
@@ -343,8 +335,8 @@ fun AppNavigation(
             "reverse_shell_gen" -> true
             "port_scanner" -> true
             "stego_lab" -> true
-            "kill_switch" -> true
             "ping_trace" -> true
+            "pentest_toolkit" -> true
             "web_hub" -> true
             "global_search" -> true
             else -> true
@@ -357,7 +349,6 @@ fun AppNavigation(
         featureAutomationVisible,
         featureAssistantVisible,
         featureSnippetsVisible,
-        featureWakeOnLanVisible,
         featureSshTerminalVisible
     ) {
         val current = currentRoute.split("?").first()
@@ -393,9 +384,16 @@ fun AppNavigation(
                     )
                 }
                 composable("pairing") {
-                    PairingScreen(
+                    com.example.rabit.ui.pairing.PairingScreen(
                         viewModel = viewModel,
-                        onConnected = { navController.navigate("keyboard") },
+                        mirrorViewModel = bluetoothMirrorViewModel,
+                        shadowViewModel = bluetoothShadowViewModel,
+                        automationViewModel = automationViewModel,
+                        onConnected = {
+                            navController.navigate("keyboard") {
+                                popUpTo("pairing") { inclusive = true }
+                            }
+                        },
                         onNavigateToSettings = { navController.navigate("settings") }
                     )
                 }
@@ -423,6 +421,8 @@ fun AppNavigation(
                 composable("web_bridge") {
                     com.example.rabit.ui.webbridge.WebBridgeScreen(
                         viewModel = webBridgeViewModel,
+                        webHubViewModel = webHubViewModel,
+                        remoteDeckViewModel = remoteDeckViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -431,7 +431,7 @@ fun AppNavigation(
                         viewModel = automationViewModel,
                         mainViewModel = viewModel,
                         onBack = { navController.popBackStack() },
-                        onNavigateToWakeOnLan = { if (featureWakeOnLanVisible) navController.navigate("wake_on_lan") },
+                        onNavigateToWakeOnLan = { },
                         onNavigateToSshTerminal = { if (featureSshTerminalVisible) navController.navigate("ssh_terminal") },
                         onNavigateTo = { route -> navController.navigate(route) }
                     )
@@ -443,12 +443,6 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("wake_on_lan") {
-                    com.example.rabit.ui.automation.WakeOnLanScreen(
-                        viewModel = automationViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
                 composable("ssh_terminal") {
                     com.example.rabit.ui.automation.SshTerminalScreen(
                         viewModel = helperViewModel,
@@ -457,8 +451,9 @@ fun AppNavigation(
                     )
                 }
                 composable("assistant") {
-                    AssistantScreen(
-                        viewModel = assistantViewModel,
+                    com.example.rabit.ui.assistant.AssistantBrowserPager(
+                        assistantViewModel = assistantViewModel,
+                        browserViewModel = browserViewModel,
                         mainViewModel = viewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToSettings = {
@@ -474,21 +469,9 @@ fun AppNavigation(
                         }
                     )
                 }
-                composable("browser") {
-                    com.example.rabit.ui.browser.BrowserScreen(
-                        viewModel = browserViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
                 composable("web_hub") {
                     com.example.rabit.ui.webhub.WebHubScreen(
                         viewModel = webHubViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("macro_orchestrator") {
-                    com.example.rabit.ui.automation.MacroOrchestratorScreen(
-                        viewModel = macroOrchestratorViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -506,12 +489,16 @@ fun AppNavigation(
                 composable("network_auditor") {
                     com.example.rabit.ui.network.NetworkAuditorScreen(
                         viewModel = networkAuditorViewModel,
+                        portScannerViewModel = portScannerViewModel,
+                        pingTraceViewModel = pingTraceViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable("hid_brute_force") {
                     com.example.rabit.ui.automation.HidBruteForceScreen(
                         viewModel = bruteForceViewModel,
+                        hashCrackerViewModel = hashCrackerViewModel,
+                        apiKey = settingsViewModel.geminiApiKey,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -535,15 +522,10 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("process_manager") {
-                    com.example.rabit.ui.automation.ProcessManagerScreen(
-                        viewModel = helperViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("system_stats") {
-                    com.example.rabit.ui.automation.SystemStatsScreen(
-                        viewModel = helperViewModel,
+                composable("system_monitor") {
+                    com.example.rabit.ui.automation.SystemMonitorScreen(
+                        helperViewModel = helperViewModel,
+                        initialSubFeature = "processes",
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -567,12 +549,6 @@ fun AppNavigation(
                     )
                 }
                 // --- Wave 1: Tactical C2 ---
-                composable("tactical_terminal") {
-                    com.example.rabit.ui.automation.TacticalTerminalScreen(
-                        viewModel = webBridgeViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
                 composable("screenshot_lab") {
                     com.example.rabit.ui.automation.ScreenshotLabScreen(
                         viewModel = webBridgeViewModel,
@@ -581,7 +557,8 @@ fun AppNavigation(
                 }
                 composable("panic_terminal") {
                     com.example.rabit.ui.opsec.PanicTerminalScreen(
-                        viewModel = viewModel,
+                        mainViewModel = viewModel,
+                        killSwitchViewModel = killSwitchViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -595,33 +572,22 @@ fun AppNavigation(
                 composable("ghost_recon") {
                     com.example.rabit.ui.osint.OsintScreen(
                         viewModel = osintViewModel,
+                        ghostViewModel = osintGhostViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("ble_auditor") {
-                    com.example.rabit.ui.network.BleAuditorScreen(
-                        viewModel = bleAuditorViewModel,
+                composable("wireless_auditor") {
+                    com.example.rabit.ui.network.WirelessAuditorScreen(
+                        bleViewModel = bleAuditorViewModel,
+                        wifiViewModel = wifiAttackerViewModel,
                         apiKey = settingsViewModel.geminiApiKey,
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("wifi_attacker") {
-                    com.example.rabit.ui.network.WifiAttackerScreen(
-                        viewModel = wifiAttackerViewModel,
-                        apiKey = settingsViewModel.geminiApiKey,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("neural_qa") {
-                    com.example.rabit.ui.qa.NeuralQaScreen(
-                        viewModel = neuralQaViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("hash_cracker") {
-                    com.example.rabit.ui.security.HashCrackerScreen(
-                        viewModel = hashCrackerViewModel,
-                        apiKey = settingsViewModel.geminiApiKey,
+                composable("neural_lab") {
+                    com.example.rabit.ui.qa.NeuralLabScreen(
+                        qaViewModel = neuralQaViewModel,
+                        webViewModel = neuralWebAuditorViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -637,45 +603,24 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("exif_forensics") {
-                    com.example.rabit.ui.forensics.ExifForensicsScreen(
-                        viewModel = exifForensicsViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("reverse_shell_gen") {
                     com.example.rabit.ui.exploit.ReverseShellScreen(
                         viewModel = reverseShellViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("port_scanner") {
-                    com.example.rabit.ui.network.PortScannerScreen(
-                        viewModel = portScannerViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("stego_lab") {
                     com.example.rabit.ui.steganography.SteganographyScreen(
                         viewModel = steganographyViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("kill_switch") {
-                    com.example.rabit.ui.opsec.KillSwitchScreen(
-                        viewModel = killSwitchViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("ping_trace") {
-                    com.example.rabit.ui.network.PingTraceScreen(
-                        viewModel = pingTraceViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("neural_web_auditor") {
-                    com.example.rabit.ui.qa.NeuralWebAuditorScreen(
-                        viewModel = neuralWebAuditorViewModel,
+                composable("pentest_toolkit") {
+                    com.example.rabit.ui.pentest.PentestToolkitScreen(
+                        viewModel = pentestToolkitViewModel,
+                        helperViewModel = helperViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -687,7 +632,7 @@ fun AppNavigation(
                         onExecuteHid = { code -> viewModel.executeDuckyScript(code) },
                         onDeployAdb = { code -> 
                              scope.launch {
-                                 com.example.rabit.data.storage.RemoteStorageManager.adbClient?.executeCommand(code)
+                                  com.example.rabit.data.storage.RemoteStorageManager.adbClient?.executeCommand(code)
                              }
                         }
                     )
@@ -704,24 +649,6 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("osint_ghost") {
-                    com.example.rabit.ui.osint.OsintGhostScreen(
-                        viewModel = osintGhostViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("bluetooth_shadow") {
-                    com.example.rabit.ui.network.BluetoothShadowScreen(
-                        viewModel = bluetoothShadowViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("bluetooth_mirror") {
-                    com.example.rabit.ui.network.BluetoothMirrorScreen(
-                        viewModel = bluetoothMirrorViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
                 composable("security_auditor") {
                     com.example.rabit.ui.security.SecurityAuditorScreen(
                         viewModel = securityAuditorViewModel,
@@ -735,26 +662,8 @@ fun AppNavigation(
                     )
                 }
                 // --- Wave 6: Web Sniper ---
-                composable("auto_pwn") {
-                    com.example.rabit.ui.websniper.AutoPwnScreen(
-                        viewModel = webSniperViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("web_fuzzer") {
-                    com.example.rabit.ui.websniper.WebFuzzerScreen(
-                        viewModel = webSniperViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("directory_scanner") {
-                    com.example.rabit.ui.websniper.DirectoryScannerScreen(
-                        viewModel = webSniperViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("request_repeater") {
-                    com.example.rabit.ui.websniper.RequestRepeaterScreen(
+                composable("web_sniper") {
+                    com.example.rabit.ui.websniper.WebSniperScreen(
                         viewModel = webSniperViewModel,
                         onBack = { navController.popBackStack() }
                     )
@@ -777,16 +686,12 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("identity_lab") {
-                    com.example.rabit.ui.automation.IdentityLabScreen(
-                        viewModel = automationViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
                 composable("forensics_lab") {
                     val forensicsViewModel: com.example.rabit.ui.forensics.ForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                    val exifForensicsViewModel: com.example.rabit.ui.forensics.ExifForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                     com.example.rabit.ui.forensics.ForensicsLabScreen(
                         viewModel = forensicsViewModel,
+                        exifViewModel = exifForensicsViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -842,14 +747,12 @@ fun AppNavigation(
                         if (featureAutomationVisible) add("automation")
                         if (featureAssistantVisible) add("assistant")
                         if (featureSnippetsVisible) add("snippets")
-                        if (featureWakeOnLanVisible) add("wake_on_lan")
+                        if (featureSnippetsVisible) add("snippets")
                         if (featureSshTerminalVisible) add("ssh_terminal")
-                        add("tactical_terminal")
                         add("screenshot_lab")
                         add("keystroke_monitor")
                         add("security_auditor")
                         add("traffic_analyzer")
-                        add("browser")
                     }
                     val availableActions = buildSet {
                         add("action_unlock_mac")
@@ -859,7 +762,6 @@ fun AppNavigation(
                         add("action_media_vol_down")
                         add("action_now_playing")
                         add("action_disconnect_keyboard")
-                        if (featureWakeOnLanVisible) add("action_wol_send")
                         if (featureWebBridgeVisible) add("action_web_bridge_toggle")
                     }
                     GlobalSearchScreen(
@@ -883,7 +785,6 @@ fun AppNavigation(
                                 "action_now_playing" -> {
                                     // Metadata is now reactive in WebBridgeViewModel
                                 }
-                                "action_wol_send" -> if (featureWakeOnLanVisible) automationViewModel.sendWakeOnLan()
                                 "action_disconnect_keyboard" -> viewModel.disconnectKeyboard()
                                 "action_web_bridge_toggle" -> {
                                     if (featureWebBridgeVisible) {
@@ -892,6 +793,58 @@ fun AppNavigation(
                                 }
                             }
                         }
+                    )
+                }
+                composable("browser") {
+                    com.example.rabit.ui.browser.BrowserScreen(
+                        viewModel = browserViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("macro_orchestrator") {
+                    com.example.rabit.ui.automation.MacroLabScreen(
+                        viewModel = automationViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("forensic_vault") {
+                    val forensicsViewModel: com.example.rabit.ui.forensics.ForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                    val exifForensicsViewModel: com.example.rabit.ui.forensics.ExifForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                    com.example.rabit.ui.forensics.ForensicsLabScreen(
+                        viewModel = forensicsViewModel,
+                        exifViewModel = exifForensicsViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("bluetooth_shadow") {
+                    com.example.rabit.ui.network.BluetoothShadowScreen(
+                        viewModel = bluetoothShadowViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("process_manager") {
+                    com.example.rabit.ui.automation.SystemMonitorScreen(
+                        helperViewModel = helperViewModel,
+                        initialSubFeature = "processes",
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("system_stats") {
+                    com.example.rabit.ui.automation.SystemMonitorScreen(
+                        helperViewModel = helperViewModel,
+                        initialSubFeature = "stats",
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("wake_on_lan") {
+                    // Map to automation dashboard as WOL is integrated there
+                    navController.navigate("automation") { launchSingleTop = true }
+                }
+                composable("tactical_terminal") {
+                    com.example.rabit.ui.opsec.PanicTerminalScreen(
+                        mainViewModel = viewModel,
+                        killSwitchViewModel = killSwitchViewModel,
+                        onBack = { navController.popBackStack() }
                     )
                 }
             }
@@ -921,10 +874,8 @@ fun AppNavigation(
             featureAssistantVisible = featureAssistantVisible,
             featureSnippetsVisible = featureSnippetsVisible,
             featureShortcutsVisible = featureShortcutsVisible,
-            featureWakeOnLanVisible = featureWakeOnLanVisible,
             featureSshTerminalVisible = featureSshTerminalVisible,
             activeApp = activeApp,
-            onPanicLock = { decoyViewModel.lockAll() },
             onBack = { navController.popBackStack() },
             topBarActions = {
                 val route = currentRoute.split("?").first()
@@ -954,6 +905,7 @@ fun BluetoothPermissions(content: @Composable () -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.BLUETOOTH_ADVERTISE)
             add(Manifest.permission.ACCESS_FINE_LOCATION)
         } else {
             add(Manifest.permission.BLUETOOTH)

@@ -26,9 +26,6 @@ import com.example.rabit.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExifForensicsScreen(viewModel: ExifForensicsViewModel, onBack: () -> Unit) {
-    val tags by viewModel.tags.collectAsState()
-    val error by viewModel.error.collectAsState()
-
     val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { viewModel.analyzeImage(it) }
     }
@@ -57,48 +54,74 @@ fun ExifForensicsScreen(viewModel: ExifForensicsViewModel, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            if (tags.isEmpty() && error == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ImageSearch, null, tint = Silver.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Tap the icon in the top right to analyze an image.", color = Silver.copy(alpha = 0.5f), fontSize = 12.sp)
+        Box(modifier = Modifier.padding(padding)) {
+            ExifForensicsContent(viewModel)
+        }
+    }
+}
+
+@Composable
+fun ExifForensicsContent(viewModel: ExifForensicsViewModel) {
+    val tags by viewModel.tags.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { viewModel.analyzeImage(it) }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        if (tags.isEmpty() && error == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier.size(80.dp).background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                    ) {
+                        Icon(Icons.Default.ImageSearch, null, tint = AccentBlue, modifier = Modifier.size(32.dp))
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Select an image to analyze metadata", color = Silver.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+            }
+        } else if (error != null) {
+            Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Info, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(error!!, color = Platinum, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = { imagePickerLauncher.launch("image/*") }) {
+                        Text("TRY ANOTHER")
                     }
                 }
-            } else if (error != null) {
-                Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Info, null, tint = Color.Red, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(error!!, color = Platinum, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("EXTRACTED METADATA", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                            Text("NEW SCAN", color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        Text("EXTRACTED METADATA", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    }
-                    items(tags) { tag ->
-                        val isGps = tag.name.contains("GPS")
-                        Surface(
-                            color = Surface1,
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isGps) Color.Red.copy(alpha = 0.5f) else BorderColor)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                                Text(tag.name, color = if (isGps) Color.Red else AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(tag.value, color = Platinum, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                            }
+                items(tags) { tag ->
+                    val isGps = tag.name.contains("GPS")
+                    Surface(
+                        color = Surface1,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isGps) Color.Red.copy(alpha = 0.5f) else BorderColor)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                            Text(tag.name, color = if (isGps) Color.Red else AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(tag.value, color = Platinum, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }

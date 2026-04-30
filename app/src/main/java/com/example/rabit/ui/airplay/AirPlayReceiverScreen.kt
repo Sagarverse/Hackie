@@ -14,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
@@ -30,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,16 +106,16 @@ fun AirPlayReceiverScreen(
                     Text(
                         when {
                             !enabled -> "Status: Idle"
-                            fallbackRequired -> "Status: Sender mode unsupported on native decoder"
+                            fallbackRequired -> "Status: Encryption/Codec fallback needed"
                             isStreaming -> "Status: Streaming to phone speaker"
-                            else -> "Status: Waiting for stream from Mac"
+                            else -> "Status: Waiting for Mac (Ensure same Wi-Fi)"
                         },
-                        color = Silver.copy(alpha = 0.88f),
+                        color = if (fallbackRequired) Color.Yellow else Silver.copy(alpha = 0.88f),
                         fontSize = 12.sp
                     )
                     if (fallbackRequired) {
                         Text(
-                            "Tip: Use an unencrypted/default AirPlay output mode from macOS for direct phone playback.",
+                            "Tip: AirPlay 1 (RAOP) unencrypted mode works best. If Mac asks for code or fails, check network.",
                             color = Silver.copy(alpha = 0.8f),
                             fontSize = 11.sp
                         )
@@ -182,6 +185,17 @@ fun AirPlayReceiverScreen(
                             Spacer(modifier = Modifier.padding(2.dp))
                             Text("Vol +")
                         }
+                    }
+
+                    Button(
+                        onClick = { viewModel.restartAirPlayReceiver() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f), contentColor = Color.Red),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.padding(4.dp))
+                        Text("Reset Receiver", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

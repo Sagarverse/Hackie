@@ -21,9 +21,8 @@ import com.example.rabit.ui.theme.*
 import kotlinx.coroutines.delay
 
 @Composable
-fun SystemStatsScreen(
-    viewModel: HelperViewModel,
-    onBack: () -> Unit
+fun SystemStatsContent(
+    viewModel: HelperViewModel
 ) {
     val stats by viewModel.systemStats.collectAsState()
     val connected by viewModel.sshConnected.collectAsState()
@@ -38,7 +37,6 @@ fun SystemStatsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Graphite)
             .padding(16.dp)
     ) {
         Text(
@@ -101,6 +99,7 @@ fun SystemStatsScreen(
         }
     }
 }
+
 
 @Composable
 fun StatGauge(label: String, value: Float, max: Float, suffix: String) {

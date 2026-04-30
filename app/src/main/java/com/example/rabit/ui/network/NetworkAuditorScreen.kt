@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,126 +21,239 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NetworkAuditorScreen(viewModel: NetworkAuditorViewModel, onBack: () -> Unit) {
-    val isScanning by viewModel.isScanning.collectAsState()
-    val devices by viewModel.devices.collectAsState()
-    val progress by viewModel.scanProgress.collectAsState()
-    val aiResult by viewModel.aiAnalysisResult.collectAsState()
-    val isAnalyzing by viewModel.isAnalyzing.collectAsState()
-
+fun NetworkAuditorScreen(
+    viewModel: NetworkAuditorViewModel,
+    portScannerViewModel: PortScannerViewModel,
+    pingTraceViewModel: PingTraceViewModel,
+    onBack: () -> Unit
+) {
+    var currentSubFeature by remember { mutableStateOf("auditor") } // "auditor", "scanner", "ping"
     val accentColor = Color(0xFF00F2FF)
+    val scannerAccentColor = SuccessGreen
+    val pingAccentColor = Color(0xFFF59E0B)
     val bgColor = Color(0xFF05050A)
 
     Scaffold(
         containerColor = bgColor,
         topBar = {
             TopAppBar(
-                title = { Text("NETWORK AUDITOR", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) },
+                title = {
+                    Text(
+                        when (currentSubFeature) {
+                            "auditor" -> "NETWORK AUDITOR"
+                            "scanner" -> "PORT SCANNER"
+                            else -> "PING & TRACEROUTE"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White) }
                 },
-                actions = {
-                    if (isScanning) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = accentColor, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(16.dp))
-                    } else {
-                        IconButton(onClick = { viewModel.startScan() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = accentColor)
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
-        },
-        floatingActionButton = {
-            if (devices.isNotEmpty() && !isScanning) {
-                FloatingActionButton(
-                    onClick = { viewModel.reviewTopologyWithAi() },
-                    containerColor = Color(0xFFBC13FE), // Purple accent for AI
-                    contentColor = Color.White
+        }
+    ) { padding ->
+        Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Main Content Area
+            Box(modifier = Modifier.weight(1f)) {
+                when (currentSubFeature) {
+                    "auditor" -> {
+                        NetworkAuditorContent(viewModel, accentColor)
+                    }
+                    "scanner" -> {
+                        PortScannerContent(portScannerViewModel)
+                    }
+                    "ping" -> {
+                        PingTraceContent(pingTraceViewModel)
+                    }
+                }
+            }
+
+            // Right-side Mini Sidebar
+            Surface(
+                color = Color.White.copy(alpha = 0.03f),
+                modifier = Modifier
+                    .width(64.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    if (isAnalyzing) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.AutoAwesome, "Neural Analyst")
+                    MiniSidebarIcon(
+                        icon = Icons.Default.Hub,
+                        isSelected = currentSubFeature == "auditor",
+                        accentColor = accentColor,
+                        onClick = { currentSubFeature = "auditor" }
+                    )
+                    MiniSidebarIcon(
+                        icon = Icons.Default.Radar,
+                        isSelected = currentSubFeature == "scanner",
+                        accentColor = scannerAccentColor,
+                        onClick = { currentSubFeature = "scanner" }
+                    )
+                    MiniSidebarIcon(
+                        icon = Icons.Default.NetworkPing,
+                        isSelected = currentSubFeature == "ping",
+                        accentColor = pingAccentColor,
+                        onClick = { currentSubFeature = "ping" }
+                    )
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.3f))
                     }
                 }
             }
         }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Scanning Status Bar
-                if (isScanning || progress > 0f) {
-                    LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier.fillMaxWidth().height(2.dp),
-                        color = accentColor,
-                        trackColor = Color.White.copy(alpha = 0.05f)
-                    )
-                }
+    }
+}
 
-                if (devices.isEmpty() && !isScanning) {
-                    EmptyState(onScan = { viewModel.startScan() })
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
+@Composable
+private fun MiniSidebarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (isSelected) accentColor.copy(alpha = 0.15f) else Color.Transparent,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.size(44.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                icon,
+                null,
+                tint = if (isSelected) accentColor else Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.size(24.dp)
+            )
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                        .background(accentColor, CircleShape)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NetworkAuditorContent(viewModel: NetworkAuditorViewModel, accentColor: Color) {
+    val isScanning by viewModel.isScanning.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    val progress by viewModel.scanProgress.collectAsState()
+    val aiResult by viewModel.aiAnalysisResult.collectAsState()
+    val isAnalyzing by viewModel.isAnalyzing.collectAsState()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Scanning Status Bar
+            if (isScanning || progress > 0f) {
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    color = accentColor,
+                    trackColor = Color.White.copy(alpha = 0.05f)
+                )
+            }
+
+            if (devices.isEmpty() && !isScanning) {
+                EmptyState(onScan = { viewModel.startScan() })
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (isScanning) "SCANNING INFRASTRUCTURE..." else "LAN TOPOLOGY MAPPED",
                                 fontSize = 10.sp,
                                 color = Color.Gray,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
+                                modifier = Modifier.weight(1f)
                             )
-                        }
-                        items(devices) { device ->
-                            DeviceCard(device)
-                        }
-                        item { Spacer(modifier = Modifier.height(80.dp)) } // Space for FAB
-                    }
-                }
-            }
-            
-            // --- AI Analysis Result Board ---
-            if (aiResult != null) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 80.dp)
-                        .padding(horizontal = 16.dp)
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp),
-                    color = Color(0xFF1A1A2E).copy(alpha = 0.95f),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFBC13FE).copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFBC13FE), modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("NEURAL ANALYST INSIGHTS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                            Spacer(Modifier.weight(1f))
-                            IconButton(onClick = { viewModel.clearAiAnalysis() }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                            if (!isScanning) {
+                                TextButton(onClick = { viewModel.startScan() }) {
+                                    Text("RESCAN", color = accentColor, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                }
                             }
                         }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = aiResult ?: "",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.verticalScroll(rememberScrollState())
-                        )
                     }
+                    items(devices) { device ->
+                        DeviceCard(device)
+                    }
+                    item { Spacer(modifier = Modifier.height(100.dp)) }
+                }
+            }
+        }
+        
+        // --- Floating Action Button (Neural Analyst) ---
+        if (devices.isNotEmpty() && !isScanning) {
+            FloatingActionButton(
+                onClick = { viewModel.reviewTopologyWithAi() },
+                containerColor = Color(0xFFBC13FE),
+                contentColor = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp)
+            ) {
+                if (isAnalyzing) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.AutoAwesome, "Neural Analyst")
+                }
+            }
+        }
+
+        // --- AI Analysis Result Board ---
+        if (aiResult != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 100.dp)
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = 300.dp),
+                color = Color(0xFF1A1A2E).copy(alpha = 0.95f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFBC13FE).copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFBC13FE), modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("NEURAL ANALYST INSIGHTS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { viewModel.clearAiAnalysis() }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = aiResult ?: "",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.verticalScroll(rememberScrollState())
+                    )
                 }
             }
         }

@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,8 +31,14 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 @Composable
 fun ForensicsLabScreen(
     viewModel: ForensicsViewModel,
+    exifViewModel: ExifForensicsViewModel,
     onBack: () -> Unit
 ) {
+    var currentSubFeature by remember { mutableStateOf("app") } // "app", "exif"
+    val accentColor = SuccessGreen
+    val exifAccentColor = AccentBlue
+    val bgColor = Obsidian
+
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("rabit_prefs", android.content.Context.MODE_PRIVATE)
@@ -42,25 +50,21 @@ fun ForensicsLabScreen(
     }
 
     Scaffold(
-        containerColor = Obsidian,
+        containerColor = bgColor,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "APP FORENSICS LAB",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("MANIFEST & APK ANALYSIS", color = SuccessGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Text(
+                        if (currentSubFeature == "app") "APP FORENSICS LAB" else "EXIF FORENSICS LAB",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = Color.White
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (uiState is ForensicsState.AppSelected) {
+                        if (currentSubFeature == "app" && uiState is ForensicsState.AppSelected) {
                             viewModel.backToList()
                         } else {
                             onBack()
@@ -73,26 +77,115 @@ fun ForensicsLabScreen(
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            when (val state = uiState) {
-                is ForensicsState.Idle, is ForensicsState.LoadingApps -> {
-                    CircularProgressIndicator(color = SuccessGreen, modifier = Modifier.align(Alignment.Center))
+        Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Main Content Area
+            Box(modifier = Modifier.weight(1f)) {
+                when (currentSubFeature) {
+                    "app" -> {
+                        ForensicsLabContent(viewModel, uiState, prefs)
+                    }
+                    "exif" -> {
+                        ExifForensicsContent(exifViewModel)
+                    }
                 }
-                is ForensicsState.AppsLoaded -> {
-                    AppList(apps = state.apps, onAppClick = { viewModel.selectAppForAnalysis(it) })
-                }
-                is ForensicsState.AppSelected -> {
-                    AppDetailView(
-                        state = state,
-                        onAnalyzeClick = {
-                            val apiKey = prefs.getString("gemini_api_key", "") ?: ""
-                            viewModel.analyzeManifestWithAi(state.manifestXml, state.strings, apiKey)
-                        }
+            }
+
+            // Right-side Mini Sidebar
+            Surface(
+                color = Color.White.copy(alpha = 0.03f),
+                modifier = Modifier
+                    .width(64.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    MiniSidebarIcon(
+                        icon = Icons.Default.Apps,
+                        isSelected = currentSubFeature == "app",
+                        accentColor = accentColor,
+                        onClick = { currentSubFeature = "app" }
                     )
+                    MiniSidebarIcon(
+                        icon = Icons.Default.ImageSearch,
+                        isSelected = currentSubFeature == "exif",
+                        accentColor = exifAccentColor,
+                        onClick = { currentSubFeature = "exif" }
+                    )
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.3f))
+                    }
                 }
-                is ForensicsState.Error -> {
-                    Text("Error: ${state.message}", color = Color.Red, modifier = Modifier.align(Alignment.Center))
-                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniSidebarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (isSelected) accentColor.copy(alpha = 0.15f) else Color.Transparent,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.size(44.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                icon,
+                null,
+                tint = if (isSelected) accentColor else Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.size(24.dp)
+            )
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                        .background(accentColor, CircleShape)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ForensicsLabContent(
+    viewModel: ForensicsViewModel,
+    uiState: ForensicsState,
+    prefs: android.content.SharedPreferences
+) {
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        when (val state = uiState) {
+            is ForensicsState.Idle, is ForensicsState.LoadingApps -> {
+                CircularProgressIndicator(color = SuccessGreen, modifier = Modifier.align(Alignment.Center))
+            }
+            is ForensicsState.AppsLoaded -> {
+                AppList(apps = state.apps, onAppClick = { viewModel.selectAppForAnalysis(it) })
+            }
+            is ForensicsState.AppSelected -> {
+                AppDetailView(
+                    state = state,
+                    onAnalyzeClick = {
+                        val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+                        viewModel.analyzeManifestWithAi(state.manifestXml, state.strings, apiKey)
+                    }
+                )
+            }
+            is ForensicsState.Error -> {
+                Text("Error: ${state.message}", color = Color.Red, modifier = Modifier.align(Alignment.Center))
             }
         }
     }
@@ -286,3 +379,5 @@ fun AppDetailView(state: ForensicsState.AppSelected, onAnalyzeClick: () -> Unit)
         }
     }
 }
+
+

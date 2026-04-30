@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Parcelable
 import android.os.SystemClock
 import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,9 @@ class HidDeviceManager private constructor(private val context: Context) {
     private var pendingBondAddress: String? = null
     private var pendingConnectRetries: Int = 3
     private var pendingRetryDelayMs: Long = 1500
+
+    private var isAppRegistered = false
+    private val registrationLock = Any()
 
     private data class ReportRequest(val id: Int, val data: ByteArray)
     private val reportChannel = Channel<ReportRequest>(Channel.UNLIMITED)
@@ -120,35 +124,44 @@ class HidDeviceManager private constructor(private val context: Context) {
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
             super.onConnectionStateChanged(device, state)
-            Log.d("HidDeviceManager", "Connection state changed: $state for device ${device?.name}")
-            when (state) {
-                BluetoothProfile.STATE_CONNECTED -> {
-                    reconnectJob?.cancel()
-                    connectionTimeoutJob?.cancel()
-                    connectedDevice = device
-                    _connectionState.value = ConnectionState.Connected(device?.name ?: "Unknown")
-                    
-                    // Save to known workstations
-                    device?.let { 
-                        deviceRepository?.saveWorkstation(it.address, it.name ?: "Unknown Workstation")
+            try {
+                Log.d("HidDeviceManager", "Connection state changed: $state for device ${device?.address}")
+                when (state) {
+                    BluetoothProfile.STATE_CONNECTED -> {
+                        reconnectJob?.cancel()
+                        connectionTimeoutJob?.cancel()
+                        connectedDevice = device
+                        _connectionState.value = ConnectionState.Connected(device?.name ?: "Unknown")
+                        
+                        // Save to known workstations
+                        device?.let { 
+                            deviceRepository?.saveWorkstation(it.address, it.name ?: "Unknown Workstation")
+                        }
+                        
+                        isManuallyDisconnected = false
+                        scope.launch {
+                            delay(250)
+                            sendNeutralReports()
+                            delay(550)
+                            sendNeutralReports()
+                        } 
                     }
-                    
-                    isManuallyDisconnected = false
-                    scope.launch {
-                        // Force all HID report types to neutral so hosts do not keep stale
-                        // consumer/media usages after reconnect (prevents phantom next-track).
-                        delay(250)
-                        sendNeutralReports()
-                        // Some hosts settle HID channels asynchronously; send a second neutral pulse.
-                        delay(550)
-                        sendNeutralReports()
-                    } 
+                    BluetoothProfile.STATE_DISCONNECTED -> {
+                        resetConsumerDebounceState()
+                        connectedDevice = null
+                        _connectionState.value = ConnectionState.Disconnected
+                    }
                 }
-                BluetoothProfile.STATE_DISCONNECTED -> {
-                    resetConsumerDebounceState()
-                    connectedDevice = null
-                    _connectionState.value = ConnectionState.Disconnected
-                }
+            } catch (e: Exception) {
+                Log.e("HidDeviceManager", "Error in onConnectionStateChanged", e)
+            }
+        }
+
+        override fun onAppStatusChanged(device: BluetoothDevice?, registered: Boolean) {
+            super.onAppStatusChanged(device, registered)
+            Log.d("HidDeviceManager", "App registration status: $registered")
+            synchronized(registrationLock) {
+                isAppRegistered = registered
             }
         }
     }
@@ -183,17 +196,26 @@ class HidDeviceManager private constructor(private val context: Context) {
     }
 
     private fun registerApp() {
+        if (bluetoothAdapter?.isEnabled != true) return
         scope.launch(Dispatchers.IO) {
-            if (bluetoothAdapter?.name != "Hackie Keyboard & Mouse") {
-                bluetoothAdapter?.name = "Hackie Keyboard & Mouse"
+            try {
+                if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    if (bluetoothAdapter.name != "Hackie Keyboard & Mouse") {
+                        bluetoothAdapter.name = "Hackie Keyboard & Mouse"
+                    }
+                }
+                
+                val sdpSettings = BluetoothHidDeviceAppSdpSettings(
+                    "Hackie Keyboard & Mouse", "Keyboard + Mouse", "Hackie",
+                    0xC0.toByte(), // 0xC0 = Keyboard + Mouse
+                    HID_REPORT_DESCRIPTOR
+                )
+                
+                Log.d("HidDeviceManager", "Registering HID app...")
+                hidDevice?.registerApp(sdpSettings, null, null, executor, callback)
+            } catch (e: Exception) {
+                Log.e("HidDeviceManager", "Failed to register HID app", e)
             }
-            
-            val sdpSettings = BluetoothHidDeviceAppSdpSettings(
-                "Hackie Keyboard & Mouse", "Keyboard + Mouse", "Hackie",
-                0xC0.toByte(), // 0xC0 = Keyboard (0x40) | Mouse (0x80)
-                HID_REPORT_DESCRIPTOR
-            )
-            hidDevice?.registerApp(sdpSettings, null, null, executor, callback)
         }
     }
 
@@ -254,6 +276,17 @@ class HidDeviceManager private constructor(private val context: Context) {
                     _connectionState.value = ConnectionState.Disconnected
                 }
                 return@launch
+            }
+
+            // Strategic Reset: Unregister and Re-register HID app to clear stale SDP records
+            // This is the most effective way to resolve "Connection already in progress" or "Page Timeout"
+            try {
+                hidDevice?.unregisterApp()
+                delay(800)
+                registerApp()
+                delay(800)
+            } catch (e: Exception) {
+                Log.e("HidDeviceManager", "Failed to cycle HID app registration", e)
             }
 
             hidDevice?.connect(device)
@@ -560,12 +593,21 @@ class HidDeviceManager private constructor(private val context: Context) {
         bluetoothAdapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, hidDevice)
     }
 
-    private suspend fun ensureHidProfileReady(timeoutMs: Long = 2500) {
-        if (hidDevice != null) return
-        initProfiles()
+    private suspend fun ensureHidProfileReady(timeoutMs: Long = 4000) {
+        if (hidDevice != null && isAppRegistered) return
+        
+        if (hidDevice == null) {
+            initProfiles()
+        }
+        
         val deadline = System.currentTimeMillis() + timeoutMs
-        while (hidDevice == null && System.currentTimeMillis() < deadline) {
-            delay(120)
+        while (System.currentTimeMillis() < deadline) {
+            if (hidDevice != null) {
+                if (isAppRegistered) return
+                // Proxy is ready but app not registered yet, trigger registration
+                registerApp()
+            }
+            delay(250)
         }
     }
 

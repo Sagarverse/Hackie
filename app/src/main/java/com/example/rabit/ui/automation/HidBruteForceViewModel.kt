@@ -126,6 +126,24 @@ class HidBruteForceViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    private val _wordlistPreview = MutableStateFlow<List<String>>(emptyList())
+    val wordlistPreview: StateFlow<List<String>> = _wordlistPreview.asStateFlow()
+
+    fun loadWordlist(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val lines = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                        BufferedReader(InputStreamReader(input)).useLines { it.take(100).toList() }
+                    } ?: emptyList()
+                }
+                _wordlistPreview.value = lines
+            } catch (e: Exception) {
+                _wordlistPreview.value = listOf("Error loading file: ${e.localizedMessage}")
+            }
+        }
+    }
+
     fun stopAttack() {
         attackJob?.cancel()
         _isAttacking.value = false

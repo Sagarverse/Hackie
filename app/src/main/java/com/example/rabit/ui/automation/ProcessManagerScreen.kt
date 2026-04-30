@@ -21,11 +21,9 @@ import com.example.rabit.domain.model.RemoteProcess
 import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProcessManagerScreen(
-    viewModel: HelperViewModel,
-    onBack: () -> Unit
+fun ProcessManagerContent(
+    viewModel: HelperViewModel
 ) {
     val processes by viewModel.remoteProcesses.collectAsState()
     val isRefreshing by viewModel.isRefreshingProcesses.collectAsState()
@@ -42,7 +40,6 @@ fun ProcessManagerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Graphite)
             .padding(16.dp)
     ) {
         Row(
@@ -120,6 +117,7 @@ fun ProcessManagerScreen(
         )
     }
 }
+
 
 @Composable
 fun ProcessItem(

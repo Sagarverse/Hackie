@@ -181,7 +181,6 @@ private fun AssistantLeftPanelContent(
     featureAutomationVisible: Boolean,
     featureAssistantVisible: Boolean,
     featureSnippetsVisible: Boolean,
-    featureWakeOnLanVisible: Boolean,
     featureSshTerminalVisible: Boolean,
     onNavigate: (String) -> Unit
 ) {
@@ -255,16 +254,6 @@ private fun AssistantLeftPanelContent(
             isSelected = false,
             onClick = { onNavigate("airplay_receiver") }
         )
-
-        if (featureWakeOnLanVisible) {
-            AssistantNavDrawerItem(
-                label = "Wake-on-LAN",
-                subLabel = "Boot Sleeping Mac/PC",
-                icon = Icons.Default.PowerSettingsNew,
-                isSelected = false,
-                onClick = { onNavigate("wake_on_lan") }
-            )
-        }
 
         if (featureSshTerminalVisible) {
             AssistantNavDrawerItem(

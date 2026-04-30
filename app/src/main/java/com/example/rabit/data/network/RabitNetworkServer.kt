@@ -557,7 +557,303 @@ object RabitNetworkServer {
     </script>
 </body>
 </html>
-    """.trimIndent()
+""".trimIndent()
+
+    private val REMOTE_DECK_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Lab | Interaction Sandbox</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #05050A;
+            --accent: #00F2FF;
+            --purple: #BC13FE;
+            --error: #FF3131;
+            --text: #FFFFFF;
+            --surface: rgba(255, 255, 255, 0.05);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'Inter', sans-serif; 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+        }
+        .glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+            filter: blur(80px);
+            opacity: 0.15;
+            z-index: -1;
+        }
+        h1 { font-size: 32px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
+        p { color: rgba(255,255,255,0.5); font-size: 14px; margin-bottom: 32px; }
+        .pin-box {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 40px;
+            backdrop-filter: blur(20px);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+        }
+        .status-disconnected { color: var(--error); border: 1px solid rgba(255,49,49,0.3); background: rgba(255,49,49,0.1); }
+        .status-connecting { color: var(--accent); border: 1px solid rgba(0,242,255,0.3); background: rgba(0,242,255,0.1); }
+        .status-connected { color: #39FF14; border: 1px solid rgba(57,255,20,0.3); background: rgba(57,255,20,0.1); }
+        
+        input {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--accent);
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            text-align: center;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: 0.3s;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 20px rgba(0,242,255,0.2); }
+        
+        button {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background: var(--accent);
+            color: black;
+            font-weight: 900;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover { transform: scale(1.02); filter: brightness(1.1); }
+        
+        #interaction-area { display: none; }
+        .alert-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #FF3131;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 12px;
+            font-weight: 900;
+            z-index: 1000;
+            display: none;
+            animation: shake 0.5s infinite;
+        }
+        @keyframes shake {
+            0% { transform: translateX(-50%) rotate(0deg); }
+            25% { transform: translateX(-52%) rotate(-1deg); }
+            75% { transform: translateX(-48%) rotate(1deg); }
+            100% { transform: translateX(-50%) rotate(0deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="alert" class="alert-box">PROXIMITY WARNING</div>
+    <div class="glow"></div>
+    
+    <div class="container" id="auth-area">
+        <div class="status-badge status-disconnected" id="status-label">Awaiting Connection</div>
+        <h1>Neural Uplink</h1>
+        <p>Initialize interaction sandbox via PIN</p>
+        
+        <div class="pin-box">
+            <input type="text" id="pin-input" placeholder="0000" maxlength="4">
+            <button id="connect-btn">ESTABLISH LINK</button>
+        </div>
+    </div>
+
+    <div class="container" id="interaction-area">
+        <div class="status-badge status-connected">Link Active</div>
+        <h1>Interaction Sandbox</h1>
+        <p>Secure C2 channel established.</p>
+        
+        <div class="pin-box" style="text-align: left; font-family: 'Space Mono', monospace; font-size: 12px;">
+            <div id="log-content" style="height: 200px; overflow-y: auto; color: rgba(255,255,255,0.7);">
+                [SYSTEM] Initializing telemetry...<br>
+                [SYSTEM] Waiting for phone commands...<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWSQosAbTF0JnYLlgIOC7IZdVxn0ht9jc",
+            projectId: "hackie-260414-01"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let pc;
+        let dc;
+        let pin;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.has('pin')) {
+            document.getElementById('pin-input').value = urlParams.get('pin');
+        }
+
+        document.getElementById('connect-btn').onclick = () => {
+            pin = document.getElementById('pin-input').value;
+            if(pin.length === 4) {
+                startLink(pin);
+            }
+        };
+
+        async function startLink(pin) {
+            document.getElementById('status-label').innerText = "Negotiating...";
+            document.getElementById('status-label').className = "status-badge status-connecting";
+            
+            const roomId = "rabit_p2p_" + pin;
+            const signalRef = db.collection('signals').document(roomId);
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            });
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    signalRef.update({
+                        web_candidates: firebase.firestore.FieldValue.arrayUnion(JSON.stringify(event.candidate))
+                    });
+                }
+            };
+
+            pc.ondatachannel = (event) => {
+                setupDataChannel(event.channel);
+            };
+
+            // In our architecture, the phone is the host and creates the channel.
+            // But we can also initiate an offer from the web side if we want.
+            // Let's create an offer to trigger the phone's listener.
+            
+            dc = pc.createDataChannel("file_hub");
+            setupDataChannel(dc);
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            await signalRef.set({
+                web_offer: offer.sdp,
+                timestamp: Date.now(),
+                web_candidates: []
+            }, { merge: true });
+
+            signalRef.onSnapshot((doc) => {
+                const data = doc.data();
+                if (data && data.android_answer && !pc.currentRemoteDescription) {
+                    const answer = new RTCSessionDescription({ type: 'answer', sdp: data.android_answer });
+                    pc.setRemoteDescription(answer);
+                }
+                if (data && data.android_candidates) {
+                    data.android_candidates.forEach(candStr => {
+                        const candidate = new RTCIceCandidate(JSON.parse(candStr));
+                        pc.addIceCandidate(candidate);
+                    });
+                }
+            });
+        }
+
+        function setupDataChannel(channel) {
+            dc = channel;
+            dc.onopen = () => {
+                document.getElementById('auth-area').style.display = "none";
+                document.getElementById('interaction-area').style.display = "block";
+                log("P2P Connection Established");
+                sendStats();
+                setInterval(sendStats, 30000);
+            };
+
+            dc.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                log("RECEIVED: " + msg.type);
+                
+                if (msg.type === "push_text") {
+                    navigator.clipboard.writeText(msg.text);
+                    log("ACTION: Copied to clipboard");
+                } else if (msg.type === "remote_alert") {
+                    showAlert(msg.text);
+                } else if (msg.type === "trigger_focus") {
+                    document.body.requestFullscreen().catch(() => {});
+                    log("ACTION: Fullscreen triggered");
+                }
+            };
+        }
+
+        function log(msg) {
+            const div = document.getElementById('log-content');
+            div.innerHTML += `[${"$"}{new Date().toLocaleTimeString()}] ${"$"}{msg}<br>`;
+            div.scrollTop = div.scrollHeight;
+        }
+
+        function showAlert(text) {
+            const alert = document.getElementById('alert');
+            alert.innerText = text || "PROXIMITY WARNING";
+            alert.style.display = "block";
+            setTimeout(() => { alert.style.display = "none"; }, 5000);
+        }
+
+        async function sendStats() {
+            if(dc.readyState !== "open") return;
+            const stats = {
+                type: "CLIENT_STATS",
+                os: navigator.platform,
+                ram: (navigator.deviceMemory || "N/A") + " GB",
+                cores: navigator.hardwareConcurrency || "N/A",
+                ip: "Web Client"
+            };
+            dc.send(JSON.stringify(stats));
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    dc.send(JSON.stringify({
+                        type: "LOCATION_UPDATE",
+                        lat: pos.coords.latitude.toFixed(4),
+                        lon: pos.coords.longitude.toFixed(4)
+                    }));
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+""".trimIndent()
 
     fun setPin(pin: String) {
         this.currentPin = pin
@@ -642,6 +938,10 @@ object RabitNetworkServer {
                 get("/") {
                     val html = loadAssetText(context, PORTAL_INDEX_ASSET) ?: DASHBOARD_HTML
                     call.respondText(html, ContentType.Text.Html)
+                }
+
+                get("/remote_deck.html") {
+                    call.respondText(REMOTE_DECK_HTML, ContentType.Text.Html)
                 }
 
                 // ───── Authentication ─────

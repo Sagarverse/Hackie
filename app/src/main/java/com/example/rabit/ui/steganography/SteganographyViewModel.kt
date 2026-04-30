@@ -83,11 +83,26 @@ class SteganographyViewModel(application: Application) : AndroidViewModel(applic
             val outStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
 
-            // Save to app's cache directory
-            val file = java.io.File(getApplication<Application>().cacheDir, "stego_encoded_${System.currentTimeMillis()}.png")
-            file.writeBytes(outStream.toByteArray())
+            // Save to public Download folder using MediaStore
+            val fileName = "stego_encoded_${System.currentTimeMillis()}.png"
+            val resolver = getApplication<Application>().contentResolver
+            val contentValues = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                }
+            }
 
-            _state.value = StegoState.Encoded("Message hidden! Saved to: ${file.name}")
+            val imageUri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (imageUri != null) {
+                resolver.openOutputStream(imageUri)?.use { outputStream ->
+                    outputStream.write(outStream.toByteArray())
+                }
+                _state.value = StegoState.Encoded("Message hidden! Image saved to Downloads folder as $fileName")
+            } else {
+                _state.value = StegoState.Error("Failed to create file in Downloads.")
+            }
         } catch (e: Exception) {
             _state.value = StegoState.Error("Encoding failed: ${e.localizedMessage}")
         }

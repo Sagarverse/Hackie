@@ -9,14 +9,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -26,99 +24,183 @@ import com.example.rabit.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OsintScreen(viewModel: OsintViewModel, onBack: () -> Unit) {
+fun OsintScreen(
+    viewModel: OsintViewModel,
+    ghostViewModel: OsintGhostViewModel,
+    onBack: () -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("QUICK RECON", "DEEP SEARCH")
+    
+    // Removed viewModel.searchQuery as it doesn't exist. Using local state.
     val results by viewModel.results.collectAsState()
-    val isScanning by viewModel.isScanning.collectAsState()
-    val progress by viewModel.progress.collectAsState()
-    var username by remember { mutableStateOf("") }
+    val isSearching by viewModel.isScanning.collectAsState()
+
+    val ghostStatus by ghostViewModel.status.collectAsState()
+    val ghostLogs by ghostViewModel.searchLogs.collectAsState()
 
     Scaffold(
         containerColor = Obsidian,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "GHOST RECON",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
+            Column {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "GHOST RECON",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 2.sp,
+                                    color = Platinum
+                                )
                             )
+                            Text("OPEN SOURCE INTELLIGENCE", color = if (selectedTab == 0) SuccessGreen else Color.Magenta, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                )
+
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = if (selectedTab == 0) SuccessGreen else Color.Magenta,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = if (selectedTab == 0) SuccessGreen else Color.Magenta
                         )
-                        Text("USER OSINT ENGINE", color = AccentTeal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    },
+                    divider = {}
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { 
+                                Text(
+                                    title, 
+                                    fontSize = 11.sp, 
+                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
+                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
+                                ) 
+                            }
+                        )
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
+                }
+            }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
+        Box(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
+            if (selectedTab == 0) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    var queryInput by remember { mutableStateOf("") }
+                    OutlinedTextField(
+                        value = queryInput,
+                        onValueChange = { queryInput = it },
+                        label = { Text("Enter Username / Handle", color = Silver) },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = SuccessGreen) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Platinum,
+                            unfocusedTextColor = Platinum,
+                            focusedBorderColor = SuccessGreen,
+                            unfocusedBorderColor = BorderColor
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { viewModel.startUsernameScan(queryInput) })
+                    )
 
-            // --- Search Header ---
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Target Username (e.g. sgaram)", color = Silver.copy(alpha = 0.4f)) },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = AccentTeal) },
-                trailingIcon = {
-                    if (isScanning) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = AccentTeal)
-                    } else {
-                        IconButton(onClick = { viewModel.startUsernameScan(username) }) {
-                            Icon(Icons.Default.Radar, null, tint = AccentTeal)
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    if (isSearching) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().height(2.dp),
+                            color = SuccessGreen
+                        )
+                    }
+
+                    Text(
+                        "DISCOVERED TARGETS",
+                        color = Silver.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 40.dp)
+                    ) {
+                        items(results) { result ->
+                            OsintResultItem(result)
                         }
                     }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
-                    focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                    unfocusedBorderColor = BorderColor.copy(alpha = 0.2f),
-                    focusedBorderColor = AccentTeal
-                ),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true
-            )
-
-            if (isScanning) {
-                Spacer(modifier = Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)),
-                    color = AccentTeal,
-                    trackColor = Color.White.copy(alpha = 0.05f)
-                )
+                }
+            } else {
+                // --- Deep Search Mode (Neural Ghost) ---
+                if (ghostStatus is OsintStatus.Idle) {
+                    var targetInput by remember { mutableStateOf("") }
+                    Column {
+                        OutlinedTextField(
+                            value = targetInput,
+                            onValueChange = { targetInput = it },
+                            label = { Text("Target Name / Email / Handle", color = Silver) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Platinum,
+                                unfocusedTextColor = Platinum,
+                                focusedBorderColor = Color.Magenta,
+                                unfocusedBorderColor = BorderColor
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        
+                        Spacer(Modifier.height(16.dp))
+                        
+                        Button(
+                            onClick = { ghostViewModel.startDeepSearch(targetInput) },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Magenta),
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = targetInput.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("INITIATE DEEP SEARCH", fontWeight = FontWeight.Black)
+                        }
+                    }
+                } else {
+                    OsintDashboard(ghostViewModel, ghostStatus, ghostLogs)
+                }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "MATCHES FOUND: ${results.size}",
-                color = Silver.copy(alpha = 0.5f),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold
+@Composable
+fun OsintDashboard(viewModel: OsintGhostViewModel, status: OsintStatus, logs: List<String>) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (status is OsintStatus.Searching) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = Color.Magenta
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 40.dp)
-            ) {
-                items(results) { result ->
-                    OsintResultItem(result)
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("DEEP SEARCH LOG", color = Silver, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black, RoundedCornerShape(12.dp)).border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))) {
+            LazyColumn(modifier = Modifier.padding(12.dp)) {
+                items(logs) { log ->
+                    Text(log, color = Color.Magenta.copy(alpha = 0.8f), fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
         }

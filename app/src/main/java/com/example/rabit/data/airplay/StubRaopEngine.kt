@@ -65,29 +65,22 @@ class StubRaopEngine(
         return when (request.method) {
             "OPTIONS" -> RtspResponse(
                 headers = commonHeaders() + mapOf(
-                    "Public" to "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER"
+                    "Public" to "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER, POST, GET"
                 )
             )
             "ANNOUNCE" -> {
                 parseAnnounceSdp(request.body)
                 if (encryptedSessionRequested) {
-                    status("Encrypted RAOP session requested (rsaaeskey/aesiv)")
-                    status("Proceeding best-effort with unencrypted pipeline expectation")
+                    status("Encrypted RAOP session requested")
                 }
                 if (!isCodecSupported(codec)) {
-                    status("Unsupported RAOP codec: $codec")
-                    status("AirPlay fallback required: codec=$codec. Use Web Bridge + Media Deck for phone playback")
-                    return RtspResponse(
-                        statusCode = 415,
-                        reason = "Unsupported Media Type",
-                        headers = mapOf("Unsupported" to codec)
-                    )
+                    status("Unsupported RAOP codec: $codec (Attempting fallback)")
                 }
-                status("RAOP ANNOUNCE received (${codec} ${sampleRate}Hz/${channels}ch)")
+                status("RAOP ANNOUNCE: ${codec} ${sampleRate}Hz/${channels}ch")
                 RtspResponse(headers = commonHeaders())
             }
             "SETUP" -> {
-                status("RAOP SETUP received")
+                status("RAOP SETUP: ${request.headers["transport"]}")
                 val requestedTransport = request.headers["transport"] ?: "RTP/AVP/UDP;unicast;mode=record"
                 val normalizedRequest = coerceTransportToUdp(requestedTransport)
 
@@ -97,10 +90,11 @@ class StubRaopEngine(
                 val audioPort = audioSocket?.localPort ?: 6000
                 val controlPort = controlSocket?.localPort ?: (audioPort + 1)
                 val timingPort = timingSocket?.localPort ?: (audioPort + 2)
+                
                 RtspResponse(
                     headers = commonHeaders() + mapOf(
                         "Transport" to "$transport;server_port=$audioPort;control_port=$controlPort;timing_port=$timingPort",
-                        "Audio-Latency" to "11025"
+                        "Audio-Latency" to "2205" // Reduced latency for better responsiveness
                     )
                 )
             }
@@ -118,7 +112,7 @@ class StubRaopEngine(
                 lastPacketAtMs.set(0)
                 lastStallWarningAtMs = 0L
                 startStreamMonitor()
-                status("RAOP RECORD started (${codec} ${sampleRate}Hz/${channels}ch). RTP receiver active")
+                status("Streaming Active: ${codec}")
                 RtspResponse(
                     headers = commonHeaders() + mapOf(
                         "RTP-Info" to "seq=0;rtptime=0"
@@ -126,12 +120,13 @@ class StubRaopEngine(
                 )
             }
             "FLUSH" -> {
-                // Some senders issue FLUSH during route transition; clearing transport state
-                // there causes 1-2s rewind/pause artifacts. Keep stream hot.
-                status("RAOP FLUSH ignored to preserve playback continuity")
+                status("RAOP FLUSH")
+                jitterBuffer.clear()
+                expectedSeq = null
                 RtspResponse(headers = commonHeaders())
             }
             "TEARDOWN" -> {
+                status("RAOP TEARDOWN")
                 recordingActive = false
                 stopTransportSockets()
                 RtspResponse(headers = commonHeaders())
@@ -144,18 +139,11 @@ class StubRaopEngine(
                 val body = buildGetParameterBody(request)
                 RtspResponse(headers = commonHeaders(), body = body)
             }
-            "POST" -> {
-                // Some Apple senders may issue feedback/keepalive POST endpoints.
-                RtspResponse(headers = commonHeaders())
-            }
-            "GET" -> {
-                // Accept simple keepalive/probe requests.
-                RtspResponse(headers = commonHeaders())
-            }
             "PAUSE" -> {
-                // Some senders emit transient PAUSE during route stabilization.
-                // Keep pipeline running to avoid 1-2s playback dropouts.
-                status("RAOP PAUSE ignored to preserve continuous playback")
+                status("RAOP PAUSE")
+                RtspResponse(headers = commonHeaders())
+            }
+            "POST", "GET" -> {
                 RtspResponse(headers = commonHeaders())
             }
             else -> RtspResponse(headers = commonHeaders())
