@@ -70,10 +70,13 @@ fun KeyboardScreen(
         }
     }
 
-    // Disable Air Mouse when leaving the PAD tab or screen
+    // Disable Air Mouse and Lock Mouse when leaving the PAD tab or screen
     LaunchedEffect(selectedTab) {
         if (selectedTab != 1) {
             viewModel.setAirMouseEnabled(false)
+            viewModel.setMouseLocked(true)
+        } else {
+            viewModel.setMouseLocked(false)
         }
     }
 
@@ -263,7 +266,7 @@ fun MinimalSystemInput(viewModel: MainViewModel) {
 
                 if (newText.length < oldText.length) {
                     repeat(oldText.length - newText.length) {
-                        viewModel.sendKey(HidKeyCodes.KEY_BACKSPACE)
+                        viewModel.sendKey(HidKeyCodes.KEY_BACKSPACE, useSticky = false)
                     }
                 } else if (newText.length > oldText.length) {
                     val diff = newText.substring(oldText.length)

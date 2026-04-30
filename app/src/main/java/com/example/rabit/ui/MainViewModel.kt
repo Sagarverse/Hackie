@@ -63,7 +63,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     val isTextPushing = repository.isTextPushing
     val knownWorkstations = repository.knownWorkstations
-    val activeModifiers: StateFlow<Byte> = MutableStateFlow(0.toByte()).asStateFlow()
+    val activeModifiers: StateFlow<Byte> = repository.activeModifiers
     
     // Combine saved workstations with bonded system devices
     private val bluetoothAdapter: BluetoothAdapter? = application.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
@@ -429,12 +429,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun disconnectKeyboard() = repository.disconnect()
 
     fun sendText(text: String) = repository.sendText(text)
-    fun sendKey(keyCode: Byte, modifiers: Byte = 0) = repository.sendKey(keyCode, modifiers)
+    fun sendKey(keyCode: Byte, modifiers: Byte = 0, useSticky: Boolean = true) = 
+        repository.sendKey(keyCode, modifiers, useSticky)
+    
+    fun clearModifiers() {
+        repository.setModifier(HidKeyCodes.MODIFIER_LEFT_CTRL, false)
+        repository.setModifier(HidKeyCodes.MODIFIER_LEFT_ALT, false)
+        repository.setModifier(HidKeyCodes.MODIFIER_LEFT_GUI, false)
+        repository.setModifier(HidKeyCodes.MODIFIER_LEFT_SHIFT, false)
+    }
     fun sendMouseMove(dx: Float, dy: Float, buttons: Int = 0, scroll: Int = 0) {
         repository.sendMouseMove(dx, dy, buttons, scroll)
     }
+    
+    fun setMouseLocked(locked: Boolean) = repository.setMouseLocked(locked)
 
-    fun toggleModifier(modifier: Byte) = repository.setModifier(modifier, true)
+    fun toggleModifier(modifier: Byte) {
+        val current = activeModifiers.value
+        val isActive = (current.toInt() and modifier.toInt()) != 0
+        repository.setModifier(modifier, !isActive)
+    }
 
     // Voice Actions
     fun startVoiceRecognition() = voiceAssistantManager.startListening()
@@ -484,6 +498,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             spatialPointerManager.stop()
             gyroAirMouse.stop()
+            // Neutralize mouse state to stop any "background" movement or stuck buttons
+            repository.sendMouseMove(0f, 0f, 0, 0)
+            repository.resetMouseAccumulator()
         }
     }
     
@@ -616,11 +633,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Media & System Shortcuts
-    fun sendMediaPlayPause() = executeHybridMediaCommand(HidKeyCodes.MEDIA_PLAY_PAUSE, "media_play_pause")
-    fun sendMediaVolumeUp() = executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_UP, "volume_up")
-    fun sendMediaVolumeDown() = executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_DOWN, "volume_down")
-    fun sendMediaNext() = executeHybridMediaCommand(HidKeyCodes.MEDIA_NEXT, "media_next")
-    fun sendMediaPrev() = executeHybridMediaCommand(HidKeyCodes.MEDIA_PREVIOUS, "media_prev")
+    fun sendMediaPlayPause() {
+        performHapticFeedback("Soft")
+        executeHybridMediaCommand(HidKeyCodes.MEDIA_PLAY_PAUSE, "media_play_pause")
+    }
+    fun sendMediaVolumeUp() {
+        performHapticFeedback("Sharp")
+        executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_UP, "volume_up")
+    }
+    fun sendMediaVolumeDown() {
+        performHapticFeedback("Sharp")
+        executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_DOWN, "volume_down")
+    }
+    fun sendMediaNext() {
+        performHapticFeedback("Soft")
+        executeHybridMediaCommand(HidKeyCodes.MEDIA_NEXT, "media_next")
+    }
+    fun sendMediaPrev() {
+        performHapticFeedback("Soft")
+        executeHybridMediaCommand(HidKeyCodes.MEDIA_PREVIOUS, "media_prev")
+    }
     fun sendMediaNextTrack() = sendMediaNext()
     fun sendMediaPreviousTrack() = sendMediaPrev()
 

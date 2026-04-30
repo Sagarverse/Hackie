@@ -59,12 +59,16 @@ class HidDeviceManager private constructor(private val context: Context) {
     private val _isPushPaused = MutableStateFlow(false)
     val isPushPaused: StateFlow<Boolean> = _isPushPaused.asStateFlow()
 
+    private val _currentModifiers = MutableStateFlow<Byte>(0)
+    val activeModifiers: StateFlow<Byte> = _currentModifiers.asStateFlow()
+
     private val _isTextPushing = MutableStateFlow(false)
     val isTextPushing: StateFlow<Boolean> = _isTextPushing.asStateFlow()
 
     private var mouseAccumX = 0f
     private var mouseAccumY = 0f
     private var lastButtons = 0
+    var isMouseLocked = false
 
     private val bluetoothStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -394,6 +398,7 @@ class HidDeviceManager private constructor(private val context: Context) {
         } else {
             currentModifiers and modifier.inv()
         }
+        _currentModifiers.value = currentModifiers
         val report = ByteArray(8).apply { this[0] = currentModifiers }
         reportChannel.trySend(ReportRequest(1, report))
     }
@@ -457,13 +462,11 @@ class HidDeviceManager private constructor(private val context: Context) {
             this[1] = ((usageId.toInt() shr 8) and 0xFF).toByte()
         }
 
-        // Defensive sequence for host stability: release -> press -> release.
-        reportChannel.trySend(ReportRequest(2, ByteArray(2)))
         scope.launch {
-            delay(8)
+            // Standard HID Consumer Key Sequence: Press -> Hold -> Release
             reportChannel.trySend(ReportRequest(2, pressReport))
-            delay(22)
-            reportChannel.trySend(ReportRequest(2, ByteArray(2)))
+            delay(35) // Industry standard for momentary media key press
+            reportChannel.trySend(ReportRequest(2, ByteArray(2))) // Release all
         }
     }
 
@@ -473,6 +476,7 @@ class HidDeviceManager private constructor(private val context: Context) {
     }
 
     fun sendMouseMove(dx: Float, dy: Float, buttons: Int = 0, wheel: Int = 0) {
+        if (isMouseLocked) return
         mouseAccumX += dx
         mouseAccumY += dy
         

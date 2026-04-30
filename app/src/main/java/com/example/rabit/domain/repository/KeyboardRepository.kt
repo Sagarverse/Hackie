@@ -12,6 +12,7 @@ interface KeyboardRepository {
     val isPushPaused: StateFlow<Boolean>
     val isTextPushing: StateFlow<Boolean>
     val knownWorkstations: StateFlow<List<Workstation>>
+    val activeModifiers: StateFlow<Byte>
     var isPulseModeEnabled: Boolean
     var onShakeDetected: (() -> Unit)?
     
@@ -23,7 +24,7 @@ interface KeyboardRepository {
     fun connect(device: BluetoothDevice)
     fun connectWithRetry(device: BluetoothDevice, maxRetries: Int = 3, retryDelayMs: Long = 1500)
     fun disconnect()
-    fun sendKey(keyCode: Byte, modifier: Byte = 0)
+    fun sendKey(keyCode: Byte, modifier: Byte = 0, useSticky: Boolean = true)
     fun setModifier(modifier: Byte, active: Boolean)
     fun sendConsumerKey(usageId: Short)
     fun sendText(text: String): kotlinx.coroutines.Job?
@@ -43,4 +44,5 @@ interface KeyboardRepository {
     fun executeKeyCombo(combo: String)
     fun executeSpecialKey(key: String)
     fun updateIdentity(name: String, provider: String, description: String)
+    fun setMouseLocked(locked: Boolean)
 }

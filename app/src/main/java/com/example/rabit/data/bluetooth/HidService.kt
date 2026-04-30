@@ -309,6 +309,8 @@ class HidService : Service() {
             "STOP_APP" -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                // Force exit the process to ensure it's not running in background
+                android.os.Process.killProcess(android.os.Process.myPid())
             }
         }
         return START_STICKY
@@ -452,7 +454,6 @@ class HidService : Service() {
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_lock_lock, "Lock", lockPending)
             .addAction(android.R.drawable.ic_lock_idle_lock, "Unlock", unlockPending)
             .addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopPending)

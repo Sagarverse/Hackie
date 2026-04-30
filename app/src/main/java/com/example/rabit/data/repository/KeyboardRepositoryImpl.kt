@@ -20,6 +20,7 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
     override val isPushPaused: StateFlow<Boolean> = hidDeviceManager.isPushPaused
     override val isTextPushing: StateFlow<Boolean> = hidDeviceManager.isTextPushing
     override val knownWorkstations: StateFlow<List<com.example.rabit.domain.model.Workstation>> = deviceRepository.knownWorkstations
+    override val activeModifiers: StateFlow<Byte> = hidDeviceManager.activeModifiers
     
     override var isPulseModeEnabled: Boolean
         get() = hidDeviceManager.isPulseModeEnabled
@@ -59,8 +60,8 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
         hidDeviceManager.disconnect()
     }
 
-    override fun sendKey(keyCode: Byte, modifier: Byte) {
-        hidDeviceManager.sendKeyPress(keyCode, modifier)
+    override fun sendKey(keyCode: Byte, modifier: Byte, useSticky: Boolean) {
+        hidDeviceManager.sendKeyPress(keyCode, modifier, useSticky)
     }
 
     override fun setModifier(modifier: Byte, active: Boolean) {
@@ -157,5 +158,9 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
 
     override fun updateIdentity(name: String, provider: String, description: String) {
         hidDeviceManager.updateIdentity(name, provider, description)
+    }
+
+    override fun setMouseLocked(locked: Boolean) {
+        hidDeviceManager.isMouseLocked = locked
     }
 }

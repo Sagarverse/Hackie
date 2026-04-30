@@ -313,17 +313,22 @@ fun HomeScreen(
                 ) {
                     MediaControl(icon = Icons.Default.Remove, onClick = { viewModel.sendMediaVolumeDown() })
                     MediaControl(icon = Icons.Default.FastRewind, onClick = { viewModel.sendMediaPreviousTrack() })
-                    // Play button — primary accent
-                    Surface(
+                    
+                    // Play/Pause button — primary accent
+                    IconButton(
                         onClick = { viewModel.sendMediaPlayPause() },
-                        modifier = Modifier.size(40.dp),
-                        shape = CircleShape,
-                        color = AccentBlue
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(AccentBlue, CircleShape)
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
+                        Icon(
+                            imageVector = if (nowPlayingTitle.isNotBlank() && nowPlayingTitle != "Nothing playing") Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
+
                     MediaControl(icon = Icons.Default.FastForward, onClick = { viewModel.sendMediaNextTrack() })
                     MediaControl(icon = Icons.Default.Add, onClick = { viewModel.sendMediaVolumeUp() })
                 }
