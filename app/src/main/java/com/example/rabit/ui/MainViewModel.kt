@@ -23,8 +23,12 @@ import com.example.rabit.data.sensors.SpatialPointerManager
 import com.example.rabit.data.voice.VoiceAssistantManager
 import com.example.rabit.domain.model.*
 import com.example.rabit.domain.repository.KeyboardRepository
+import com.example.rabit.data.network.RabitNetworkServer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
@@ -287,20 +291,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isPushPaused = MutableStateFlow(false)
     val isPushPaused = _isPushPaused.asStateFlow()
 
-    // Compatibility Stubs for Migration
-    val isHelperConnected = MutableStateFlow(false).asStateFlow()
-    val helperDeviceName = MutableStateFlow("").asStateFlow()
-    val helperDeviceMac = MutableStateFlow("").asStateFlow()
-    val helperBaseUrl = MutableStateFlow("").asStateFlow()
-    val helperDeviceIp = MutableStateFlow("").asStateFlow()
+    // Compatibility Stubs & Functional States
+    private val _helperBaseUrl = MutableStateFlow(prefs.getString("helper_base_url", "") ?: "")
+    val helperBaseUrl = _helperBaseUrl.asStateFlow()
+
+    private val _isHelperConnected = MutableStateFlow(false)
+    val isHelperConnected = _isHelperConnected.asStateFlow()
+
+    private val _helperDeviceName = MutableStateFlow("")
+    val helperDeviceName = _helperDeviceName.asStateFlow()
+
+    private val _helperDeviceMac = MutableStateFlow("")
+    val helperDeviceMac = _helperDeviceMac.asStateFlow()
+
+    private val _helperDeviceIp = MutableStateFlow("")
+    val helperDeviceIp = _helperDeviceIp.asStateFlow()
+
     val p2pStatus = MutableStateFlow("Disconnected").asStateFlow()
     val helperConnectionStatus = MutableStateFlow("Ready").asStateFlow()
     val helperTransferEvents = MutableStateFlow<List<String>>(emptyList()).asStateFlow()
     
-    val nowPlayingTitle = MutableStateFlow("").asStateFlow()
-    val nowPlayingArtist = MutableStateFlow("").asStateFlow()
-    val nowPlayingAlbum = MutableStateFlow("").asStateFlow()
-    val nowPlayingArtworkBase64 = MutableStateFlow<String?>(null).asStateFlow()
+    private val _nowPlayingTitle = MutableStateFlow("Nothing playing")
+    val nowPlayingTitle = _nowPlayingTitle.asStateFlow()
+
+    private val _nowPlayingArtist = MutableStateFlow("")
+    val nowPlayingArtist = _nowPlayingArtist.asStateFlow()
+
+    private val _nowPlayingAlbum = MutableStateFlow("")
+    val nowPlayingAlbum = _nowPlayingAlbum.asStateFlow()
+
+    private val _nowPlayingArtworkBase64 = MutableStateFlow<String?>(null)
+    val nowPlayingArtworkBase64 = _nowPlayingArtworkBase64.asStateFlow()
 
     private val _airPlayPacketStats = MutableStateFlow("0 pkt / 0 drop / 0 reorder")
     val airPlayPacketStats = _airPlayPacketStats.asStateFlow()
@@ -348,6 +369,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         updateRepositorySpeed(_typingSpeed.value)
         startProximityTelemetryRefresh()
+
+        // Link Now Playing updates from RabitNetworkServer (Mac Companion Push)
+        val existingReceiver = RabitNetworkServer.nowPlayingReceiver
+        RabitNetworkServer.nowPlayingReceiver = { payload ->
+            _nowPlayingTitle.value = payload.title
+            _nowPlayingArtist.value = payload.artist
+            _nowPlayingAlbum.value = payload.album
+            _nowPlayingArtworkBase64.value = payload.artworkBase64
+            existingReceiver?.invoke(payload)
+        }
         
         // Listen to AirPlay State Bus
         viewModelScope.launch {
@@ -585,13 +616,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Media & System Shortcuts
-    fun sendMediaPlayPause() = repository.sendConsumerKey(HidKeyCodes.MEDIA_PLAY_PAUSE)
-    fun sendMediaVolumeUp() = repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
-    fun sendMediaVolumeDown() = repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
-    fun sendMediaNext() = repository.sendConsumerKey(HidKeyCodes.MEDIA_NEXT)
-    fun sendMediaPrev() = repository.sendConsumerKey(HidKeyCodes.MEDIA_PREVIOUS)
+    fun sendMediaPlayPause() = executeHybridMediaCommand(HidKeyCodes.MEDIA_PLAY_PAUSE, "media_play_pause")
+    fun sendMediaVolumeUp() = executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_UP, "volume_up")
+    fun sendMediaVolumeDown() = executeHybridMediaCommand(HidKeyCodes.MEDIA_VOL_DOWN, "volume_down")
+    fun sendMediaNext() = executeHybridMediaCommand(HidKeyCodes.MEDIA_NEXT, "media_next")
+    fun sendMediaPrev() = executeHybridMediaCommand(HidKeyCodes.MEDIA_PREVIOUS, "media_prev")
     fun sendMediaNextTrack() = sendMediaNext()
     fun sendMediaPreviousTrack() = sendMediaPrev()
+
+    private fun executeHybridMediaCommand(hidKey: Short, helperCommand: String) {
+        if (connectionState.value is HidDeviceManager.ConnectionState.Connected) {
+            repository.sendConsumerKey(hidKey)
+        } else if (_helperBaseUrl.value.isNotEmpty()) {
+            sendHelperCommand(helperCommand)
+        }
+    }
+
+    private fun sendHelperCommand(command: String, payload: JSONObject = JSONObject()) {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                payload.put("command", command)
+                val conn = (URL("$base/command").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 2000
+                    readTimeout = 2000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                conn.outputStream.use { it.write(payload.toString().toByteArray()) }
+                conn.responseCode // Trigger request
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Helper command failed: $command", e)
+            }
+        }
+    }
 
     fun sendConsumerKey(keyCode: Int) = repository.sendConsumerKey(keyCode.toShort())
     fun sendConsumerKey(keyCode: Short) = repository.sendConsumerKey(keyCode)
@@ -653,7 +714,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ContextCompat.startForegroundService(context, intent)
     }
 
-    fun requestNowPlayingFromHost() { /* Stub */ }
+    fun requestNowPlayingFromHost() {
+        val base = _helperBaseUrl.value
+        if (base.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conn = (URL("$base/now-playing").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 3000
+                    readTimeout = 3000
+                }
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(body)
+                    _nowPlayingTitle.value = json.optString("title", "No track")
+                    _nowPlayingArtist.value = json.optString("artist", "Unknown artist")
+                    _nowPlayingAlbum.value = json.optString("album", "")
+                    _nowPlayingArtworkBase64.value = json.optString("artworkBase64", null)
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Failed to fetch metadata", e)
+            }
+        }
+    }
     fun discoverHelperOnLocalWifi() { /* Stub */ }
     fun pingRemoteDevice() { /* Stub */ }
 

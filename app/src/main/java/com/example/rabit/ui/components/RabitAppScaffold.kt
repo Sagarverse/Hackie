@@ -61,7 +61,7 @@ fun RabitAppScaffold(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "pentest_toolkit", "remote_explorer", "reverse_shell", "terminal_scanner")
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     val screenTitle = when(currentRoute) {
@@ -81,7 +81,7 @@ fun RabitAppScaffold(
         "helper" -> "Hackie Helper"
         "auto_clicker" -> "Auto Clicker"
         "process_manager" -> "Processes"
-        "system_stats" -> "System Stats"
+        "pentest_toolkit" -> "Pentest Toolkit"
         "remote_explorer" -> "Remote Explorer"
         "reverse_shell" -> "Reverse Shell"
         "terminal_scanner" -> "Scanner"
@@ -284,14 +284,6 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("process_manager"); scope.launch { drawerState.close() } }
                                 )
                             }
-                            if (matches("System Stats")) {
-                                DrawerNavItem(
-                                    label = "System Stats",
-                                    icon = Icons.Default.Speed,
-                                    isSelected = currentRoute == "system_stats",
-                                    onClick = { onNavigate("system_stats"); scope.launch { drawerState.close() } }
-                                )
-                            }
                             if (matches("Auto Clicker")) {
                                 DrawerNavItem(
                                     label = "Auto Clicker",
@@ -414,8 +406,16 @@ fun RabitAppScaffold(
                         }
 
                         // ── Ethical Hacking ──
-                        if (matches("Ethical Hacking") || matches("Auditor") || matches("Security") || matches("NVA") || matches("Hash") || matches("Cracker") || matches("Reverse") || matches("Shell") || matches("Stego")) {
+                        if (matches("Ethical Hacking") || matches("Pentest") || matches("Penetration") || matches("Auditor") || matches("Security") || matches("NVA") || matches("Hash") || matches("Cracker") || matches("Reverse") || matches("Shell") || matches("Stego")) {
                             DrawerSectionLabel("Ethical Hacking")
+                            if (matches("Penetration Tools")) {
+                                DrawerNavItem(
+                                    label = "Penetration Tools",
+                                    icon = Icons.Default.Handyman,
+                                    isSelected = currentRoute == "pentest_toolkit",
+                                    onClick = { onNavigate("pentest_toolkit"); scope.launch { drawerState.close() } }
+                                )
+                            }
                             if (matches("Crypto Encoder")) {
                                 DrawerNavItem(
                                     label = "Crypto Encoder",
