@@ -160,27 +160,7 @@ fun PairingScreen(
                 }
             }
 
-            // ── IDENTITY SHADOWING (NEARBY CLONES) ──
-            item {
-                SectionHeader("IDENTITY SHADOWING", Icons.Default.Devices)
-            }
-            
-            if (shadowDevices.isEmpty()) {
-                item {
-                    EmptyStateCard("No Identities Found", "Enable high-freq scan to detect nodes for cloning")
-                }
-            } else {
-                items(shadowDevices) { device ->
-                    ShadowCloneCard(
-                        name = device.name,
-                        address = device.address,
-                        status = device.status,
-                        onClone = { shadowViewModel.toggleGhostMode(device.name) }
-                    )
-                }
-            }
-
-            // ── IDENTITY LAB (MANUAL OVERRIDE) ──
+            // ── IDENTITY LAB (TACTICAL CUSTOMIZATION) ──
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -189,7 +169,7 @@ fun PairingScreen(
                 ) {
                     SectionHeader("IDENTITY LAB", Icons.Default.Science)
                     TextButton(onClick = { showIdentityLab = !showIdentityLab }) {
-                        Text(if (showIdentityLab) "CLOSE" else "OPEN OVERRIDE", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(if (showIdentityLab) "CLOSE LAB" else "OPEN CUSTOMIZATION", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -201,7 +181,15 @@ fun PairingScreen(
                         mac = manualMac,
                         onNameChange = { manualName = it },
                         onMacChange = { manualMac = it },
-                        onDeploy = { shadowViewModel.toggleGhostMode(manualName) }
+                        onDeploy = { shadowViewModel.toggleGhostMode(manualName) },
+                        shadowDevices = shadowDevices,
+                        onClone = { device -> 
+                            manualName = device.name
+                            manualMac = device.address
+                            shadowViewModel.toggleGhostMode(device.name)
+                        },
+                        isJamming = isSpamming,
+                        onToggleJam = { shadowViewModel.toggleBleSpam("Apple_Popup_Flood") }
                     )
                 }
             }
@@ -420,7 +408,11 @@ fun IdentityLabPanel(
     mac: String,
     onNameChange: (String) -> Unit,
     onMacChange: (String) -> Unit,
-    onDeploy: () -> Unit
+    onDeploy: () -> Unit,
+    shadowDevices: List<com.example.rabit.ui.network.ShadowDevice>,
+    onClone: (com.example.rabit.ui.network.ShadowDevice) -> Unit,
+    isJamming: Boolean,
+    onToggleJam: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -428,36 +420,92 @@ fun IdentityLabPanel(
         color = Graphite.copy(alpha = 0.4f),
         border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.3f))
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = onNameChange,
-                label = { Text("EMULATED DEVICE NAME") },
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Section 1: Signal Disruption
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentBlue,
-                    unfocusedBorderColor = BorderColor,
-                    focusedTextColor = Platinum
-                )
-            )
-            OutlinedTextField(
-                value = mac,
-                onValueChange = onMacChange,
-                label = { Text("EMULATED MAC ADDRESS (OPTIONAL)") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentBlue,
-                    unfocusedBorderColor = BorderColor,
-                    focusedTextColor = Platinum
-                )
-            )
-            Button(
-                onClick = onDeploy,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                shape = RoundedCornerShape(12.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("DEPLOY IDENTITY OVERRIDE", color = Obsidian, fontWeight = FontWeight.Black)
+                Column {
+                    Text("SIGNAL DISRUPTION", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("DISCONNECT OTHER NODES", color = Silver.copy(alpha = 0.6f), fontSize = 9.sp)
+                }
+                Switch(
+                    checked = isJamming,
+                    onCheckedChange = { onToggleJam() },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Color.Red, checkedTrackColor = Color.Red.copy(alpha = 0.3f))
+                )
+            }
+
+            HorizontalDivider(color = BorderColor.copy(alpha = 0.2f))
+
+            // Section 2: Identity Shadowing (Nearby Clones)
+            Text("NEARBY IDENTITIES", color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
+            
+            if (shadowDevices.isEmpty()) {
+                Text("Searching for nearby signatures...", color = Silver.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
+            } else {
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(shadowDevices) { device ->
+                        Surface(
+                            onClick = { onClone(device) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Surface1,
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Devices, null, tint = Silver, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.height(4.dp))
+                                Text(device.name.take(10), color = Platinum, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(device.address.take(8), color = Silver, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = BorderColor.copy(alpha = 0.2f))
+
+            // Section 3: Manual Identity Override
+            Text("MANUAL OVERRIDE", color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
+            
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text("EMULATED DEVICE NAME", fontSize = 9.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = BorderColor,
+                        focusedTextColor = Platinum
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                )
+                OutlinedTextField(
+                    value = mac,
+                    onValueChange = onMacChange,
+                    label = { Text("EMULATED MAC ADDRESS", fontSize = 9.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = BorderColor,
+                        focusedTextColor = Platinum
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                )
+                Button(
+                    onClick = onDeploy,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("DEPLOY IDENTITY", color = Obsidian, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                }
             }
         }
     }

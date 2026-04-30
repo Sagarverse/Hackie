@@ -61,7 +61,7 @@ fun RabitAppScaffold(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "wake_on_lan", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
+    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "system_stats", "remote_explorer", "reverse_shell", "terminal_scanner")
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     val screenTitle = when(currentRoute) {
@@ -198,36 +198,12 @@ fun RabitAppScaffold(
                         if (matches("Connectivity") || matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab") || matches("Network Auditor") || matches("Hackie Helper") || matches("AirPlay")) {
                             DrawerSectionLabel("Connectivity")
 
-                            if (matches("Web Bridge")) {
+                            if (matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab")) {
                                 DrawerNavItem(
                                     label = "Web Bridge",
                                     icon = Icons.Default.CloudSync,
                                     isSelected = currentRoute == "web_bridge",
                                     onClick = { onNavigate("web_bridge"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Web Hub")) {
-                                DrawerNavItem(
-                                    label = "Web Hub",
-                                    icon = Icons.Default.CloudUpload,
-                                    isSelected = currentRoute == "web_hub",
-                                    onClick = { onNavigate("web_hub"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Remote Lab")) {
-                                DrawerNavItem(
-                                    label = "Remote Lab",
-                                    icon = Icons.Default.BugReport,
-                                    isSelected = currentRoute == "remote_deck",
-                                    onClick = { onNavigate("remote_deck"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Network Auditor")) {
-                                DrawerNavItem(
-                                    label = "Network Auditor",
-                                    icon = Icons.Default.WifiFind,
-                                    isSelected = currentRoute == "network_auditor",
-                                    onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
                                 )
                             }
                             if (matches("Hackie Helper")) {
@@ -369,14 +345,6 @@ fun RabitAppScaffold(
                         // ── Strategic Labs ──
                         if (matches("Strategic Labs") || matches("Terminal") || matches("Recon") || matches("Auditor") || matches("Attacker") || matches("QA") || matches("Web") || matches("Forge") || matches("Horizon") || matches("Sensor") || matches("OSINT") || matches("Shadow") || matches("Mirror") || matches("Port") || matches("Ping") || matches("Traceroute") || matches("Labs")) {
                             DrawerSectionLabel("Strategic Labs")
-                            if (matches("Tactical Terminal")) {
-                                DrawerNavItem(
-                                    label = "Tactical Terminal",
-                                    icon = Icons.Default.Terminal,
-                                    isSelected = currentRoute == "panic_terminal",
-                                    onClick = { onNavigate("panic_terminal"); scope.launch { drawerState.close() } }
-                                )
-                            }
                             if (matches("Local Terminal")) {
                                 DrawerNavItem(
                                     label = "Local Terminal",
@@ -393,54 +361,22 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
                                 )
                             }
-                            if (matches("Port Scanner")) {
-                                DrawerNavItem(
-                                    label = "Port Scanner",
-                                    icon = Icons.Default.ScreenSearchDesktop,
-                                    isSelected = currentRoute == "network_auditor",
-                                    onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Ping") || matches("Traceroute")) {
-                                DrawerNavItem(
-                                    label = "Ping & Traceroute",
-                                    icon = Icons.Default.NetworkPing,
-                                    isSelected = currentRoute == "network_auditor",
-                                    onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("BLE Auditor")) {
-                                DrawerNavItem(
-                                    label = "BLE Auditor",
-                                    icon = Icons.Default.BluetoothConnected,
-                                    isSelected = currentRoute == "wireless_auditor",
-                                    onClick = { onNavigate("wireless_auditor"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Wi-Fi Attacker")) {
-                                DrawerNavItem(
-                                    label = "Wi-Fi Attacker",
-                                    icon = Icons.Default.WifiTethering,
-                                    isSelected = currentRoute == "wireless_auditor",
-                                    onClick = { onNavigate("wireless_auditor"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Neural QA Auditor")) {
-                                DrawerNavItem(
-                                    label = "Neural QA Auditor",
-                                    icon = Icons.Default.BugReport,
-                                    isSelected = currentRoute == "neural_lab",
-                                    onClick = { onNavigate("neural_lab"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Neural Web Auditor")) {
-                                DrawerNavItem(
-                                    label = "Neural Web Auditor",
-                                    icon = Icons.Default.Public,
-                                    isSelected = currentRoute == "neural_lab",
-                                    onClick = { onNavigate("neural_lab"); scope.launch { drawerState.close() } }
-                                )
-                            }
+                             if (matches("Network Auditor") || matches("Port") || matches("Ping") || matches("Traceroute")) {
+                                 DrawerNavItem(
+                                     label = "Network Auditor",
+                                     icon = Icons.Default.ScreenSearchDesktop,
+                                     isSelected = currentRoute == "network_auditor",
+                                     onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
+                                 )
+                             }
+                             if (matches("Wireless Auditor") || matches("BLE") || matches("Wi-Fi")) {
+                                 DrawerNavItem(
+                                     label = "Wireless Auditor",
+                                     icon = Icons.Default.BluetoothConnected,
+                                     isSelected = currentRoute == "wireless_auditor",
+                                     onClick = { onNavigate("wireless_auditor"); scope.launch { drawerState.close() } }
+                                 )
+                             }
                             if (matches("Neural Payload Forge")) {
                                 DrawerNavItem(
                                     label = "Neural Payload Forge",
@@ -455,22 +391,6 @@ fun RabitAppScaffold(
                                     icon = Icons.Default.WifiTetheringError,
                                     isSelected = currentRoute == "rogue_horizon",
                                     onClick = { onNavigate("rogue_horizon"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Sensor Lab")) {
-                                DrawerNavItem(
-                                    label = "Sensor Lab",
-                                    icon = Icons.Default.Stream,
-                                    isSelected = currentRoute == "sensor_lab",
-                                    onClick = { onNavigate("sensor_lab"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("OSINT Ghost")) {
-                                DrawerNavItem(
-                                    label = "OSINT Ghost",
-                                    icon = Icons.Default.Radar,
-                                    isSelected = currentRoute == "ghost_recon",
-                                    onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
                                 )
                             }
                             if (matches("Subdomain Scanner")) {
@@ -491,25 +411,11 @@ fun RabitAppScaffold(
                             }
 
                             // LABS SUBSECTION
-                            if (matches("Labs") || matches("Screenshot") || matches("Keystroke") || matches("Vision") || matches("Macro")) {
-                                DrawerNavItem(label = "Screenshot Lab", icon = Icons.Default.AddAPhoto, isSelected = currentRoute == "screenshot_lab", onClick = { onNavigate("screenshot_lab"); scope.launch { drawerState.close() } })
-                                DrawerNavItem(label = "Keystroke Monitor", icon = Icons.Default.KeyboardAlt, isSelected = currentRoute == "keystroke_monitor", onClick = { onNavigate("keystroke_monitor"); scope.launch { drawerState.close() } })
-                                DrawerNavItem(label = "Vision Lab", icon = Icons.Default.Visibility, isSelected = currentRoute == "vision_lab", onClick = { onNavigate("vision_lab"); scope.launch { drawerState.close() } })
-                                DrawerNavItem(label = "Macro Lab", icon = Icons.Default.FiberManualRecord, isSelected = currentRoute == "macro_lab", onClick = { onNavigate("macro_lab"); scope.launch { drawerState.close() } })
-                            }
                         }
 
                         // ── Ethical Hacking ──
                         if (matches("Ethical Hacking") || matches("Auditor") || matches("Security") || matches("NVA") || matches("Hash") || matches("Cracker") || matches("Reverse") || matches("Shell") || matches("Stego")) {
                             DrawerSectionLabel("Ethical Hacking")
-                            if (matches("Hash Cracker")) {
-                                DrawerNavItem(
-                                    label = "Hash Cracker",
-                                    icon = Icons.Default.VpnKey,
-                                    isSelected = currentRoute == "hash_cracker",
-                                    onClick = { onNavigate("hash_cracker"); scope.launch { drawerState.close() } }
-                                )
-                            }
                             if (matches("Crypto Encoder")) {
                                 DrawerNavItem(
                                     label = "Crypto Encoder",
@@ -542,14 +448,20 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("reverse_shell_gen"); scope.launch { drawerState.close() } }
                                 )
                             }
-                            if (matches("Steganography") || matches("Stego")) {
-                                DrawerNavItem(
-                                    label = "Steganography Lab",
-                                    icon = Icons.Default.HideImage,
-                                    isSelected = currentRoute == "stego_lab",
-                                    onClick = { onNavigate("stego_lab"); scope.launch { drawerState.close() } }
-                                )
-                            }
+                        }
+                        
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+
+                        // ── Tactical Research Labs ──
+                        if (matches("Lab") || matches("Research") || matches("Neural") || matches("Sensor") || matches("Vision") || matches("Macro") || matches("Steganography")) {
+                            DrawerSectionLabel("Tactical Research Labs")
+                            DrawerNavItem(label = "Neural Lab", icon = Icons.Default.BugReport, isSelected = currentRoute == "neural_lab", onClick = { onNavigate("neural_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Sensor Lab", icon = Icons.Default.Stream, isSelected = currentRoute == "sensor_lab", onClick = { onNavigate("sensor_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Screenshot Lab", icon = Icons.Default.AddAPhoto, isSelected = currentRoute == "screenshot_lab", onClick = { onNavigate("screenshot_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Vision Lab", icon = Icons.Default.Visibility, isSelected = currentRoute == "vision_lab", onClick = { onNavigate("vision_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Macro Lab", icon = Icons.Default.FiberManualRecord, isSelected = currentRoute == "macro_lab", onClick = { onNavigate("macro_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Steganography Lab", icon = Icons.Default.HideImage, isSelected = currentRoute == "stego_lab", onClick = { onNavigate("stego_lab"); scope.launch { drawerState.close() } })
+                            DrawerNavItem(label = "Keystroke Monitor", icon = Icons.Default.KeyboardAlt, isSelected = currentRoute == "keystroke_monitor", onClick = { onNavigate("keystroke_monitor"); scope.launch { drawerState.close() } })
                         }
                         
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
@@ -581,18 +493,6 @@ fun RabitAppScaffold(
                             color = Silver.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-                        DrawerNavItem(
-                            label = "App Forensics Lab",
-                            icon = Icons.Default.BugReport,
-                            isSelected = currentRoute == "forensics_lab",
-                            onClick = { onNavigate("forensics_lab"); scope.launch { drawerState.close() } }
-                        )
-                        DrawerNavItem(
-                            label = "EXIF Forensics Lab",
-                            icon = Icons.Default.ImageSearch,
-                            isSelected = currentRoute == "exif_forensics",
-                            onClick = { onNavigate("exif_forensics"); scope.launch { drawerState.close() } }
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
