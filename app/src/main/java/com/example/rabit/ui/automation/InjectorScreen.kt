@@ -15,6 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,7 +67,27 @@ fun InjectorScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val isConnected = connectionState is HidDeviceManager.ConnectionState.Connected
 
-    val defaultPayload = "DELAY 500\nGUI SPACE\nDELAY 200\nSTRING terminal\nDELAY 200\nENTER\nDELAY 1000\nSTRING echo 'Hello from Hackie INJECTOR!'\nENTER\n"
+    val defaultPayload = """
+REM Hackie — System Audit (macOS)
+DELAY 500
+GUI SPACE
+DELAY 400
+STRING Terminal
+ENTER
+DELAY 1500
+KEY (CTRL+CMD+F)
+DELAY 300
+STRING clear
+ENTER
+DELAY 200
+STRING echo "[ HACKIE ] System access established — $(whoami)@$(hostname)"
+ENTER
+STRING say "You are under the control of Hackie"
+ENTER
+DELAY 800
+STRING cmatrix -b -C green
+ENTER
+""".trimIndent()
     var payload by remember { mutableStateOf(defaultPayload) }
     var isInjecting by remember { mutableStateOf(false) }
     var showToolsSheet by remember { mutableStateOf(false) }
@@ -72,10 +95,14 @@ fun InjectorScreen(
     var savedPayloads by remember { mutableStateOf(loadInjectorSavedPayloads(prefs)) }
     var runHistory by remember { mutableStateOf(loadInjectorRunHistory(prefs)) }
     var analysis by remember(payload) { mutableStateOf(analyzeInjectorScript(payload)) }
+    val typingSpeed by viewModel.typingSpeed.collectAsState()
 
     // AI Agent State
     var aiPrompt by remember { mutableStateOf("") }
     val aiState by automationViewModel.aiGenerationState.collectAsState()
+    
+    val isInjectorRunning by automationViewModel.isInjectorRunning.collectAsState()
+    val isInjectorPaused by automationViewModel.isInjectorPaused.collectAsState()
     
     // Auto-load AI response when success
     LaunchedEffect(aiState) {
@@ -92,244 +119,391 @@ fun InjectorScreen(
 
     val templateLibrary = remember {
         listOf(
-            "Launch Safari" to "GUI SPACE\nDELAY 200\nSTRING safari\nENTER\n",
-            "Open Terminal + whoami" to "GUI SPACE\nDELAY 200\nSTRING terminal\nENTER\nDELAY 600\nSTRING whoami\nENTER\n",
-            "Mute Zoom" to "GUI SPACE\nDELAY 200\nSTRING zoom\nENTER\nDELAY 1000\nALT A\n",
-            "System Lock" to "CTRL COMMAND Q\n",
-            "Stealth Command" to "MAC_STEALTH echo 'rabit stealth'\n"
+            // ── Quick Actions ──
+            "🔐 Lock Screen" to "KEY (CTRL+CMD+Q)\n",
+            "🔊 Mute / Unmute" to "F10\n",
+            "📸 Screenshot" to "KEY (CMD+SHIFT+3)\n",
+            "📋 Screenshot → Clipboard" to "KEY (CMD+CTRL+SHIFT+3)\n",
+            "🔍 Spotlight Search" to "DELAY 300\nGUI SPACE\n",
+            "🌐 Open Browser" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING safari\nENTER\n",
+            // ── Terminal ──
+            "💻 Open Terminal" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\n",
+            "💻 Terminal + whoami" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING whoami\nENTER\n",
+            "💻 Terminal + ifconfig" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING ifconfig | grep 'inet '\nENTER\n",
+            "💻 Terminal + netstat" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING netstat -an | grep LISTEN\nENTER\n",
+            // ── macOS Shortcuts ──
+            "⌘ Select All + Copy" to "KEY (CMD+A)\nDELAY 100\nKEY (CMD+C)\n",
+            "⌘ Undo" to "KEY (CMD+Z)\n",
+            "⌘ Force Quit Menu" to "KEY (CMD+ALT+ESC)\n",
+            "⌘ Close Window" to "KEY (CMD+W)\n",
+            "⌘ Quit App" to "KEY (CMD+Q)\n",
+            "⌘ Switch App" to "KEY (CMD+TAB)\n",
+            "⌘ Mission Control" to "F3\n",
+            "⌘ Show Desktop" to "KEY (CMD+F3)\n",
+            // ── Hackie Ops ──
+            "🎭 Hackie Takeover" to "DELAY 500\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nKEY (CTRL+CMD+F)\nDELAY 300\nSTRING clear\nENTER\nDELAY 200\nSTRING echo \"[ HACKIE ] System access established — \$(whoami)@\$(hostname)\"\nENTER\nSTRING say \"You are under the control of Hackie\"\nENTER\nDELAY 800\nSTRING cmatrix -b -C green\nENTER\n",
+            "🕵️ System Recon" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING echo \"=== RECON ===\" && whoami && hostname && sw_vers -productVersion && ipconfig getifaddr en0\nENTER\n",
+            "🔐 Dump Keychain List" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING security list-keychains\nENTER\n",
+            "🌐 DNS Leak Test" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING nslookup whoami.akamai.net\nENTER\n"
         )
     }
 
     Scaffold(
         containerColor = Obsidian,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {}
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            "PAYLOAD INJECTOR",
+                            color = AccentPurple,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            "DuckyScript HID Engine",
+                            color = Silver.copy(alpha = 0.7f),
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Platinum)
+                    }
+                },
+                actions = {
+                    if (isInjectorRunning) {
+                        if (isInjectorPaused) {
+                            IconButton(onClick = { automationViewModel.resumeInjector() }) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
+                            }
+                        } else {
+                            IconButton(onClick = { automationViewModel.pauseInjector() }) {
+                                Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
+                            }
+                        }
+                        IconButton(onClick = { automationViewModel.abortInjector() }) {
+                            Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+                        }
+                    }
+                    // Connection pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isConnected) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f),
+                        border = BorderStroke(0.5.dp, if (isConnected) SuccessGreen.copy(alpha = 0.5f) else ErrorRed.copy(alpha = 0.4f)),
+                        modifier = Modifier.padding(end = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(if (isConnected) SuccessGreen else ErrorRed)
+                            )
+                            Text(
+                                if (isConnected) "LINKED" else "NO LINK",
+                                color = if (isConnected) SuccessGreen else ErrorRed,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Graphite.copy(alpha = 0.7f),
+                    scrolledContainerColor = Graphite.copy(alpha = 0.7f)
+                )
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                color = AccentPurple.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.3f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = AccentPurple)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Script Engine", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Templates, validation, and staged injection", color = Silver, fontSize = 12.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        "Commands: DEFAULTDELAY, DELAY, STRING, ENTER, TAB, SPACE, UP, DOWN, GUI, CTRL, ALT, SHIFT, MAC_STEALTH",
-                        color = Silver,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
 
-            // --- Tactical AI Agent ---
-            Surface(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                color = Graphite.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, if (aiState is AutomationViewModel.AiGenerationState.Generating) AccentBlue else BorderColor.copy(alpha = 0.3f))
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 14.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Tactical AI Agent", color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    OutlinedTextField(
-                        value = aiPrompt,
-                        onValueChange = { aiPrompt = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("e.g., 'scan my network' or 'leak history'", color = Silver.copy(alpha = 0.5f), fontSize = 13.sp) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedBorderColor = BorderColor.copy(alpha = 0.5f),
-                            focusedBorderColor = AccentBlue
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = Platinum),
-                        maxLines = 2
+
+                // ══ AI AGENT ══
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (aiState is AutomationViewModel.AiGenerationState.Generating)
+                        AccentBlue.copy(alpha = 0.07f) else Graphite.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        if (aiState is AutomationViewModel.AiGenerationState.Generating)
+                            AccentBlue.copy(alpha = 0.6f) else BorderColor.copy(alpha = 0.3f)
                     )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Button(
-                        onClick = { automationViewModel.generateAiDuckyPayload(aiPrompt) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = aiPrompt.isNotBlank() && aiState !is AutomationViewModel.AiGenerationState.Generating
-                    ) {
-                        if (aiState is AutomationViewModel.AiGenerationState.Generating) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Obsidian, strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text("THINKING...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        } else {
-                            Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("GENERATE & LOAD", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                            Text("AI Payload Generator", color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            if (aiState is AutomationViewModel.AiGenerationState.Generating) {
+                                Spacer(Modifier.weight(1f))
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AccentBlue, strokeWidth = 1.5.dp)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = aiPrompt,
+                                onValueChange = { aiPrompt = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("Describe what to do on the target...", color = Silver.copy(alpha = 0.4f), fontSize = 12.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedBorderColor = BorderColor.copy(alpha = 0.4f),
+                                    focusedBorderColor = AccentBlue,
+                                    unfocusedTextColor = Platinum,
+                                    focusedTextColor = Platinum
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                                maxLines = 2,
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = { automationViewModel.generateAiDuckyPayload(aiPrompt) },
+                                enabled = aiPrompt.isNotBlank() && aiState !is AutomationViewModel.AiGenerationState.Generating,
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp)
+                            ) {
+                                Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        if (aiState is AutomationViewModel.AiGenerationState.Error) {
+                            Text(
+                                "⚠ ${(aiState as AutomationViewModel.AiGenerationState.Error).message}",
+                                color = ErrorRed, fontSize = 11.sp
+                            )
                         }
                     }
-                    
-                    if (aiState is AutomationViewModel.AiGenerationState.Error) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            (aiState as AutomationViewModel.AiGenerationState.Error).message,
-                            color = ErrorRed,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                }
+
+                // ══ SCRIPT EDITOR ══
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF0D0D14),
+                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                ) {
+                    Column {
+                        // Editor header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(AccentPurple.copy(alpha = 0.08f))
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(ErrorRed.copy(alpha = 0.7f)))
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(WarningYellow.copy(alpha = 0.7f)))
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SuccessGreen.copy(alpha = 0.7f)))
+                                Spacer(Modifier.width(4.dp))
+                                Text("payload.ducky", color = Silver.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // Validate button
+                                IconButton(
+                                    onClick = {
+                                        analysis = analyzeInjectorScript(payload)
+                                        scope.launch {
+                                            if (analysis.warningLines == 0) snackbarHostState.showSnackbar("✓ Script valid")
+                                            else snackbarHostState.showSnackbar("⚠ ${analysis.warningLines} warning(s)")
+                                        }
+                                    },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.Verified, contentDescription = "Validate",
+                                        tint = if (analysis.warningLines == 0) SuccessGreen.copy(alpha = 0.8f) else WarningYellow,
+                                        modifier = Modifier.size(16.dp))
+                                }
+                                // Reset button
+                                IconButton(
+                                    onClick = { payload = defaultPayload; analysis = analyzeInjectorScript(defaultPayload) },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.RestartAlt, contentDescription = "Reset",
+                                        tint = Silver.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                                }
+                                // Tools button
+                                IconButton(
+                                    onClick = { showToolsSheet = true },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.Tune, contentDescription = "Tools",
+                                        tint = AccentGold.copy(alpha = 0.9f), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        // Text field
+                        BasicTextField(
+                            value = payload,
+                            onValueChange = { payload = it; analysis = analyzeInjectorScript(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 240.dp, max = 400.dp)
+                                .padding(14.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp,
+                                color = Platinum,
+                                lineHeight = 20.sp
+                            ),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(AccentPurple),
+                            decorationBox = { inner ->
+                                if (payload.isEmpty()) {
+                                    Text("REM Write your DuckyScript payload here...\nDELAY 500\nSTRING hello world\nENTER",
+                                        color = Silver.copy(alpha = 0.25f),
+                                        fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp)
+                                }
+                                inner()
+                            }
                         )
                     }
                 }
-            }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 10.dp),
-                color = Graphite.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.5f))
-            ) {
+                // ══ SPEED + CONTROLS ROW ══
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Lines: ${analysis.commandLines}", color = Silver, fontSize = 12.sp)
-                    Text("Warnings: ${analysis.warningLines}", color = if (analysis.warningLines > 0) WarningYellow else SuccessGreen, fontSize = 12.sp)
-                    Text("Est. ${analysis.estimatedDurationMs / 1000.0}s", color = AccentBlue, fontSize = 12.sp)
-                }
-            }
-
-            OutlinedTextField(
-                value = payload,
-                onValueChange = {
-                    payload = it
-                    analysis = analyzeInjectorScript(it)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 220.dp, max = 420.dp),
-                textStyle = LocalTextStyle.current.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    color = Platinum
-                ),
-                placeholder = { Text("Write DuckyScript payload...", color = Silver.copy(alpha = 0.5f)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = Graphite,
-                    focusedContainerColor = Graphite,
-                    unfocusedBorderColor = BorderColor,
-                    focusedBorderColor = AccentPurple
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilledTonalButton(
-                    onClick = { showToolsSheet = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = AccentGold.copy(alpha = 0.2f))
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Tools")
-                }
-                OutlinedButton(
-                    onClick = {
-                        analysis = analyzeInjectorScript(payload)
-                        scope.launch {
-                            if (analysis.warningLines == 0) snackbarHostState.showSnackbar("Script validated: no warnings")
-                            else snackbarHostState.showSnackbar("Validated with ${analysis.warningLines} warning(s)")
+                    Text("SPEED", color = Silver.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        listOf("Too Slow" to "MIN", "Slow" to "SLOW", "Normal" to "NORM", "Fast" to "FAST", "Super Fast" to "MAX").forEach { (speed, label) ->
+                            val isActive = typingSpeed == speed
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isActive) AccentPurple.copy(alpha = 0.25f) else Color.Transparent,
+                                border = BorderStroke(0.5.dp, if (isActive) AccentPurple.copy(alpha = 0.7f) else BorderColor.copy(alpha = 0.3f)),
+                                onClick = { viewModel.setTypingSpeed(speed) }
+                            ) {
+                                Text(
+                                    label,
+                                    color = if (isActive) AccentPurple else Silver.copy(alpha = 0.5f),
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
                         }
-                    },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, BorderColor.copy(alpha = 0.6f))
-                ) {
-                    Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Validate")
+                    }
                 }
-                OutlinedButton(
-                    onClick = { payload = defaultPayload },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, BorderColor.copy(alpha = 0.6f))
-                ) {
-                    Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Reset")
+
+                // ══ SAVED PAYLOADS INLINE ══
+                if (savedPayloads.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            "SAVED PAYLOADS",
+                            color = Silver.copy(alpha = 0.4f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            savedPayloads.take(4).forEach { item ->
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = AccentPurple.copy(alpha = 0.07f),
+                                    border = BorderStroke(0.5.dp, AccentPurple.copy(alpha = 0.2f)),
+                                    onClick = {
+                                        payload = item.script
+                                        analysis = analyzeInjectorScript(item.script)
+                                    }
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                                        Text(item.name, color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                        Text("${item.script.lines().size}L", color = AccentPurple.copy(alpha = 0.7f), fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                            // Fill empty spots
+                            repeat(maxOf(0, 4 - savedPayloads.take(4).size)) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Button(
-                onClick = {
-                    if (!isConnected) {
+                // ══ INJECT BUTTON ══
+                Button(
+                    onClick = {
+                        if (!isConnected) {
+                            val updated = listOf(
+                                InjectorRunEntry(System.currentTimeMillis(), "Inject aborted", "No host connected")
+                            ) + runHistory
+                            runHistory = updated.take(12)
+                            saveInjectorRunHistory(prefs, runHistory)
+                            scope.launch { snackbarHostState.showSnackbar("Connect to a host before injecting") }
+                            return@Button
+                        }
+                        if (payload.isBlank()) return@Button
+                        automationViewModel.executeDuckyScript(payload)
                         val updated = listOf(
-                            InjectorRunEntry(System.currentTimeMillis(), "Inject aborted", "No host connected")
+                            InjectorRunEntry(
+                                ts = System.currentTimeMillis(),
+                                title = payload.lineSequence().firstOrNull()?.take(36)?.ifBlank { "Payload" } ?: "Payload",
+                                status = "Dispatched"
+                            )
                         ) + runHistory
                         runHistory = updated.take(12)
                         saveInjectorRunHistory(prefs, runHistory)
-                        scope.launch { snackbarHostState.showSnackbar("Connect to host before injecting") }
-                        return@Button
-                    }
-                    if (payload.isBlank()) return@Button
-                    isInjecting = true
-                    automationViewModel.executeDuckyScript(payload)
-                    val updated = listOf(
-                        InjectorRunEntry(
-                            ts = System.currentTimeMillis(),
-                            title = payload.lineSequence().firstOrNull()?.take(36)?.ifBlank { "Payload" } ?: "Payload",
-                            status = "Dispatched"
+                        scope.launch {
+                            snackbarHostState.showSnackbar("⚡ Payload dispatched")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = payload.isNotBlank() && !isInjectorRunning,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isConnected) AccentPurple else Graphite,
+                        disabledContainerColor = Graphite
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = if (isConnected) 8.dp else 0.dp)
+                ) {
+                    if (isInjectorRunning) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Platinum, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(if (isInjectorPaused) "PAUSED" else "INJECTING...", fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 14.sp)
+                    } else {
+                        Icon(Icons.Default.ElectricBolt, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            if (isConnected) "INJECT PAYLOAD" else "NO TARGET LINKED",
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp,
+                            fontSize = 13.sp,
+                            color = if (isConnected) Platinum else Silver.copy(alpha = 0.5f)
                         )
-                    ) + runHistory
-                    runHistory = updated.take(12)
-                    saveInjectorRunHistory(prefs, runHistory)
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Payload dispatched")
-                        kotlinx.coroutines.delay(1000)
-                        isInjecting = false
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                enabled = payload.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
-            ) {
-                Icon(if (isInjecting) Icons.Default.Sync else Icons.Default.ElectricBolt, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isInjecting) "INJECTING..." else "INJECT PAYLOAD", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                }
             }
         }
     }
@@ -344,258 +518,267 @@ fun InjectorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 32.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("Injector Tools", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
-                Text("Template Library", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                templateLibrary.forEach { (name, script) ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = Graphite.copy(alpha = 0.45f),
-                        border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f)),
-                        onClick = {
-                            payload = script
-                            analysis = analyzeInjectorScript(script)
-                            showToolsSheet = false
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(name, color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Icon(Icons.Default.NorthWest, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                // ── Template Library ──
+                val categories = listOf(
+                    "Quick Actions" to templateLibrary.filter { it.first.startsWith("🔐") || it.first.startsWith("🔊") || it.first.startsWith("📸") || it.first.startsWith("📋") || it.first.startsWith("🔍") || it.first.startsWith("🌐") && !it.first.contains("DNS") },
+                    "Terminal" to templateLibrary.filter { it.first.startsWith("💻") },
+                    "macOS Shortcuts" to templateLibrary.filter { it.first.startsWith("⌘") },
+                    "Hackie Ops" to templateLibrary.filter { it.first.startsWith("🎭") || it.first.startsWith("🕵") || it.first.startsWith("🔐 Dump") || it.first.startsWith("🌐 DNS") }
+                )
+
+                categories.forEach { (catName, items) ->
+                    if (items.isNotEmpty()) {
+                        Text(catName, color = AccentPurple.copy(alpha = 0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        items.forEach { (name, script) ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Graphite.copy(alpha = 0.4f),
+                                border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f)),
+                                onClick = {
+                                    payload = script
+                                    analysis = analyzeInjectorScript(script)
+                                    showToolsSheet = false
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(name, color = Platinum, fontSize = 13.sp)
+                                    Icon(Icons.Default.NorthWest, contentDescription = null, tint = AccentPurple.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                }
+                            }
                         }
                     }
                 }
 
-                HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
+                HorizontalDivider(color = BorderColor.copy(alpha = 0.4f))
 
-                Text("Command Palette", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                // ── Command Palette ──
+                Text("Command Palette", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 val commandPalette = listOf(
-                    "DEFAULTDELAY 100",
-                    "DELAY 500",
-                    "STRING hello world",
-                    "ENTER",
-                    "GUI SPACE",
-                    "CTRL C",
-                    "ALT TAB",
-                    "MAC_STEALTH whoami"
+                    "DELAY 500", "DEFAULTDELAY 100",
+                    "STRING text here", "ENTER",
+                    "GUI SPACE", "KEY (CMD+A)",
+                    "KEY (CMD+C)", "KEY (CMD+V)",
+                    "KEY (CTRL+CMD+F)", "KEY (CTRL+CMD+Q)",
+                    "F5", "F11"
                 )
-                commandPalette.chunked(2).forEach { rowItems ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                commandPalette.chunked(3).forEach { rowItems ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         rowItems.forEach { cmd ->
-                            AssistChip(
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                color = AccentBlue.copy(alpha = 0.1f),
+                                border = BorderStroke(0.5.dp, AccentBlue.copy(alpha = 0.2f)),
                                 onClick = {
                                     payload = if (payload.endsWith("\n") || payload.isBlank()) "$payload$cmd\n" else "$payload\n$cmd\n"
                                     analysis = analyzeInjectorScript(payload)
-                                },
-                                label = { Text(cmd, fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f),
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = AccentBlue.copy(alpha = 0.14f),
-                                    labelColor = Platinum
-                                )
-                            )
+                                }
+                            ) {
+                                Text(cmd, color = Platinum, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp), maxLines = 1)
+                            }
                         }
-                        if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
+                        repeat(3 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
                     }
                 }
 
-                HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
+                HorizontalDivider(color = BorderColor.copy(alpha = 0.4f))
 
-                Text("Save Current Payload", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = saveName,
-                    onValueChange = { saveName = it },
+                // ── Key Reference ──
+                Text("Key Reference", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Payload name") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentGold,
-                        unfocusedBorderColor = BorderColor,
-                        focusedTextColor = Platinum
-                    )
-                )
-                Button(
-                    onClick = {
-                        val normalized = saveName.trim()
-                        if (normalized.isBlank() || payload.isBlank()) return@Button
-                        val now = System.currentTimeMillis()
-                        val updated = savedPayloads
-                            .filterNot { it.name.equals(normalized, ignoreCase = true) }
-                            .toMutableList()
-                            .apply { add(0, InjectorSavedPayload(normalized, payload, now)) }
-                        savedPayloads = updated
-                        saveInjectorSavedPayloads(prefs, updated)
-                        saveName = ""
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentGold)
+                    shape = RoundedCornerShape(10.dp),
+                    color = AccentBlue.copy(alpha = 0.05f),
+                    border = BorderStroke(0.5.dp, AccentBlue.copy(alpha = 0.15f))
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Payload", color = Obsidian, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            "F1 … F12" to "Function keys (standalone line)",
+                            "KEY (F11)" to "Function key via KEY command",
+                            "KEY (CMD+A)" to "Select All",
+                            "KEY (CMD+C)" to "Copy",
+                            "KEY (CMD+V)" to "Paste",
+                            "KEY (CTRL+CMD+Q)" to "Lock Screen",
+                            "KEY (CTRL+CMD+F)" to "Toggle Full Screen",
+                            "KEY (CMD+SHIFT+3)" to "Screenshot",
+                            "KEY (CMD+ALT+ESC)" to "Force Quit Menu",
+                            "GUI A" to "Classic DuckyScript style"
+                        ).forEach { (cmd, desc) ->
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text(cmd, color = AccentBlue, fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                                Text(desc, color = Silver.copy(alpha = 0.75f), fontSize = 10.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Modifiers: GUI/CMD  CTRL  ALT/OPTION  SHIFT\nKeys: A-Z  0-9  F1-F12  SPACE  ENTER  ESC  TAB  BACKSPACE  LEFT  RIGHT  UP  DOWN",
+                            color = Silver.copy(alpha = 0.5f), fontSize = 9.sp, lineHeight = 13.sp
+                        )
+                    }
                 }
 
-                Text("Saved Payloads (${savedPayloads.size})", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                if (savedPayloads.isEmpty()) {
-                    Text("No saved payloads yet.", color = Silver.copy(alpha = 0.7f), fontSize = 12.sp)
-                } else {
+                HorizontalDivider(color = BorderColor.copy(alpha = 0.4f))
+
+                // ── Save Payload ──
+                Text("Save Payload", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = saveName,
+                        onValueChange = { saveName = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Name...", fontSize = 13.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentGold,
+                            unfocusedBorderColor = BorderColor,
+                            focusedTextColor = Platinum,
+                            unfocusedTextColor = Platinum
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val normalized = saveName.trim()
+                            if (normalized.isBlank() || payload.isBlank()) return@Button
+                            val updated = savedPayloads
+                                .filterNot { it.name.equals(normalized, ignoreCase = true) }
+                                .toMutableList()
+                                .apply { add(0, InjectorSavedPayload(normalized, payload, System.currentTimeMillis())) }
+                            savedPayloads = updated
+                            saveInjectorSavedPayloads(prefs, updated)
+                            saveName = ""
+                            scope.launch { snackbarHostState.showSnackbar("Saved: $normalized") }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGold),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, tint = Obsidian, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // ── Saved Payloads ──
+                if (savedPayloads.isNotEmpty()) {
+                    Text("Saved Payloads (${savedPayloads.size})", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     savedPayloads.forEach { item ->
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = Graphite.copy(alpha = 0.4f),
                             border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(item.name, color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                    Text("${item.script.lines().size} lines", color = Silver.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    Text("${item.script.lines().size} lines", color = Silver.copy(alpha = 0.7f), fontSize = 10.sp)
                                 }
                                 TextButton(onClick = {
                                     payload = item.script
                                     analysis = analyzeInjectorScript(item.script)
                                     showToolsSheet = false
-                                }) { Text("Load") }
+                                }) { Text("Load", color = AccentPurple, fontSize = 12.sp) }
                                 IconButton(onClick = {
                                     val updated = savedPayloads.filterNot { it.name == item.name }
                                     savedPayloads = updated
                                     saveInjectorSavedPayloads(prefs, updated)
                                 }) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = ErrorRed)
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = ErrorRed, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
                     }
                 }
 
-                HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
+                HorizontalDivider(color = BorderColor.copy(alpha = 0.4f))
 
-                Text("Backup", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                // ── Clipboard & Backup ──
+                Text("Clipboard & Backup", color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { clipboard.setText(AnnotatedString(payload)) },
+                        modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy Script", fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val clip = clipboard.getText()?.text.orEmpty()
+                            if (clip.isNotBlank()) { payload = clip; analysis = analyzeInjectorScript(clip) }
+                        },
+                        modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Paste Script", fontSize = 12.sp)
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = {
                             val exportJson = JSONArray().apply {
                                 savedPayloads.forEach { item ->
-                                    put(
-                                        JSONObject().apply {
-                                            put("name", item.name)
-                                            put("script", item.script)
-                                            put("updatedAtMs", item.updatedAtMs)
-                                        }
-                                    )
+                                    put(JSONObject().apply { put("name", item.name); put("script", item.script); put("updatedAtMs", item.updatedAtMs) })
                                 }
                             }
                             clipboard.setText(AnnotatedString(exportJson.toString()))
+                            scope.launch { snackbarHostState.showSnackbar("Payloads exported to clipboard") }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export")
+                        Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Export All", fontSize = 12.sp)
                     }
                     OutlinedButton(
                         onClick = {
                             val raw = clipboard.getText()?.text.orEmpty()
                             val imported = parseImportedInjectorPayloads(raw)
                             if (imported.isNotEmpty()) {
-                                val merged = (imported + savedPayloads)
-                                    .distinctBy { it.name.lowercase() }
-                                    .sortedByDescending { it.updatedAtMs }
+                                val merged = (imported + savedPayloads).distinctBy { it.name.lowercase() }.sortedByDescending { it.updatedAtMs }
                                 savedPayloads = merged
                                 saveInjectorSavedPayloads(prefs, merged)
+                                scope.launch { snackbarHostState.showSnackbar("Imported ${imported.size} payload(s)") }
                             }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.DownloadForOffline, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Import")
+                        Icon(Icons.Default.DownloadForOffline, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Import", fontSize = 12.sp)
                     }
                 }
 
-                HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
-
-                Text("Clipboard", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { clipboard.setText(AnnotatedString(payload)) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copy")
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            val clip = clipboard.getText()?.text.orEmpty()
-                            if (clip.isNotBlank()) {
-                                payload = clip
-                                analysis = analyzeInjectorScript(clip)
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Paste")
-                    }
-                }
-
+                // ── Validation Warnings ──
                 if (analysis.warningLines > 0) {
-                    HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
-                    Text("Validation Warnings", color = WarningYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    HorizontalDivider(color = BorderColor.copy(alpha = 0.4f))
+                    Text("Script Warnings", color = WarningYellow, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     analysis.warnings.take(6).forEach {
-                        Text("- $it", color = Silver, fontSize = 11.sp)
-                    }
-                }
-
-                HorizontalDivider(color = BorderColor.copy(alpha = 0.45f))
-
-                Text("Execution History", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                if (runHistory.isEmpty()) {
-                    Text("No recent runs", color = Silver.copy(alpha = 0.7f), fontSize = 11.sp)
-                } else {
-                    runHistory.take(8).forEach { entry ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Graphite.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(entry.title, color = Platinum, fontSize = 12.sp, maxLines = 1)
-                                    Text(entry.status, color = Silver, fontSize = 10.sp)
-                                }
-                                IconButton(onClick = {
-                                    payload = payloadFromHistoryTitle(entry.title, savedPayloads, payload)
-                                    analysis = analyzeInjectorScript(payload)
-                                }) {
-                                    Icon(Icons.Default.History, contentDescription = "Reuse", tint = AccentBlue, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
+                        Text("⚠ $it", color = Silver.copy(alpha = 0.85f), fontSize = 11.sp)
                     }
                 }
             }
         }
     }
 }
+
+
 
 private fun analyzeInjectorScript(script: String): InjectorScriptAnalysis {
     val knownCommands = setOf(

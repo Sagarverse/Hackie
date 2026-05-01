@@ -521,12 +521,10 @@ fun AppNavigation(
                     )
                 }
                 composable("injector") {
-                    com.example.rabit.ui.payload.PayloadForgeScreen(
-                        viewModel = payloadForgeViewModel,
+                    com.example.rabit.ui.automation.InjectorScreen(
+                        viewModel = viewModel,
                         automationViewModel = automationViewModel,
-                        onBack = { navController.popBackStack() },
-                        onExecuteHid = { /* ... */ },
-                        onDeployAdb = { /* ... */ }
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("auto_clicker") {
@@ -929,7 +927,7 @@ fun AppNavigation(
                     restoreState = target != "assistant"
                 }
             },
-            showTopBar = currentRoute.split("?").first() != "assistant",
+            showTopBar = currentRoute.split("?").first() !in listOf("assistant", "injector"),
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,
             featureAssistantVisible = featureAssistantVisible,

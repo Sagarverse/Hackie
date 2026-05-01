@@ -17,6 +17,7 @@ import com.example.rabit.domain.model.gemini.GeminiRequest
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -201,7 +202,7 @@ class AutomationViewModel(
                         delay(ms.coerceIn(0L, 60_000L))
                     }
                     extractArg(cmd, "TEXT") != null -> {
-                        repository.sendText(extractArg(cmd, "TEXT") ?: "")
+                        repository.sendText(extractArg(cmd, "TEXT") ?: "")?.join()
                     }
                     extractArg(cmd, "KEY") != null -> {
                         executeKeyCombo(extractArg(cmd, "KEY") ?: "")
@@ -929,44 +930,108 @@ class AutomationViewModel(
     }
 
     // --- Injector / DuckyScript ---
+    
+    private var injectorJob: Job? = null
+    
+    private val _isInjectorRunning = MutableStateFlow(false)
+    val isInjectorRunning: StateFlow<Boolean> = _isInjectorRunning
+    
+    private val _isInjectorPaused = MutableStateFlow(false)
+    val isInjectorPaused: StateFlow<Boolean> = _isInjectorPaused
 
+    fun abortInjector() {
+        injectorJob?.cancel()
+        _isInjectorRunning.value = false
+        _isInjectorPaused.value = false
+    }
+
+    fun pauseInjector() {
+        if (_isInjectorRunning.value) {
+            _isInjectorPaused.value = true
+        }
+    }
+
+    fun resumeInjector() {
+        if (_isInjectorRunning.value) {
+            _isInjectorPaused.value = false
+        }
+    }
     fun executeDuckyScript(script: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val lines = script.lines().map { it.trim() }.filter { it.isNotBlank() && !it.uppercase().startsWith("REM ") }
-            var defaultDelay = 100L
-            for (line in lines) {
-                val parts = line.split(" ", limit = 2)
-                val cmd = parts[0].uppercase()
-                val arg = if (parts.size > 1) parts[1] else ""
+        if (_isInjectorRunning.value) return
+        _isInjectorRunning.value = true
+        _isInjectorPaused.value = false
+        
+        injectorJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val lines = script.lines().map { it.trim() }.filter { it.isNotBlank() && !it.uppercase().startsWith("REM ") }
+                var defaultDelay = 100L
+                for (line in lines) {
+                    while (_isInjectorPaused.value) {
+                        delay(100)
+                    }
+                    if (!isActive) break
+                    
+                    val parts = line.split(" ", limit = 2)
+                    val cmd = parts[0].uppercase()
+                    val arg = if (parts.size > 1) parts[1] else ""
 
-                when (cmd) {
-                    "DEFAULTDELAY" -> defaultDelay = arg.toLongOrNull() ?: defaultDelay
-                    "DELAY" -> delay(arg.toLongOrNull() ?: defaultDelay)
-                    "STRING" -> repository.sendText(arg)?.join()
-                    "ENTER" -> repository.sendKey(HidKeyCodes.KEY_ENTER)
-                    "TAB" -> repository.sendKey(HidKeyCodes.KEY_TAB)
-                    "SPACE" -> repository.sendKey(HidKeyCodes.KEY_SPACE)
-                    "UP", "UPARROW" -> repository.sendKey(HidKeyCodes.KEY_UP)
-                    "DOWN", "DOWNARROW" -> repository.sendKey(HidKeyCodes.KEY_DOWN)
-                    "GUI", "WINDOWS", "COMMAND" -> {
-                        val key = parseDuckyKey(arg)
-                        repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_GUI)
+                    when (cmd) {
+                        "DEFAULTDELAY" -> defaultDelay = arg.toLongOrNull() ?: defaultDelay
+                        "DELAY" -> delay(arg.toLongOrNull() ?: defaultDelay)
+                        "STRING" -> repository.sendText(arg)?.join()
+                        "ENTER" -> repository.sendKey(HidKeyCodes.KEY_ENTER)
+                        "TAB" -> repository.sendKey(HidKeyCodes.KEY_TAB)
+                        "SPACE" -> repository.sendKey(HidKeyCodes.KEY_SPACE)
+                        "UP", "UPARROW" -> repository.sendKey(HidKeyCodes.KEY_UP)
+                        "DOWN", "DOWNARROW" -> repository.sendKey(HidKeyCodes.KEY_DOWN)
+                        "GUI", "WINDOWS", "COMMAND" -> {
+                            val key = parseDuckyKey(arg)
+                            repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_GUI)
+                        }
+                        "CTRL", "CONTROL" -> {
+                            val key = parseDuckyKey(arg)
+                            repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_CTRL)
+                        }
+                        "ALT" -> {
+                            val key = parseDuckyKey(arg)
+                            repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_ALT)
+                        }
+                        "SHIFT" -> {
+                            val key = parseDuckyKey(arg)
+                            repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_SHIFT)
+                        }
+                        // Standalone F-key lines: F1 ... F12
+                        "F1" -> repository.sendKey(HidKeyCodes.KEY_F1)
+                        "F2" -> repository.sendKey(HidKeyCodes.KEY_F2)
+                        "F3" -> repository.sendKey(HidKeyCodes.KEY_F3)
+                        "F4" -> repository.sendKey(HidKeyCodes.KEY_F4)
+                        "F5" -> repository.sendKey(HidKeyCodes.KEY_F5)
+                        "F6" -> repository.sendKey(HidKeyCodes.KEY_F6)
+                        "F7" -> repository.sendKey(HidKeyCodes.KEY_F7)
+                        "F8" -> repository.sendKey(HidKeyCodes.KEY_F8)
+                        "F9" -> repository.sendKey(HidKeyCodes.KEY_F9)
+                        "F10" -> repository.sendKey(HidKeyCodes.KEY_F10)
+                        "F11" -> repository.sendKey(HidKeyCodes.KEY_F11)
+                        "F12" -> repository.sendKey(HidKeyCodes.KEY_F12)
+                        // KEY(...) syntax for combinations and F-keys
+                        "KEY" -> {
+                            // Handle KEY(F11) or KEY(CMD+A) format
+                            val rawArg = if (parts.size > 1) parts[1].trim() else ""
+                            val comboArg = if (rawArg.startsWith("(") && rawArg.endsWith(")")) {
+                                rawArg.drop(1).dropLast(1)
+                            } else rawArg
+                            executeKeyCombo(comboArg)
+                        }
                     }
-                    "CTRL", "CONTROL" -> {
-                        val key = parseDuckyKey(arg)
-                        repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_CTRL)
+                    while (_isInjectorPaused.value) {
+                        delay(100)
                     }
-                    "ALT" -> {
-                        val key = parseDuckyKey(arg)
-                        repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_ALT)
-                    }
-                    "SHIFT" -> {
-                        val key = parseDuckyKey(arg)
-                        repository.sendKey(key, HidKeyCodes.MODIFIER_LEFT_SHIFT)
-                    }
+                    val loopDelay = if (_isPulseModeEnabled.value) (10L + (0..20).random()) else 10L
+                    delay(loopDelay)
                 }
-                val loopDelay = if (_isPulseModeEnabled.value) (10L + (0..20).random()) else 10L
-                delay(loopDelay)
+            } finally {
+                _isInjectorRunning.value = false
+                _isInjectorPaused.value = false
             }
         }
     }
@@ -1056,6 +1121,23 @@ class AutomationViewModel(
             "ENTER" -> HidKeyCodes.KEY_ENTER
             "TAB" -> HidKeyCodes.KEY_TAB
             "ESC", "ESCAPE" -> HidKeyCodes.KEY_ESC
+            "BACKSPACE", "DELETE", "DEL" -> HidKeyCodes.KEY_BACKSPACE
+            "LEFT" -> HidKeyCodes.KEY_LEFT
+            "RIGHT" -> HidKeyCodes.KEY_RIGHT
+            "UP", "UPARROW" -> HidKeyCodes.KEY_UP
+            "DOWN", "DOWNARROW" -> HidKeyCodes.KEY_DOWN
+            "F1" -> HidKeyCodes.KEY_F1
+            "F2" -> HidKeyCodes.KEY_F2
+            "F3" -> HidKeyCodes.KEY_F3
+            "F4" -> HidKeyCodes.KEY_F4
+            "F5" -> HidKeyCodes.KEY_F5
+            "F6" -> HidKeyCodes.KEY_F6
+            "F7" -> HidKeyCodes.KEY_F7
+            "F8" -> HidKeyCodes.KEY_F8
+            "F9" -> HidKeyCodes.KEY_F9
+            "F10" -> HidKeyCodes.KEY_F10
+            "F11" -> HidKeyCodes.KEY_F11
+            "F12" -> HidKeyCodes.KEY_F12
             else -> {
                 if (uArg.length == 1 && uArg[0] in 'A'..'Z') {
                     (HidKeyCodes.KEY_A + (uArg[0] - 'A')).toByte()
