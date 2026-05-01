@@ -46,6 +46,12 @@ import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.*
 import com.example.rabit.ui.automation.AutomationViewModel
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.border
+import com.sagar.rabit.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +75,7 @@ fun SettingsScreen(
         }
     )
     
-    val autoReconnect by viewModel.autoReconnectEnabled.collectAsState()
+
     val typingSpeed by viewModel.typingSpeed.collectAsState()
     val notificationSync by viewModel.notificationSyncEnabled.collectAsState()
     val autoPush by viewModel.autoPushEnabled.collectAsState()
@@ -145,13 +151,48 @@ fun SettingsScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    val haptic = LocalHapticFeedback.current
+
+    Scaffold(
+        containerColor = Obsidian,
+        topBar = {
+            val openDrawer = LocalOpenGlobalDrawer.current
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "SETTINGS",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("SYSTEM CONFIGURATION", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextSecondary)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
 
             GeminiApiSettingsSection(viewModel = geminiSettingsViewModel)
             
@@ -175,84 +216,17 @@ fun SettingsScreen(
                     checked = stealthMode,
                     onCheckedChange = { viewModel.setStealthModeEnabled(it) }
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Biometric Password Autofill",
-                    subtitle = "Require fingerprint/face before typing Mac password",
-                    icon = Icons.Default.Password,
-                    iconColor = AccentTeal,
-                    checked = biometricMacAutofillEnabled,
-                    onCheckedChange = { viewModel.setBiometricMacAutofillEnabled(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Press Enter Before Typing",
-                    subtitle = "Wake login field before sending password",
-                    icon = Icons.Default.Keyboard,
-                    iconColor = AccentBlue,
-                    checked = macAutofillPreEnter,
-                    onCheckedChange = { viewModel.setMacAutofillPreEnter(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Press Enter After Typing",
-                    subtitle = "Submit credentials after autofill",
-                    icon = Icons.Default.Key,
-                    iconColor = SuccessGreen,
-                    checked = macAutofillPostEnter,
-                    onCheckedChange = { viewModel.setMacAutofillPostEnter(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = if (connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected) "Mac connection detected" else "Connect to Mac to use autofill",
-                        color = Silver,
-                        fontSize = 12.sp
-                    )
-                    Button(
-                        onClick = {
-                            val dispatchAutofill = {
-                                val error = viewModel.sendStoredMacPasswordToHost()
-                                val message = error ?: "Password sent securely via HID."
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                            }
-
-                            if (biometricMacAutofillEnabled) {
-                                if (biometricAuthenticator?.isBiometricAvailable() == true) {
-                                    biometricAuthenticator.authenticate(
-                                        title = "Hackie Mac Autofill",
-                                        subtitle = "Authenticate to type your Mac password",
-                                        onSuccess = dispatchAutofill,
-                                        onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                                    )
-                                } else {
-                                    Toast.makeText(context, "Biometric authentication is not available on this device.", Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                dispatchAutofill()
-                            }
-                        },
-                        enabled = connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Fingerprint, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Authenticate & Autofill Now", fontWeight = FontWeight.Bold)
-                    }
-                }
             }
             
-            // ─── Connection ───
             PremiumSectionHeader("CONNECTION")
             PremiumGlassCard {
                 SettingsToggleItem(
-                    title = "Auto Reconnect",
-                    subtitle = "Automatically connect to last device",
-                    icon = Icons.Default.Sync,
-                    iconColor = AccentBlue,
-                    checked = autoReconnect,
-                    onCheckedChange = { viewModel.setAutoReconnectEnabled(it) }
+                    title = "Shake to Disconnect",
+                    subtitle = "Physically shake phone to end Mac connection",
+                    icon = Icons.Default.Vibration,
+                    iconColor = AccentPink,
+                    checked = shakeToDisconnect,
+                    onCheckedChange = { viewModel.setShakeToDisconnectEnabled(it) }
                 )
             }
 
@@ -265,15 +239,6 @@ fun SettingsScreen(
                     icon = Icons.Default.Speed,
                     iconColor = AccentPurple,
                     onClick = { showSpeedDialog = true }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Shake to Disconnect",
-                    subtitle = "Physically shake phone to end Mac connection",
-                    icon = Icons.Default.Vibration,
-                    iconColor = AccentPink,
-                    checked = shakeToDisconnect,
-                    onCheckedChange = { viewModel.setShakeToDisconnectEnabled(it) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
                 SettingsToggleItem(
@@ -302,7 +267,15 @@ fun SettingsScreen(
                         listOf("Soft", "Mechanical", "Sharp").forEach { preset ->
                             val isSelected = currentHaptic == preset
                             Surface(
-                                onClick = { viewModel.setHapticPreset(preset) },
+                                onClick = { 
+                                    viewModel.setHapticPreset(preset)
+                                    // Tactical Engine Demo
+                                    when(preset) {
+                                        "Soft" -> haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        "Mechanical" -> haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        "Sharp" -> haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                },
                                 color = if (isSelected) AccentTeal.copy(alpha = 0.15f) else Graphite.copy(alpha = 0.3f),
                                 contentColor = if (isSelected) AccentTeal else Silver,
                                 shape = RoundedCornerShape(8.dp),
@@ -592,28 +565,70 @@ fun SettingsScreen(
                 )
             }
 
-            // ─── About ───
-            PremiumSectionHeader("ABOUT")
+            // ─── About the Developer ───
+            PremiumSectionHeader("ABOUT THE DEVELOPER")
             PremiumGlassCard {
-                SettingsClickItem(
-                    title = "About Developer",
-                    subtitle = "Sagar M • Bengaluru, India",
-                    icon = Icons.Default.Person,
-                    iconColor = Platinum,
-                    onClick = onNavigateToProfile
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsClickItem(
-                    title = "Version Info",
-                    subtitle = "v1.5.0-pro (Stable Build)",
-                    icon = Icons.Default.Info,
-                    iconColor = Silver,
-                    onClick = { /* Could show a changelog */ }
-                )
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, AccentBlue, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.sagar.rabit.R.drawable.profile_photo),
+                            contentDescription = "Sagar M",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        "SAGAR M",
+                        color = Platinum,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        "Lead Developer • Security Researcher",
+                        color = AccentBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        "Building tactical tools for the next generation of mobile security. Specialized in HID exploitation and native performance. Based in Bengaluru, India.",
+                        color = Silver,
+                        fontSize = 12.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(20.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Code, null, tint = SuccessGreen, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("v1.5.0-pro Stable Build", color = SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
 
     // ─── Dialogs ───
 

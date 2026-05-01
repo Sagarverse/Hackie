@@ -450,13 +450,7 @@ fun RabitAppScaffold(
                             }
                             if (matches("Reverse Shell")) {
                                 DrawerNavItem(
-                                    label = "Reverse Shell Gen",
-                                    icon = Icons.Default.Terminal,
-                                    isSelected = currentRoute == "reverse_shell_gen",
-                                    onClick = { onNavigate("reverse_shell_gen"); scope.launch { drawerState.close() } }
-                                )
-                                DrawerNavItem(
-                                    label = "Reverse Shell Hub",
+                                    label = "Reverse Shell Suite",
                                     icon = Icons.Default.Language,
                                     isSelected = currentRoute == "reverse_shell",
                                     onClick = { onNavigate("reverse_shell"); scope.launch { drawerState.close() } }

@@ -409,6 +409,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 updateMouseJiggler()
                 if (state is HidDeviceManager.ConnectionState.Connected) {
                     saveDevice(state.deviceName, "") // Simplify address saving
+                } else if (state is HidDeviceManager.ConnectionState.Disconnected) {
+                    if (_autoReconnectEnabled.value) {
+                        val target = savedDevices.value.firstOrNull()
+                        target?.let { device ->
+                            Log.d("MainViewModel", "Auto-reconnect scheduled for ${device.name}")
+                            delay(2500) // Delay to prevent spamming
+                            // Check again in case the user toggled it off during the delay
+                            if (_autoReconnectEnabled.value) {
+                                bluetoothAdapter?.getRemoteDevice(device.address)?.let { btDevice ->
+                                    repository.connect(btDevice)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

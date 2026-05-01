@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -31,6 +32,7 @@ import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.webbridge.WebBridgeViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.PulsingVoiceButton
+import com.example.rabit.ui.components.LocalOpenGlobalDrawer
 import kotlinx.coroutines.flow.*
 import androidx.compose.runtime.collectAsState
 
@@ -86,59 +88,75 @@ fun KeyboardScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-    ) {
-        // ── Compact Header ──
-        val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
-        val isOnline = deviceName != "OFFLINE"
+    val isTextPushing by viewModel.isTextPushing.collectAsState()
+    val isPushPaused by viewModel.isPushPaused.collectAsState()
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Status dot + device name
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .background(
-                        if (isOnline) SuccessGreen else TextTertiary.copy(alpha = 0.5f),
-                        CircleShape
-                    )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                deviceName.uppercase(),
-                color = if (isOnline) TextSecondary else TextTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.W500,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.weight(1f)
-            )
+    Scaffold(
+        containerColor = Obsidian,
+        topBar = {
+            val deviceName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName ?: "OFFLINE"
+            val isOnline = deviceName != "OFFLINE"
+            val openDrawer = LocalOpenGlobalDrawer.current
 
-            // Action buttons
-            IconButton(
-                onClick = onNavigateToSettings,
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(Surface2, CircleShape)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(16.dp))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
-                onClick = onDisconnect,
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(Surface2, CircleShape)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "Disconnect", tint = TextSecondary, modifier = Modifier.size(14.dp))
-            }
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "CONTROL HUB",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text(
+                            if (isTextPushing) {
+                                if (isPushPaused) "TYPING PAUSED" else "INJECTING PAYLOAD"
+                            } else {
+                                deviceName.uppercase()
+                            },
+                            color = if (isTextPushing) (if (isPushPaused) WarningYellow else SuccessGreen) else AccentBlue,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    }
+                },
+                actions = {
+                    if (isTextPushing) {
+                        IconButton(onClick = { if (isPushPaused) viewModel.resumeTextPush() else viewModel.pauseTextPush() }) {
+                            Icon(
+                                if (isPushPaused) Icons.Default.PlayArrow else Icons.Default.Pause, 
+                                contentDescription = "Play/Pause", 
+                                tint = if (isPushPaused) SuccessGreen else WarningYellow
+                            )
+                        }
+                        IconButton(onClick = { viewModel.stopTextPush() }) {
+                            Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+                        }
+                    } else {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = onDisconnect) {
+                            Icon(Icons.Default.PowerSettingsNew, contentDescription = "Disconnect", tint = ErrorRed, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
         }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 20.dp)
+        ) {
 
         // ── Module Switcher (clean underline style) ──
         Row(
@@ -191,6 +209,7 @@ fun KeyboardScreen(
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
+}
 
 // PremiumHeader kept for backward compatibility but simplified
 @Composable
@@ -242,48 +261,83 @@ fun DualKeyboardTab(viewModel: MainViewModel) {
         val typingSpeed by viewModel.typingSpeed.collectAsState()
         val isHumanTyping by viewModel.isHumanTypingEnabled.collectAsState()
 
-        Row(
+        Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            shape = RoundedCornerShape(12.dp),
+            color = Surface0.copy(alpha = 0.5f),
+            border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.5f))
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SPEED:", color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                listOf("Too Slow", "Slow", "Normal", "Fast", "Super Fast").forEach { speed ->
-                    val isActive = typingSpeed == speed
-                    val shortName = when(speed) {
-                        "Too Slow" -> "MIN"
-                        "Super Fast" -> "MAX"
-                        else -> speed.uppercase()
+            Column(modifier = Modifier.padding(12.dp)) {
+                // Human Mode Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Psychology, null, tint = if (isHumanTyping) SuccessGreen else TextTertiary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("HUMAN MODE", color = if (isHumanTyping) SuccessGreen else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        }
+                        Text("Inject typos & realistic backspacing", color = TextTertiary, fontSize = 9.sp)
                     }
-                    Text(
-                        text = shortName,
-                        color = if (isActive) AccentBlue else TextTertiary,
-                        fontSize = 9.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { viewModel.setTypingSpeed(speed) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    Switch(
+                        checked = isHumanTyping,
+                        onCheckedChange = { viewModel.setHumanTypingEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SuccessGreen,
+                            checkedTrackColor = SuccessGreen.copy(alpha = 0.3f),
+                            uncheckedThumbColor = TextTertiary,
+                            uncheckedTrackColor = Surface1
+                        ),
+                        modifier = Modifier.scale(0.8f)
                     )
                 }
-            }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable { viewModel.setHumanTypingEnabled(!isHumanTyping) }
-                    .padding(4.dp)
-            ) {
-                Text("HUMAN", color = if (isHumanTyping) SuccessGreen else TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Spacer(modifier = Modifier.width(4.dp))
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(if (isHumanTyping) SuccessGreen else Surface3, CircleShape)
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = BorderColor.copy(alpha = 0.3f), thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Segmented Speed Control
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Speed, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("INJECTION SPEED", color = TextPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                    
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Surface1,
+                        border = BorderStroke(0.5.dp, BorderColor)
+                    ) {
+                        Row {
+                            listOf("Too Slow", "Slow", "Normal", "Fast", "Super Fast").forEach { speed ->
+                                val isActive = typingSpeed == speed
+                                val shortName = when(speed) {
+                                    "Too Slow" -> "MIN"
+                                    "Super Fast" -> "MAX"
+                                    else -> speed.uppercase()
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (isActive) AccentBlue.copy(alpha = 0.2f) else Color.Transparent)
+                                        .clickable { viewModel.setTypingSpeed(speed) }
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = shortName,
+                                        color = if (isActive) AccentBlue else TextTertiary,
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isActive) FontWeight.Black else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -385,24 +439,12 @@ fun MinimalSystemInput(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        val isTextPushing by viewModel.isTextPushing.collectAsState()
-        val isPushPaused by viewModel.isPushPaused.collectAsState()
-
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            if (isTextPushing) {
-                TextButton(onClick = { if (isPushPaused) viewModel.resumeTextPush() else viewModel.pauseTextPush() }) {
-                    Text(if (isPushPaused) "RESUME" else "PAUSE", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.W700)
-                }
-                TextButton(onClick = { viewModel.stopTextPush() }) {
-                    Text("ABORT", color = Color(0xFFFF3131), fontSize = 11.sp, fontWeight = FontWeight.W700)
-                }
-            } else {
-                TextButton(onClick = { viewModel.sendText(batchText); batchText = "" }) {
-                    Text("SEND", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.W700)
-                }
-                TextButton(onClick = { textFieldValue = TextFieldValue(""); batchText = "" }) {
-                    Text("RESET", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.W600)
-                }
+            TextButton(onClick = { viewModel.sendText(batchText); batchText = "" }) {
+                Text("SEND", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.W700)
+            }
+            TextButton(onClick = { textFieldValue = TextFieldValue(""); batchText = "" }) {
+                Text("RESET", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.W600)
             }
         }
     }

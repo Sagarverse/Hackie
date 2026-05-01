@@ -56,6 +56,7 @@ fun PairingScreen(
     var showIdentityLab by remember { mutableStateOf(false) }
     var manualName by remember { mutableStateOf("") }
     var manualMac by remember { mutableStateOf("") }
+    val autoReconnect by viewModel.autoReconnectEnabled.collectAsState()
 
     LaunchedEffect(isBluetoothConnected) {
         if (isBluetoothConnected) onConnected()
@@ -111,6 +112,47 @@ fun PairingScreen(
                         }
                     }
                 )
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Graphite.copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(if (autoReconnect) AccentBlue.copy(alpha = 0.15f) else SoftGrey.copy(alpha = 0.1f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Sync,
+                                contentDescription = null,
+                                tint = if (autoReconnect) AccentBlue else Silver,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("AUTO RECONNECT", color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Auto-link to last known device", color = Silver.copy(alpha = 0.7f), fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = autoReconnect,
+                            onCheckedChange = { viewModel.setAutoReconnectEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = AccentBlue,
+                                checkedTrackColor = AccentBlue.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                }
             }
 
             // ── ACTIVE IDENTITY ──

@@ -62,6 +62,7 @@ import com.example.rabit.ui.settings.SettingsScreen
 import com.example.rabit.ui.snippets.SnippetsScreen
 import com.example.rabit.ui.profile.ProfileScreen
 import com.example.rabit.ui.automation.AutomationDashboardScreen
+import com.example.rabit.ui.automation.MacroOrchestratorScreen
 import com.example.rabit.ui.search.GlobalSearchScreen
 import com.example.rabit.ui.theme.RabitTheme
 
@@ -338,7 +339,7 @@ fun AppNavigation(
             "crypto_encoder" -> true
             "subdomain_scanner" -> true
             "exif_forensics" -> true
-            "reverse_shell_gen" -> true
+            "reverse_shell" -> true
             "port_scanner" -> true
             "stego_lab" -> true
             "ping_trace" -> true
@@ -551,6 +552,7 @@ fun AppNavigation(
                 composable("reverse_shell") {
                     com.example.rabit.ui.automation.ReverseShellScreen(
                         viewModel = automationViewModel,
+                        genViewModel = reverseShellViewModel,
                         onBack = { navController.popBackStack() },
                         onNavigateToDesktop = { navController.navigate("remote_desktop") }
                     )
@@ -658,14 +660,6 @@ fun AppNavigation(
                     com.example.rabit.ui.osint.SubdomainScannerScreen(
                         viewModel = subdomainScannerViewModel,
                         onBack = { navController.popBackStack() }
-                    )
-                }
-
-                composable("reverse_shell_gen") {
-                    com.example.rabit.ui.exploit.ReverseShellScreen(
-                        viewModel = reverseShellViewModel,
-                        onBack = { navController.popBackStack() },
-                        onNavigateToHub = { navController.navigate("reverse_shell") }
                     )
                 }
 
@@ -861,8 +855,9 @@ fun AppNavigation(
                     )
                 }
                 composable("macro_orchestrator") {
-                    com.example.rabit.ui.automation.MacroLabScreen(
+                    MacroOrchestratorScreen(
                         viewModel = automationViewModel,
+                        mainViewModel = viewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -927,7 +922,7 @@ fun AppNavigation(
                     restoreState = target != "assistant"
                 }
             },
-            showTopBar = currentRoute.split("?").first() !in listOf("assistant", "injector"),
+            showTopBar = currentRoute.split("?").first() !in listOf("assistant", "injector", "keyboard", "main", "pairing", "settings"),
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,
             featureAssistantVisible = featureAssistantVisible,
