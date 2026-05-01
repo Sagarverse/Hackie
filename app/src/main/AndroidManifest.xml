@@ -186,7 +186,7 @@
 
         <!-- Hub Quick Action Widget -->
         <receiver
-            android:name=".ui.widgets.QuickActionWidgetReceiver"
+            android:name="com.example.rabit.ui.widgets.QuickActionWidgetReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

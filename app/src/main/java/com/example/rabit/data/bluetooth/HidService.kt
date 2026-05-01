@@ -17,6 +17,7 @@ import com.example.rabit.data.secure.SecureStorage
 import com.example.rabit.data.network.RabitNetworkServer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import org.json.JSONArray
 import org.json.JSONObject
 import com.example.rabit.domain.model.HidKeyCodes
@@ -182,10 +183,18 @@ class HidService : Service() {
 
     private fun observeConnectionState() {
         serviceScope.launch {
-            hidDeviceManager.connectionState.collect { state ->
+            combine(
+                hidDeviceManager.connectionState,
+                hidDeviceManager.isTextPushing,
+                hidDeviceManager.isPushPaused
+            ) { state, isPushing, isPaused ->
                 val (title, text) = when (state) {
                     is HidDeviceManager.ConnectionState.Connected -> {
-                        "Connected" to "Active connection to ${state.deviceName}"
+                        if (isPushing) {
+                            (if (isPaused) "Text Push Paused" else "Pushing Text...") to "Active connection to ${state.deviceName}"
+                        } else {
+                            "Connected" to "Active connection to ${state.deviceName}"
+                        }
                     }
                     is HidDeviceManager.ConnectionState.Connecting ->
                         "Connecting" to "Attempting to connect..."
@@ -194,12 +203,15 @@ class HidService : Service() {
                     }
                 }
                 updateNotification(title, text)
-            }
+            }.collect {}
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            "TEXT_PUSH_PAUSE" -> hidDeviceManager.pauseTextPush()
+            "TEXT_PUSH_RESUME" -> hidDeviceManager.resumeTextPush()
+            "TEXT_PUSH_ABORT" -> hidDeviceManager.stopTextPush()
             ACTION_UPDATE_NOW_PLAYING -> {
                 val title = intent.getStringExtra("title") ?: nowPlayingTitle
                 val artist = intent.getStringExtra("artist") ?: nowPlayingArtist
@@ -446,6 +458,15 @@ class HidService : Service() {
         val unlockIntent = Intent(this, HidService::class.java).apply { action = "UNLOCK_MAC" }
         val unlockPending = PendingIntent.getService(this, 20, unlockIntent, PendingIntent.FLAG_IMMUTABLE)
 
+        val pausePushIntent = Intent(this, HidService::class.java).apply { action = "TEXT_PUSH_PAUSE" }
+        val pausePushPending = PendingIntent.getService(this, 40, pausePushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val resumePushIntent = Intent(this, HidService::class.java).apply { action = "TEXT_PUSH_RESUME" }
+        val resumePushPending = PendingIntent.getService(this, 41, resumePushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val abortPushIntent = Intent(this, HidService::class.java).apply { action = "TEXT_PUSH_ABORT" }
+        val abortPushPending = PendingIntent.getService(this, 42, abortPushIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Hackie Pro Hub: $title")
             .setContentText(text)
@@ -454,9 +475,19 @@ class HidService : Service() {
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_lock_idle_lock, "Unlock", unlockPending)
-            .addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopPending)
+            
+        if (hidDeviceManager.isTextPushing.value) {
+            if (hidDeviceManager.isPushPaused.value) {
+                builder.addAction(android.R.drawable.ic_media_play, "Resume", resumePushPending)
+            } else {
+                builder.addAction(android.R.drawable.ic_media_pause, "Pause", pausePushPending)
+            }
+            builder.addAction(android.R.drawable.ic_delete, "Abort", abortPushPending)
+        } else {
+            builder.addAction(android.R.drawable.ic_lock_idle_lock, "Unlock", unlockPending)
+            builder.addAction(android.R.drawable.ic_menu_set_as, "Sync", syncPending)
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopPending)
+        }
             
         return builder.build()
     }

@@ -335,12 +335,24 @@ fun MinimalSystemInput(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val isTextPushing by viewModel.isTextPushing.collectAsState()
+        val isPushPaused by viewModel.isPushPaused.collectAsState()
+
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { viewModel.sendText(batchText); batchText = "" }) {
-                Text("SEND", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.W700)
-            }
-            TextButton(onClick = { textFieldValue = TextFieldValue(""); batchText = "" }) {
-                Text("RESET", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.W600)
+            if (isTextPushing) {
+                TextButton(onClick = { if (isPushPaused) viewModel.resumeTextPush() else viewModel.pauseTextPush() }) {
+                    Text(if (isPushPaused) "RESUME" else "PAUSE", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.W700)
+                }
+                TextButton(onClick = { viewModel.stopTextPush() }) {
+                    Text("ABORT", color = Color(0xFFFF3131), fontSize = 11.sp, fontWeight = FontWeight.W700)
+                }
+            } else {
+                TextButton(onClick = { viewModel.sendText(batchText); batchText = "" }) {
+                    Text("SEND", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.W700)
+                }
+                TextButton(onClick = { textFieldValue = TextFieldValue(""); batchText = "" }) {
+                    Text("RESET", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.W600)
+                }
             }
         }
     }

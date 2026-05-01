@@ -147,6 +147,7 @@ fun HidBruteForceContent(viewModel: HidBruteForceViewModel, accentColor: Color) 
     val progress by viewModel.progress.collectAsState()
     val stats by viewModel.stats.collectAsState()
     val autoEnter by viewModel.autoEnter.collectAsState()
+    val isPaused by viewModel.isPaused.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
     var pinLength by remember { mutableStateOf("4") }
@@ -243,11 +244,45 @@ fun HidBruteForceContent(viewModel: HidBruteForceViewModel, accentColor: Color) 
         Spacer(modifier = Modifier.weight(1f))
 
         // --- Control Buttons ---
-        Button(
-            onClick = {
-                if (isAttacking) {
-                    viewModel.stopAttack()
-                } else {
+        if (isAttacking) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (isPaused) viewModel.resumeAttack()
+                        else viewModel.pauseAttack()
+                    },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.1f),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (isPaused) "RESUME" else "PAUSE", fontWeight = FontWeight.Black)
+                }
+
+                Button(
+                    onClick = { viewModel.stopAttack() },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("ABORT", fontWeight = FontWeight.Black)
+                }
+            }
+        } else {
+            Button(
+                onClick = {
                     val d = delayMs.toLongOrNull() ?: 250L
                     val suffix = if (autoEnter) "ENTER" else ""
                     if (selectedTab == 0) {
@@ -256,18 +291,18 @@ fun HidBruteForceContent(viewModel: HidBruteForceViewModel, accentColor: Color) 
                     } else {
                         wordlistUri?.let { viewModel.startWordlistAttack(it, d, suffix) }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isAttacking) Color.White.copy(alpha = 0.1f) else accentColor,
-                contentColor = if (isAttacking) Color.White else Color.Black
-            )
-        ) {
-            Icon(if (isAttacking) Icons.Default.Stop else Icons.Default.PlayArrow, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (isAttacking) "ABORT ATTACK" else "INITIALIZE SEQUENCE", fontWeight = FontWeight.Black)
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accentColor,
+                    contentColor = Color.Black
+                )
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("INITIALIZE SEQUENCE", fontWeight = FontWeight.Black)
+            }
         }
 
         // --- Wordlist Preview (Data Validator) ---

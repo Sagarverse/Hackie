@@ -288,8 +288,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val genieState = _genieState.asStateFlow()
 
     // Text Push pausing
-    private val _isPushPaused = MutableStateFlow(false)
-    val isPushPaused = _isPushPaused.asStateFlow()
+    val isPushPaused = repository.isPushPaused
 
     // Compatibility Stubs & Functional States
     private val _helperBaseUrl = MutableStateFlow(prefs.getString("helper_base_url", "") ?: "")
@@ -694,9 +693,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun generateSmartMacro(intent: String) { /* Stub */ }
     fun cancelMacro() { /* Stub */ }
 
-    fun pauseTextPush() { _isPushPaused.value = true }
-    fun resumeTextPush() { _isPushPaused.value = false }
-    fun stopTextPush() { /* Stub */ }
+    fun pauseTextPush() { repository.pauseTextPush() }
+    fun resumeTextPush() { repository.resumeTextPush() }
+    fun stopTextPush() { repository.stopTextPush() }
 
     // AirPlay Controls
     fun startAirPlayReceiver() {
