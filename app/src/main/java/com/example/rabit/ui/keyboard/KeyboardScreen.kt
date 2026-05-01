@@ -237,7 +237,57 @@ fun DualKeyboardTab(viewModel: MainViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val typingSpeed by viewModel.typingSpeed.collectAsState()
+        val isHumanTyping by viewModel.isHumanTypingEnabled.collectAsState()
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("SPEED:", color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                listOf("Too Slow", "Slow", "Normal", "Fast", "Super Fast").forEach { speed ->
+                    val isActive = typingSpeed == speed
+                    val shortName = when(speed) {
+                        "Too Slow" -> "MIN"
+                        "Super Fast" -> "MAX"
+                        else -> speed.uppercase()
+                    }
+                    Text(
+                        text = shortName,
+                        color = if (isActive) AccentBlue else TextTertiary,
+                        fontSize = 9.sp,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { viewModel.setTypingSpeed(speed) }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { viewModel.setHumanTypingEnabled(!isHumanTyping) }
+                    .padding(4.dp)
+            ) {
+                Text("HUMAN", color = if (isHumanTyping) SuccessGreen else TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(if (isHumanTyping) SuccessGreen else Surface3, CircleShape)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (isSystemMode) {
             MinimalSystemInput(viewModel)

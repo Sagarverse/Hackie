@@ -50,6 +50,7 @@ class HidDeviceManager private constructor(private val context: Context) {
 
     var typingDelay = 120L 
     var isPulseModeEnabled = false
+    var isHumanTypingEnabled = false
     private var currentModifiers: Byte = 0
     private var textPushJob: Job? = null
     private val consumerKeyLock = Any()
@@ -511,11 +512,34 @@ class HidDeviceManager private constructor(private val context: Context) {
                     while (_isPushPaused.value) {
                         delay(100)
                     }
+
+                    // Human typo injection (approx 5% chance, excluding spaces and symbols)
+                    if (isHumanTypingEnabled && char.isLetterOrDigit() && Math.random() < 0.05) {
+                        // Pick a random incorrect letter
+                        val wrongChar = ('a'..'z').random()
+                        val typoModel = com.example.rabit.domain.model.HidKeyCodes.getHidCode(wrongChar)
+                        if (typoModel.keyCode != 0.toByte()) {
+                            // Type the mistake
+                            sendKeyPress(typoModel.keyCode, typoModel.modifier, useSticky = false)
+                            delay((typingDelay + (20..80).random()).coerceAtLeast(10L))
+                            
+                            // Human realization delay
+                            delay((150..400).random().toLong())
+                            
+                            // Hit Backspace
+                            sendKeyPress(com.example.rabit.domain.model.HidKeyCodes.KEY_BACKSPACE, 0.toByte(), useSticky = false)
+                            delay((typingDelay + (10..40).random()).coerceAtLeast(10L))
+                            
+                            // Pause before correcting
+                            delay((50..150).random().toLong())
+                        }
+                    }
+
                     val model = com.example.rabit.domain.model.HidKeyCodes.getHidCode(char)
                     if (model.keyCode != 0.toByte() || model.modifier != 0.toByte()) {
                         sendKeyPress(model.keyCode, model.modifier, useSticky = false)
-                        val actualDelay = if (isPulseModeEnabled) {
-                            (typingDelay + (-15..35).random()).coerceAtLeast(10L)
+                        val actualDelay = if (isPulseModeEnabled || isHumanTypingEnabled) {
+                            (typingDelay + (-15..45).random()).coerceAtLeast(10L)
                         } else {
                             typingDelay
                         }

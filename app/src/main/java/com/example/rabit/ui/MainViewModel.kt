@@ -112,6 +112,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _typingSpeed = MutableStateFlow(prefs.getString("typing_speed", "Normal") ?: "Normal")
     val typingSpeed = _typingSpeed.asStateFlow()
 
+    private val _isHumanTypingEnabled = MutableStateFlow(prefs.getBoolean("human_typing_enabled", false))
+    val isHumanTypingEnabled = _isHumanTypingEnabled.asStateFlow()
+
     private val _autoReconnectEnabled = MutableStateFlow(prefs.getBoolean("auto_reconnect_enabled", false))
     val autoReconnectEnabled = _autoReconnectEnabled.asStateFlow()
 
@@ -367,6 +370,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         updateRepositorySpeed(_typingSpeed.value)
+        HidDeviceManager.getInstance(application).isHumanTypingEnabled = _isHumanTypingEnabled.value
         startProximityTelemetryRefresh()
 
         // Link Now Playing updates from RabitNetworkServer (Mac Companion Push)
@@ -462,12 +466,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun updateRepositorySpeed(speed: String) {
         val delay = when(speed) {
+            "Too Slow" -> 350L
             "Slow" -> 180L
             "Fast" -> 60L
             "Super Fast" -> 20L
             else -> 120L
         }
         HidDeviceManager.getInstance(getApplication()).typingDelay = delay
+    }
+
+    fun setHumanTypingEnabled(enabled: Boolean) {
+        _isHumanTypingEnabled.value = enabled
+        prefs.edit().putBoolean("human_typing_enabled", enabled).apply()
+        HidDeviceManager.getInstance(getApplication()).isHumanTypingEnabled = enabled
     }
 
     fun setHapticPreset(preset: String) {
