@@ -262,7 +262,6 @@ fun AppNavigation(
     bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     securityAuditorViewModel: com.example.rabit.ui.security.SecurityAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     trafficAnalyzerViewModel: com.example.rabit.ui.security.TrafficAnalyzerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    hashCrackerViewModel: com.example.rabit.ui.security.HashCrackerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     encoderDecoderViewModel: com.example.rabit.ui.crypto.EncoderDecoderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     subdomainScannerViewModel: com.example.rabit.ui.osint.SubdomainScannerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     exifForensicsViewModel: com.example.rabit.ui.forensics.ExifForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
@@ -510,7 +509,6 @@ fun AppNavigation(
                 composable("hid_brute_force") {
                     com.example.rabit.ui.automation.HidBruteForceScreen(
                         viewModel = bruteForceViewModel,
-                        hashCrackerViewModel = hashCrackerViewModel,
                         apiKey = settingsViewModel.geminiApiKey,
                         onBack = { navController.popBackStack() }
                     )
@@ -922,7 +920,7 @@ fun AppNavigation(
                     restoreState = target != "assistant"
                 }
             },
-            showTopBar = currentRoute.split("?").first() !in listOf("assistant", "injector", "keyboard", "main", "pairing", "settings"),
+            showTopBar = false,
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,
             featureAssistantVisible = featureAssistantVisible,

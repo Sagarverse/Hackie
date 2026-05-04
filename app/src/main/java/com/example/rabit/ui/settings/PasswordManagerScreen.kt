@@ -58,6 +58,17 @@ import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.components.PremiumGlassCard
 import com.example.rabit.ui.components.PremiumSectionHeader
 import com.example.rabit.ui.theme.AccentBlue
+import com.example.rabit.ui.theme.Obsidian
+import com.example.rabit.ui.theme.Platinum
+import com.example.rabit.ui.theme.Silver
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import com.example.rabit.ui.theme.AccentGold
 import com.example.rabit.ui.theme.AccentOrange
 import com.example.rabit.ui.theme.AccentTeal
@@ -69,6 +80,7 @@ import com.example.rabit.ui.theme.Silver
 import com.example.rabit.ui.theme.SuccessGreen
 import kotlinx.coroutines.delay
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordManagerScreen(
     settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel, viewModel: com.example.rabit.ui.MainViewModel,
@@ -105,7 +117,38 @@ fun PasswordManagerScreen(
         }
     }
 
-    Scaffold(containerColor = Obsidian) { padding ->
+    Scaffold(
+        containerColor = Obsidian,
+        topBar = {
+            val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
+            androidx.compose.material3.CenterAlignedTopAppBar(
+                title = {
+                    androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        Text(
+                            "PASSWORD VAULT",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("SECURE CREDENTIALS", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Platinum, modifier = Modifier.size(20.dp))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Silver)
+                    }
+                },
+                colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()

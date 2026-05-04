@@ -39,15 +39,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.example.rabit.ui.components.LocalOpenGlobalDrawer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,8 +60,9 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.*
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
@@ -118,13 +117,47 @@ fun HomeScreen(
         else -> null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Surface0)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-    ) {
+    val openDrawer = LocalOpenGlobalDrawer.current
+
+    Scaffold(
+        containerColor = Obsidian,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "HACKIE PRO",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("MISSION CONTROL", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Search */ }) {
+                        Icon(Icons.Default.Search, "Search", tint = Platinum)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(AppAtmosphereGradient)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
         Spacer(modifier = Modifier.height(20.dp))
 
         // ── Compact Status Header ──────────────────────────────────────────
@@ -373,6 +406,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
     }
+}
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────

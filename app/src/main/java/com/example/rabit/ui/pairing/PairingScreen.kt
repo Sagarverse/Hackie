@@ -79,6 +79,12 @@ fun PairingScreen(
                         Text("TACTICAL CONNECTION INTERFACE", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                 },
+                navigationIcon = {
+                    val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, "Settings", tint = Silver)

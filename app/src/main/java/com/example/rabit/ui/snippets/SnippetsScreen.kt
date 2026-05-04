@@ -25,6 +25,7 @@ import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.*
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.compose.ui.graphics.Color
 
 data class TextSnippet(val name: String, val content: String, val category: String = "General")
 
@@ -53,9 +54,42 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
+
+    Scaffold(
+        containerColor = Obsidian,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "SNIPPET VAULT",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("SAVED ASSETS", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Search */ }) {
+                        Icon(Icons.Default.Search, "Search", tint = Platinum)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
         if (snippets.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -238,6 +272,7 @@ fun SnippetsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 .padding(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add Snippet")
+        }
         }
     }
 

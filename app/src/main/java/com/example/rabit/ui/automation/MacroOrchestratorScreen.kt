@@ -1,7 +1,9 @@
 package com.example.rabit.ui.automation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -69,6 +71,12 @@ fun MacroOrchestratorScreen(
                 Icons.Default.PowerSettingsNew, 
                 Silver, 
                 "KEY(CTRL+SHIFT+POWER)"
+            ),
+            MacroDefinition(
+                "Lock Mac",
+                Icons.Default.Lock,
+                ErrorRed,
+                "KEY(GUI+CTRL+Q)"
             )
         )
     }
@@ -86,6 +94,12 @@ fun MacroOrchestratorScreen(
                 Icons.Default.Commit, 
                 AccentPurple, 
                 "TEXT(git status) && KEY(ENTER)"
+            ),
+            MacroDefinition(
+                "Activity Monitor",
+                Icons.Default.Monitor,
+                SuccessGreen,
+                "KEY(GUI+SPACE) && WAIT(400) && TEXT(Activity Monitor) && KEY(ENTER)"
             )
         )
     }
@@ -155,6 +169,49 @@ fun MacroOrchestratorScreen(
             }
 
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "SYSTEM DIAGNOSTICS",
+                        color = Platinum.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Surface(
+                        onClick = {
+                            val context = mainViewModel.getApplication<android.app.Application>()
+                            val intent = android.content.Intent(context, com.example.rabit.data.bluetooth.HidService::class.java).apply {
+                                action = "SHOW_CLIPBOARD_NOTIFICATION"
+                                putExtra("text", "TEST PAYLOAD: system notification diagnostic")
+                            }
+                            context.startService(intent)
+                        },
+                        color = SoftGrey.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth().height(64.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(36.dp).background(AccentOrange.copy(alpha = 0.1f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.BugReport, contentDescription = null, tint = AccentOrange, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Trigger Test Notification", color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Verify clipboard sync pop-up system", color = Silver, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
                 MacroCategory(
                     title = "TACTICAL RECON",
                     icon = Icons.Default.Security,
@@ -162,6 +219,49 @@ fun MacroOrchestratorScreen(
                     onMacroClick = { viewModel.executeMacro2Script(it.command) },
                     enabled = isConnected
                 )
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "CLIPBOARD OPS",
+                        color = Platinum.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Surface(
+                        onClick = {
+                            val context = mainViewModel.getApplication<android.app.Application>()
+                            val intent = android.content.Intent(context, com.example.rabit.data.bluetooth.HidService::class.java).apply {
+                                action = "SYNC_CLIPBOARD"
+                            }
+                            context.startService(intent)
+                        },
+                        enabled = isConnected,
+                        color = SoftGrey.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth().height(64.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(36.dp).background(AccentTeal.copy(alpha = 0.1f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Push Phone Clipboard to Mac", color = if (isConnected) Platinum else Silver.copy(alpha = 0.55f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Sync current phone text to host", color = Silver, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
             }
 
             item {

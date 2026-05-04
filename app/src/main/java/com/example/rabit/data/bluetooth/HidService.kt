@@ -107,7 +107,18 @@ class HidService : Service() {
 
         createNotificationChannels()
         loadNowPlayingFromPrefs()
-        startForeground(1, buildNotification("Disconnected", "Bluetooth HID connection is inactive."))
+        
+        // Android 14+ requires explicit service type in startForeground
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                1, 
+                buildNotification("Disconnected", "Bluetooth HID connection is inactive."),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            )
+        } else {
+            startForeground(1, buildNotification("Disconnected", "Bluetooth HID connection is inactive."))
+        }
+        
         observeConnectionState()
         startClipboardObserver()
         
@@ -145,38 +156,43 @@ class HidService : Service() {
         } catch (e: Exception) { }
 
         clipboardJob = serviceScope.launch {
+            Log.d("HidService", "Clipboard observer loop started")
             while (isActive) {
                 try {
-                    // Only read clipboard when the app is in the foreground
-                    // to avoid "Denying clipboard access" errors on Android 10+
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
                     val appProcesses = am?.runningAppProcesses
                     val isInForeground = appProcesses?.any {
                         it.processName == packageName &&
                         it.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
-                    } ?: false
+                    } ?: true
                     
                     if (isInForeground) {
                         val primaryClip = clipboard.primaryClip
                         if (primaryClip != null && primaryClip.itemCount > 0) {
                             val text = primaryClip.getItemAt(0).text?.toString()
                             if (text != lastClipboardText && !text.isNullOrBlank()) {
+                                Log.d("HidService", "New clipboard text detected: ${text.take(10)}...")
                                 lastClipboardText = text
                                 val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
                                 val isAutoPush = prefs.getBoolean("auto_push_enabled", false)
                                 
                                 if (isAutoPush) {
+                                    Log.d("HidService", "Auto-pushing text to Mac")
                                     sendText(text)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(this@HidService, "Auto-Push: Clipboard synced to Mac", Toast.LENGTH_SHORT).show()
+                                    }
                                 } else {
+                                    Log.d("HidService", "Triggering clipboard notification")
                                     showClipboardNotification(text)
                                 }
                             }
                         }
                     }
                 } catch (e: Exception) {
-                    // Silently ignore clipboard access denial
+                    Log.e("HidService", "Clipboard observer error", e)
                 }
-                delay(5000)
+                delay(2000)
             }
         }
     }
@@ -329,6 +345,7 @@ class HidService : Service() {
     }
 
     private fun showClipboardNotification(text: String) {
+        Log.d("HidService", "Preparing notification for: ${text.take(15)}...")
         val prefs = getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
         val isAutoPush = prefs.getBoolean("auto_push_enabled", false)
 
@@ -361,7 +378,7 @@ class HidService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setFullScreenIntent(null, true) // High priority Heads-up popup
+            .setFullScreenIntent(PendingIntent.getActivity(this, 0, Intent(), PendingIntent.FLAG_IMMUTABLE), true)
             .setAutoCancel(true)
             .addAction(android.R.drawable.ic_menu_send, "Push to Mac", pushPendingIntent)
             .addAction(android.R.drawable.ic_menu_save, "Save", saveSnippetPendingIntent)
@@ -375,6 +392,7 @@ class HidService : Service() {
 
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(2, notification)
+        Log.d("HidService", "Clipboard notification ID 2 posted to NotificationManager")
     }
 
     private fun saveSnippet(text: String) {

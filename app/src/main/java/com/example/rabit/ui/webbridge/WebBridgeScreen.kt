@@ -107,8 +107,38 @@ fun WebBridgeScreen(
 
     var currentSubFeature by remember { mutableStateOf("bridge") } // "bridge", "hub", "lab"
 
+    val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
+
     Scaffold(
-        containerColor = Color.Transparent
+        containerColor = Obsidian,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "WEB BRIDGE HUB",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("REMOTE ASSET GATEWAY", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Search */ }) {
+                        Icon(Icons.Default.Search, "Search", tint = Platinum)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().background(Obsidian)) {
             // High-End Mesh Gradient Background

@@ -93,10 +93,6 @@ fun SettingsScreen(
     val proximityMacLockStateGuess by viewModel.proximityMacLockStateGuess.collectAsState()
 
 
-    val biometricEnabled by viewModel.biometricLockEnabled.collectAsState()
-    val biometricMacAutofillEnabled by viewModel.biometricMacAutofillEnabled.collectAsState()
-    val macAutofillPreEnter by viewModel.macAutofillPreEnter.collectAsState()
-    val macAutofillPostEnter by viewModel.macAutofillPostEnter.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val shakeToDisconnect by viewModel.shakeToDisconnectEnabled.collectAsState()
     val stealthMode by viewModel.stealthModeEnabled.collectAsState()
@@ -199,15 +195,6 @@ fun SettingsScreen(
             // ─── Security & Access ───
             PremiumSectionHeader("SECURITY & ACCESS")
             PremiumGlassCard {
-                SettingsToggleItem(
-                    title = "Biometric Lock",
-                    subtitle = "Require fingerprint or face ID to open app",
-                    icon = Icons.Default.Fingerprint,
-                    iconColor = SuccessGreen,
-                    checked = biometricEnabled,
-                    onCheckedChange = { viewModel.setBiometricLockEnabled(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
                 SettingsToggleItem(
                     title = "Stealth History",
                     subtitle = "Auto-clear session data on app exit",
@@ -411,27 +398,6 @@ fun SettingsScreen(
                     icon = Icons.Default.Devices,
                     iconColor = AccentTeal,
                     onClick = { showProximityTargetDialog = true }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Require Phone Unlock",
-                    subtitle = "Do not auto-type Mac password while phone is locked",
-                    icon = Icons.Default.Security,
-                    iconColor = SuccessGreen,
-                    checked = proximityRequirePhoneUnlock,
-                    onCheckedChange = { viewModel.setProximityRequirePhoneUnlock(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
-                SettingsToggleItem(
-                    title = "Do Not Disturb on Connect",
-                    subtitle = "Silence phone when Mac is connected",
-                    icon = Icons.Default.DoNotDisturb,
-                    iconColor = ErrorRed,
-                    checked = dndOnConnect,
-                    onCheckedChange = {
-                        dndOnConnect = it
-                        prefs.edit().putBoolean("auto_dnd_on_connect", it).apply()
-                    }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
                 SettingsToggleItem(

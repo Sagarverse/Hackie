@@ -28,6 +28,7 @@ import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.LocalOpenGlobalDrawer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,9 +108,39 @@ fun AutomationDashboardScreen(
     }
 
 
+    val openDrawer = LocalOpenGlobalDrawer.current
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.Transparent
+        containerColor = Obsidian,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "AUTOMATION HUB",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = Platinum
+                            )
+                        )
+                        Text("SYSTEM ORCHESTRATION", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { openDrawer?.invoke() }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Search */ }) {
+                        Icon(Icons.Default.Search, "Search", tint = Platinum)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
     ) { padding ->
         AnimatedVisibility(
             visible = contentVisible,
