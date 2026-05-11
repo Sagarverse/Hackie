@@ -194,6 +194,14 @@ fun RabitAppScaffold(
                                 onClick = { onNavigate("main"); scope.launch { drawerState.close() } }
                             )
                         }
+                        if (matches("Code Typer")) {
+                            DrawerNavItem(
+                                label = "Code Typer",
+                                icon = Icons.Default.Keyboard,
+                                isSelected = currentRoute == "code_typer",
+                                onClick = { onNavigate("code_typer"); scope.launch { drawerState.close() } }
+                            )
+                        }
 
                         // ── Connectivity ──
                         if (matches("Connectivity") || matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab") || matches("Network Auditor") || matches("Hackie Helper") || matches("AirPlay")) {
@@ -301,14 +309,7 @@ fun RabitAppScaffold(
                                     onClick = { onNavigate("injector"); scope.launch { drawerState.close() } }
                                 )
                             }
-                            if (matches("Code Typer")) {
-                                DrawerNavItem(
-                                    label = "Code Typer",
-                                    icon = Icons.Default.Keyboard,
-                                    isSelected = currentRoute == "code_typer",
-                                    onClick = { onNavigate("code_typer"); scope.launch { drawerState.close() } }
-                                )
-                            }
+
                         }
 
                         // ── Intelligence ──

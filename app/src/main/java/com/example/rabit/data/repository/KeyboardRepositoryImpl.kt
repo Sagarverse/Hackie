@@ -109,7 +109,7 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
 
     override fun sendMouseMove(dx: Float, dy: Float, buttons: Int, wheel: Int) {
         if (isUsbMode) {
-            usbHidGadget.sendMouseMove(dx.toInt(), dy.toInt(), buttons, wheel)
+            usbHidGadget.sendMouseMove(dx, dy, buttons, wheel)
         } else {
             hidDeviceManager.sendMouseMove(dx, dy, buttons, wheel)
         }

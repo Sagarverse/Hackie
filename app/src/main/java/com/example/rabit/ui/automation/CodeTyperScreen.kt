@@ -57,7 +57,8 @@ fun CodeTyperScreen(
             "Balanced" to "40-140ms per key, moderate pauses. Default for IDE coding.",
             "Fluent" to "25-90ms per key, short pauses. Mimics experienced developer.",
             "Interview" to "50-160ms per key, thinking pauses at blocks. Mimics live coding.",
-            "Stealth" to "30-120ms per key, micro-variations. Maximum anti-detection."
+            "Stealth" to "30-120ms per key, micro-variations. Maximum anti-detection.",
+            "Turbo" to "MAX SPEED. Zero delays, no human mimicry. For emergency use."
         )
     }
 

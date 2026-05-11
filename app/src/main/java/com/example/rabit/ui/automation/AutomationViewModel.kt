@@ -1241,6 +1241,10 @@ class AutomationViewModel(
             baseDelayMs = 65, jitterMs = 25, newlinePauseMs = 220,
             blockPauseMs = 400, burstFactor = 0.6, symbolSlowdown = 1.3
         )
+        "Turbo" -> TypingProfile(
+            baseDelayMs = 2, jitterMs = 0, newlinePauseMs = 5,
+            blockPauseMs = 5, burstFactor = 0.1, symbolSlowdown = 1.0
+        )
         else -> TypingProfile(
             baseDelayMs = 80, jitterMs = 30, newlinePauseMs = 300,
             blockPauseMs = 550, burstFactor = 0.7, symbolSlowdown = 1.35
@@ -1371,7 +1375,9 @@ class AutomationViewModel(
             }
 
             // Initial thinking pause — simulates developer reading the code before typing
-            delay(gaussianDelay(300, 100, min = 150L, max = 600L))
+            if (profileName != "Turbo") {
+                delay(gaussianDelay(300, 100, min = 150L, max = 600L))
+            }
 
             var prevChar: Char? = null
             var lineStarting = true
@@ -1391,8 +1397,32 @@ class AutomationViewModel(
                 val char = code[i]
                 val nextChar = code.getOrNull(i + 1)
 
+                // ══ Smart Indentation Handling ══
+                // After a newline, editors like VS Code often auto-indent. 
+                // We wipe the IDE's auto-indent to ensure our source spacing is 100% exact.
+                if (lineStarting && char != '\n') {
+                    val cmdDelay = if (profileName == "Turbo") 10L else 40L
+                    
+                    // 1. Move to absolute start
+                    repository.sendKey(HidKeyCodes.KEY_LEFT, HidKeyCodes.MODIFIER_LEFT_GUI, useSticky = false)
+                    delay(cmdDelay)
+                    repository.sendKey(0, 0, useSticky = false) 
+                    
+                    // 2. Select to end of line (to catch auto-indents)
+                    repository.sendKey(HidKeyCodes.KEY_RIGHT, (HidKeyCodes.MODIFIER_LEFT_GUI.toInt() or HidKeyCodes.MODIFIER_LEFT_SHIFT.toInt()).toByte(), useSticky = false)
+                    delay(cmdDelay)
+                    repository.sendKey(0, 0, useSticky = false)
+
+                    // 3. Delete everything
+                    repository.sendKey(HidKeyCodes.KEY_BACKSPACE, 0, useSticky = false)
+                    delay(cmdDelay)
+                    repository.sendKey(0, 0, useSticky = false)
+                    
+                    delay(cmdDelay)
+                }
+
                 // Detect blank lines — add thinking pauses
-                if (char == '\n' && prevChar == '\n') {
+                if (profileName != "Turbo" && char == '\n' && prevChar == '\n') {
                     consecutiveBlankLines++
                     if (consecutiveBlankLines <= 2) {
                         // Thinking pause at blank line boundaries
@@ -1414,15 +1444,21 @@ class AutomationViewModel(
                     repository.sendKey(model.keyCode, model.modifier, useSticky = false)
 
                     // Variable key hold time: real humans hold keys for 30-70ms
-                    val holdTime = gaussianDelay(45, 12, min = 25L, max = 80L)
-                    delay(holdTime)
+                    // Spaces are often tapped faster
+                    val baseHold = if (char == ' ') 35L else 45L
+                    val holdTime = gaussianDelay(baseHold, 10L, min = 20L, max = 80L)
+                    delay(holdTime.toLong())
 
                     // Release the key (send neutral report)
                     repository.sendKey(0.toByte(), 0.toByte(), useSticky = false)
                 }
 
                 // Apply the computed inter-key delay
-                delay(charDelay)
+                if (profileName != "Turbo" || char == '\n') {
+                    delay(charDelay.toLong())
+                } else {
+                    delay(1L) // Minimal delay for turbo
+                }
 
                 // Track whether we're at line start (for indentation timing)
                 lineStarting = char == '\n'
