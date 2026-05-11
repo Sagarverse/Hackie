@@ -57,9 +57,10 @@ fun PairingScreen(
     var manualName by remember { mutableStateOf("") }
     var manualMac by remember { mutableStateOf("") }
     val autoReconnect by viewModel.autoReconnectEnabled.collectAsState()
+    val isHidConnected by viewModel.isHidConnected.collectAsState()
 
-    LaunchedEffect(isBluetoothConnected) {
-        if (isBluetoothConnected) onConnected()
+    LaunchedEffect(isBluetoothConnected, isHidConnected) {
+        if (isBluetoothConnected || isHidConnected) onConnected()
     }
 
     Scaffold(
@@ -157,6 +158,217 @@ fun PairingScreen(
                                 checkedTrackColor = AccentBlue.copy(alpha = 0.3f)
                             )
                         )
+                    }
+                }
+            }
+
+            // ── HID TRANSPORT MODE ──
+            item {
+                val transportMode by viewModel.hidTransportMode.collectAsState()
+                val isRootAvail by viewModel.isRootAvailable.collectAsState()
+                val usbState by viewModel.usbGadgetState.collectAsState()
+                val isUsb = transportMode == com.example.rabit.ui.MainViewModel.HidTransportMode.USB
+
+                val usbAccent = Color(0xFF00E676) // Vibrant green for USB
+                val btAccent = AccentBlue
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Graphite.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.5.dp,
+                        if (isUsb) usbAccent.copy(alpha = 0.5f) else btAccent.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            if (isUsb) usbAccent.copy(alpha = 0.15f) else btAccent.copy(alpha = 0.15f),
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        if (isUsb) Icons.Default.Usb else Icons.Default.Bluetooth,
+                                        contentDescription = null,
+                                        tint = if (isUsb) usbAccent else btAccent,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        "HID TRANSPORT",
+                                        color = Platinum,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Text(
+                                        if (isUsb) "USB Gadget Mode (Root)" else "Bluetooth Classic",
+                                        color = if (isUsb) usbAccent else btAccent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            // Root status badge
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isRootAvail) SuccessGreen.copy(alpha = 0.12f) else ErrorRed.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    0.5.dp,
+                                    if (isRootAvail) SuccessGreen.copy(alpha = 0.4f) else ErrorRed.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Text(
+                                    if (isRootAvail) "ROOT ✓" else "NO ROOT",
+                                    color = if (isRootAvail) SuccessGreen else ErrorRed,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        // Segmented toggle button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Obsidian.copy(alpha = 0.5f))
+                                .border(
+                                    0.5.dp,
+                                    BorderColor.copy(alpha = 0.3f),
+                                    RoundedCornerShape(14.dp)
+                                ),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            // Bluetooth button
+                            Surface(
+                                onClick = {
+                                    viewModel.setHidTransportMode(com.example.rabit.ui.MainViewModel.HidTransportMode.BLUETOOTH)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(4.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (!isUsb) btAccent.copy(alpha = 0.2f) else Color.Transparent,
+                                border = if (!isUsb) androidx.compose.foundation.BorderStroke(1.dp, btAccent.copy(alpha = 0.5f))
+                                    else androidx.compose.foundation.BorderStroke(0.dp, Color.Transparent)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Bluetooth,
+                                        contentDescription = null,
+                                        tint = if (!isUsb) btAccent else Silver.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "BLUETOOTH",
+                                        color = if (!isUsb) btAccent else Silver.copy(alpha = 0.5f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+
+                            // USB button
+                            Surface(
+                                onClick = {
+                                    if (isRootAvail) {
+                                        viewModel.setHidTransportMode(com.example.rabit.ui.MainViewModel.HidTransportMode.USB)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(4.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isUsb) usbAccent.copy(alpha = 0.2f) else Color.Transparent,
+                                border = if (isUsb) androidx.compose.foundation.BorderStroke(1.dp, usbAccent.copy(alpha = 0.5f))
+                                    else androidx.compose.foundation.BorderStroke(0.dp, Color.Transparent)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Usb,
+                                        contentDescription = null,
+                                        tint = if (isUsb) usbAccent else Silver.copy(alpha = if (isRootAvail) 0.5f else 0.2f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "USB HID",
+                                        color = if (isUsb) usbAccent else Silver.copy(alpha = if (isRootAvail) 0.5f else 0.2f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // USB Status details (shown when USB mode is active)
+                        if (isUsb) {
+                            val statusText = when (usbState) {
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected -> "GADGET ACTIVE — Ready to type"
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Configuring -> "Configuring USB gadget..."
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Error -> "Error: ${(usbState as com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Error).message}"
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Disconnected -> "Gadget inactive"
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.NotAvailable -> "USB Gadget not supported"
+                            }
+                            val statusColor = when (usbState) {
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected -> usbAccent
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Configuring -> WarningYellow
+                                is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Error -> ErrorRed
+                                else -> Silver.copy(alpha = 0.5f)
+                            }
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = statusColor.copy(alpha = 0.08f),
+                                border = androidx.compose.foundation.BorderStroke(0.5.dp, statusColor.copy(alpha = 0.3f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(statusColor)
+                                    )
+                                    Text(statusText, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            // Info
+                            Text(
+                                "Connect USB cable to target → Phone acts as USB keyboard/mouse. No pairing needed.",
+                                color = Silver.copy(alpha = 0.5f),
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
                     }
                 }
             }

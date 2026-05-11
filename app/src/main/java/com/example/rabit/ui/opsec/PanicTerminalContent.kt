@@ -25,43 +25,6 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PanicTerminalScreen(
-    mainViewModel: MainViewModel,
-    killSwitchViewModel: KillSwitchViewModel,
-    onBack: () -> Unit
-) {
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "PANIC TERMINAL",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Color(0xFFE11D48)
-                            )
-                        )
-                        Text("EMERGENCY OPSEC PROTOCOLS", color = Color(0xFFE11D48).copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        PanicTerminalContent(mainViewModel, killSwitchViewModel, modifier = Modifier.padding(padding))
-    }
-}
-
 @Composable
 fun PanicTerminalContent(
     viewModel: MainViewModel,

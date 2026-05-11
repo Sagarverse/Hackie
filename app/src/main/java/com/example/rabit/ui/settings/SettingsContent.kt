@@ -53,15 +53,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.border
 import com.sagar.rabit.R
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+fun SettingsContent(
     viewModel: MainViewModel, 
     settingsViewModel: SettingsViewModel,
-    automationViewModel: AutomationViewModel,
-    onBack: () -> Unit,
-    onNavigateToProfile: () -> Unit,
-    onNavigateToPasswordManager: () -> Unit
+    automationViewModel: AutomationViewModel
 ) {
     val context = LocalContext.current
     val activity = context as? androidx.fragment.app.FragmentActivity
@@ -149,42 +145,9 @@ fun SettingsScreen(
 
     val haptic = LocalHapticFeedback.current
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            val openDrawer = LocalOpenGlobalDrawer.current
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "SETTINGS",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("SYSTEM CONFIGURATION", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { openDrawer?.invoke() }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextPrimary, modifier = Modifier.size(20.dp))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextSecondary)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -594,8 +557,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
-    }
-
     // ─── Dialogs ───
 
     if (showSpeedDialog) {

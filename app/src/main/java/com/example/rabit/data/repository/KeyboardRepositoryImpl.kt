@@ -4,16 +4,34 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import com.example.rabit.data.bluetooth.BluetoothScanner
 import com.example.rabit.data.bluetooth.HidDeviceManager
+import com.example.rabit.data.bluetooth.UsbHidGadgetManager
 import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.domain.repository.KeyboardRepository
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
     private val hidDeviceManager = HidDeviceManager.getInstance(context)
+    private val usbHidGadget = UsbHidGadgetManager.getInstance(context)
     private val bluetoothScanner = BluetoothScanner(context)
     private val deviceRepository = com.example.rabit.data.repository.DeviceRepositoryImpl(context)
 
+    enum class TransportMode { BLUETOOTH, USB }
+
+    private val _transportMode = MutableStateFlow(TransportMode.BLUETOOTH)
+
+    fun setTransportMode(mode: TransportMode) {
+        _transportMode.value = mode
+    }
+
+    private val isUsbMode: Boolean get() = _transportMode.value == TransportMode.USB
+
+    // ═══ Connection state: merge BT and USB states ═══
+    // When in USB mode, map UsbGadgetState to HidDeviceManager.ConnectionState
+    // so the rest of the app works transparently
     override val connectionState: StateFlow<HidDeviceManager.ConnectionState> = hidDeviceManager.connectionState
     override val scannedDevices: StateFlow<Set<BluetoothDevice>> = bluetoothScanner.scannedDevices
     override val isScanning: StateFlow<Boolean> = bluetoothScanner.isScanning
@@ -57,11 +75,19 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
     }
 
     override fun disconnect() {
-        hidDeviceManager.disconnect()
+        if (isUsbMode) {
+            usbHidGadget.disconnect()
+        } else {
+            hidDeviceManager.disconnect()
+        }
     }
 
     override fun sendKey(keyCode: Byte, modifier: Byte, useSticky: Boolean) {
-        hidDeviceManager.sendKeyPress(keyCode, modifier, useSticky)
+        if (isUsbMode) {
+            usbHidGadget.sendKeyPress(keyCode, modifier, useSticky)
+        } else {
+            hidDeviceManager.sendKeyPress(keyCode, modifier, useSticky)
+        }
     }
 
     override fun setModifier(modifier: Byte, active: Boolean) {
@@ -69,18 +95,28 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
     }
 
     override fun sendConsumerKey(usageId: Short) {
+        // Consumer keys only supported via Bluetooth HID
         hidDeviceManager.sendConsumerKey(usageId)
     }
 
     override fun sendText(text: String): kotlinx.coroutines.Job? {
-        return hidDeviceManager.sendText(text)
+        return if (isUsbMode) {
+            usbHidGadget.sendText(text)
+        } else {
+            hidDeviceManager.sendText(text)
+        }
     }
 
     override fun sendMouseMove(dx: Float, dy: Float, buttons: Int, wheel: Int) {
-        hidDeviceManager.sendMouseMove(dx, dy, buttons, wheel)
+        if (isUsbMode) {
+            usbHidGadget.sendMouseMove(dx.toInt(), dy.toInt(), buttons, wheel)
+        } else {
+            hidDeviceManager.sendMouseMove(dx, dy, buttons, wheel)
+        }
     }
 
     override fun sendDigitizerInput(x: Int, y: Int, isPressed: Boolean, inRange: Boolean) {
+        // Digitizer only supported via Bluetooth HID
         hidDeviceManager.sendDigitizerInput(x, y, isPressed, inRange)
     }
 
@@ -107,7 +143,26 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
         preTypeDelayMs: Long,
         postTypeDelayMs: Long
     ) {
-        hidDeviceManager.unlockMac(password, pressEnterBefore, pressEnterAfter, preTypeDelayMs, postTypeDelayMs)
+        if (isUsbMode) {
+            // For USB mode, send the key sequence directly
+            CoroutineScope(Dispatchers.IO).launch {
+                if (pressEnterBefore) {
+                    usbHidGadget.sendKeyPress(HidKeyCodes.KEY_ENTER, 0)
+                    delay(preTypeDelayMs)
+                }
+                password.forEach { char ->
+                    val model = HidKeyCodes.getHidCode(char)
+                    usbHidGadget.sendKeyPress(model.keyCode, model.modifier, false)
+                    delay(80)
+                }
+                if (pressEnterAfter) {
+                    delay(postTypeDelayMs)
+                    usbHidGadget.sendKeyPress(HidKeyCodes.KEY_ENTER, 0)
+                }
+            }
+        } else {
+            hidDeviceManager.unlockMac(password, pressEnterBefore, pressEnterAfter, preTypeDelayMs, postTypeDelayMs)
+        }
     }
 
     override fun executeKeyCombo(combo: String) {
@@ -139,7 +194,11 @@ class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
             }
         }
         if (key != 0.toByte() || mod != 0) {
-            hidDeviceManager.sendKeyPress(key, mod.toByte(), useSticky = false)
+            if (isUsbMode) {
+                usbHidGadget.sendKeyPress(key, mod.toByte(), false)
+            } else {
+                hidDeviceManager.sendKeyPress(key, mod.toByte(), useSticky = false)
+            }
         }
     }
 

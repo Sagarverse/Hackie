@@ -110,6 +110,22 @@ class AutomationViewModel(
     private val _isPulseModeEnabled = MutableStateFlow(false)
     val isPulseModeEnabled: StateFlow<Boolean> = _isPulseModeEnabled.asStateFlow()
 
+    // ═══ CODE TYPER — Human-Like HID Code Injection Engine ═══
+    private val _isCodeTyperRunning = MutableStateFlow(false)
+    val isCodeTyperRunning: StateFlow<Boolean> = _isCodeTyperRunning.asStateFlow()
+
+    private val _isCodeTyperPaused = MutableStateFlow(false)
+    val isCodeTyperPaused: StateFlow<Boolean> = _isCodeTyperPaused.asStateFlow()
+
+    private val _codeTyperProgress = MutableStateFlow(0f)
+    val codeTyperProgress: StateFlow<Float> = _codeTyperProgress.asStateFlow()
+
+    private val _codeTyperCharIndex = MutableStateFlow(0)
+    val codeTyperCharIndex: StateFlow<Int> = _codeTyperCharIndex.asStateFlow()
+
+    private var codeTyperJob: Job? = null
+    private val codeTyperRng = java.util.Random()
+
     private val _isReverseShellListening = MutableStateFlow(false)
     val isReverseShellListening: StateFlow<Boolean> = _isReverseShellListening.asStateFlow()
 
@@ -1185,5 +1201,259 @@ class AutomationViewModel(
         _isTunnelActive.value = active
         if (active) _globalC2Address.value = address
         com.example.rabit.data.config.TacticalConfig.setTunnelState(active, if (active) address else "")
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CODE TYPER — Advanced Human-Like Code Injection Engine
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Typing profiles define (baseDelayMs, jitterMs, newlinePauseMs, blockPauseMs, burstSpeedupFactor)
+    // Each character's delay is computed from a Gaussian distribution centered on the base,
+    // with context-aware modifiers applied.
+
+    private data class TypingProfile(
+        val baseDelayMs: Long,       // Center of the Gaussian for normal keys
+        val jitterMs: Long,          // Std deviation for Gaussian randomness
+        val newlinePauseMs: Long,    // Extra pause after hitting Enter
+        val blockPauseMs: Long,      // Thinking pause at block boundaries ({, }, blank lines)
+        val burstFactor: Double,     // Speedup factor within common keyword bursts (0.5 = 50% faster)
+        val symbolSlowdown: Double   // Slowdown factor for shifted/special chars (1.4 = 40% slower)
+    )
+
+    private fun getTypingProfile(name: String): TypingProfile = when (name) {
+        "Careful" -> TypingProfile(
+            baseDelayMs = 120, jitterMs = 40, newlinePauseMs = 450,
+            blockPauseMs = 800, burstFactor = 0.85, symbolSlowdown = 1.5
+        )
+        "Balanced" -> TypingProfile(
+            baseDelayMs = 80, jitterMs = 30, newlinePauseMs = 300,
+            blockPauseMs = 550, burstFactor = 0.7, symbolSlowdown = 1.35
+        )
+        "Fluent" -> TypingProfile(
+            baseDelayMs = 50, jitterMs = 20, newlinePauseMs = 180,
+            blockPauseMs = 350, burstFactor = 0.55, symbolSlowdown = 1.25
+        )
+        "Interview" -> TypingProfile(
+            baseDelayMs = 95, jitterMs = 35, newlinePauseMs = 400,
+            blockPauseMs = 900, burstFactor = 0.75, symbolSlowdown = 1.4
+        )
+        "Stealth" -> TypingProfile(
+            baseDelayMs = 65, jitterMs = 25, newlinePauseMs = 220,
+            blockPauseMs = 400, burstFactor = 0.6, symbolSlowdown = 1.3
+        )
+        else -> TypingProfile(
+            baseDelayMs = 80, jitterMs = 30, newlinePauseMs = 300,
+            blockPauseMs = 550, burstFactor = 0.7, symbolSlowdown = 1.35
+        )
+    }
+
+    /**
+     * Gaussian-distributed delay: produces delays centered on [mean] with [stdDev] spread,
+     * clamped to [min]..[max]. This is the fundamental building block that makes timing
+     * look organic rather than uniformly random.
+     */
+    private fun gaussianDelay(mean: Long, stdDev: Long, min: Long = 15L, max: Long = 600L): Long {
+        val raw = mean + (codeTyperRng.nextGaussian() * stdDev).toLong()
+        return raw.coerceIn(min, max)
+    }
+
+    /**
+     * Context-aware delay computation: analyzes the current character, the previous character,
+     * and surrounding context to produce a delay that mimics how a real developer types code.
+     */
+    private fun computeHumanDelay(
+        char: Char,
+        prevChar: Char?,
+        nextChar: Char?,
+        profile: TypingProfile,
+        isInBurst: Boolean,
+        lineStarting: Boolean
+    ): Long {
+        var base = gaussianDelay(profile.baseDelayMs, profile.jitterMs)
+
+        // ── Burst acceleration: within common keyword patterns, humans type faster ──
+        if (isInBurst && char.isLetterOrDigit()) {
+            base = (base * profile.burstFactor).toLong().coerceAtLeast(15L)
+        }
+
+        // ── Special character slowdown: shifted chars require more effort ──
+        val isShifted = char.isUpperCase() || char in "!@#\$%^&*()_+{}|:\"<>?~"
+        if (isShifted) {
+            base = (base * profile.symbolSlowdown).toLong()
+        }
+
+        // ── Bracket/brace context: humans slow down around structural chars ──
+        if (char in "{}()[]") {
+            base = (base * 1.3).toLong()
+            // Extra thinking pause after opening braces (entering new scope)
+            if (char == '{' || char == '(') {
+                base += gaussianDelay(profile.blockPauseMs / 3, 40)
+            }
+        }
+
+        // ── Newline: simulates the thought process of "what comes next" ──
+        if (char == '\n') {
+            base += gaussianDelay(profile.newlinePauseMs, profile.jitterMs * 2, min = 80L, max = 900L)
+        }
+
+        // ── Post-newline indentation: the first chars of a new line are typed
+        //    more deliberately as the developer re-orients ──
+        if (lineStarting && (char == ' ' || char == '\t')) {
+            base = (base * 0.6).toLong().coerceAtLeast(12L) // Rapid tab/space for indentation
+        }
+
+        // ── After semicolons or colons: brief thinking pause ──
+        if (prevChar == ';' || prevChar == ':') {
+            base += gaussianDelay(40, 15, min = 10L, max = 120L)
+        }
+
+        // ── Space after keywords: brief natural pause ──
+        if (char == ' ' && prevChar?.isLetterOrDigit() == true) {
+            base += gaussianDelay(15, 8, min = 5L, max = 60L)
+        }
+
+        // ── Tab key: quick press ──
+        if (char == '\t') {
+            base = gaussianDelay(30, 10, min = 15L, max = 80L)
+        }
+
+        return base.coerceAtLeast(12L)
+    }
+
+    // Common coding keywords for burst detection
+    private val codeKeywords = setOf(
+        "fun", "val", "var", "if", "else", "for", "while", "when", "return", "class", "object",
+        "import", "package", "private", "public", "protected", "override", "suspend", "data",
+        "companion", "const", "fun", "null", "true", "false", "this", "super", "try", "catch",
+        "throw", "finally", "init", "enum", "sealed", "abstract", "open", "internal", "inline",
+        // Common in other languages
+        "function", "const", "let", "async", "await", "export", "default", "from",
+        "def", "self", "print", "println", "System", "String", "int", "void", "static",
+        "include", "define", "struct", "typedef", "sizeof", "namespace", "using",
+        "echo", "sudo", "chmod", "mkdir", "grep", "curl", "wget", "python", "node",
+        "docker", "git", "npm", "pip", "apt", "brew", "cd", "ls", "cat", "rm"
+    )
+
+    /**
+     * Checks if the character at [index] is part of a recognized keyword burst.
+     * Returns true if the current position is inside a common keyword.
+     */
+    private fun isInsideKeywordBurst(text: String, index: Int): Boolean {
+        // Look backward to find the start of the current word
+        var wordStart = index
+        while (wordStart > 0 && text[wordStart - 1].isLetterOrDigit()) wordStart--
+        // Look forward to find the end of the current word
+        var wordEnd = index
+        while (wordEnd < text.length - 1 && text[wordEnd + 1].isLetterOrDigit()) wordEnd++
+
+        val word = text.substring(wordStart, wordEnd + 1)
+        return word in codeKeywords
+    }
+
+    /**
+     * Starts the human-like code typing job. This sends each character via HID
+     * with realistic timing that defeats keystroke analysis.
+     */
+    fun startCodeTyper(code: String, profileName: String) {
+        codeTyperJob?.cancel()
+        _isCodeTyperRunning.value = true
+        _isCodeTyperPaused.value = false
+        _codeTyperProgress.value = 0f
+        _codeTyperCharIndex.value = 0
+
+        val profile = getTypingProfile(profileName)
+
+        codeTyperJob = viewModelScope.launch(Dispatchers.IO) {
+            val totalChars = code.length
+            if (totalChars == 0) {
+                _isCodeTyperRunning.value = false
+                return@launch
+            }
+
+            // Initial thinking pause — simulates developer reading the code before typing
+            delay(gaussianDelay(300, 100, min = 150L, max = 600L))
+
+            var prevChar: Char? = null
+            var lineStarting = true
+            var consecutiveBlankLines = 0
+
+            for (i in code.indices) {
+                // Check if aborted
+                if (!_isCodeTyperRunning.value) break
+
+                // Pause support
+                while (_isCodeTyperPaused.value) {
+                    delay(100)
+                    if (!_isCodeTyperRunning.value) break
+                }
+                if (!_isCodeTyperRunning.value) break
+
+                val char = code[i]
+                val nextChar = code.getOrNull(i + 1)
+
+                // Detect blank lines — add thinking pauses
+                if (char == '\n' && prevChar == '\n') {
+                    consecutiveBlankLines++
+                    if (consecutiveBlankLines <= 2) {
+                        // Thinking pause at blank line boundaries
+                        delay(gaussianDelay(profile.blockPauseMs, profile.jitterMs * 2, min = 200L, max = 1200L))
+                    }
+                } else if (char != '\n') {
+                    consecutiveBlankLines = 0
+                }
+
+                // Determine if we're in a keyword burst
+                val inBurst = char.isLetterOrDigit() && isInsideKeywordBurst(code, i)
+
+                // Compute the human-like delay for this character
+                val charDelay = computeHumanDelay(char, prevChar, nextChar, profile, inBurst, lineStarting)
+
+                // Send the actual keystroke via HID
+                val model = HidKeyCodes.getHidCode(char)
+                if (model.keyCode != 0.toByte() || model.modifier != 0.toByte()) {
+                    repository.sendKey(model.keyCode, model.modifier, useSticky = false)
+
+                    // Variable key hold time: real humans hold keys for 30-70ms
+                    val holdTime = gaussianDelay(45, 12, min = 25L, max = 80L)
+                    delay(holdTime)
+
+                    // Release the key (send neutral report)
+                    repository.sendKey(0.toByte(), 0.toByte(), useSticky = false)
+                }
+
+                // Apply the computed inter-key delay
+                delay(charDelay)
+
+                // Track whether we're at line start (for indentation timing)
+                lineStarting = char == '\n'
+
+                prevChar = char
+
+                // Update progress
+                _codeTyperCharIndex.value = i + 1
+                _codeTyperProgress.value = (i + 1).toFloat() / totalChars
+            }
+
+            // Completion cooldown
+            delay(200)
+            _isCodeTyperRunning.value = false
+            _isCodeTyperPaused.value = false
+            _codeTyperProgress.value = if (_codeTyperCharIndex.value >= totalChars) 1f else _codeTyperProgress.value
+        }
+    }
+
+    fun pauseCodeTyper() {
+        _isCodeTyperPaused.value = true
+    }
+
+    fun resumeCodeTyper() {
+        _isCodeTyperPaused.value = false
+    }
+
+    fun abortCodeTyper() {
+        _isCodeTyperRunning.value = false
+        _isCodeTyperPaused.value = false
+        codeTyperJob?.cancel()
+        codeTyperJob = null
     }
 }

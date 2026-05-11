@@ -24,40 +24,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SubdomainScannerScreen(viewModel: SubdomainScannerViewModel, onBack: () -> Unit) {
+fun SubdomainScannerContent(viewModel: SubdomainScannerViewModel) {
     val results by viewModel.results.collectAsState()
     val scannerState by viewModel.scannerState.collectAsState()
     var domainInput by remember { mutableStateOf("") }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("SUBDOMAIN SCANNER", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text("DNS ENUMERATION LAB", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (scannerState is ScannerState.Scanning) viewModel.stopScan()
-                        else onBack()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
             // Input Header
             Surface(
                 color = Surface1,
@@ -166,5 +142,4 @@ fun SubdomainScannerScreen(viewModel: SubdomainScannerViewModel, onBack: () -> U
                 }
             }
         }
-    }
 }

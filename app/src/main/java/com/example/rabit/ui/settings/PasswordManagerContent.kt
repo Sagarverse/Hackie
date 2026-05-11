@@ -80,11 +80,10 @@ import com.example.rabit.ui.theme.Silver
 import com.example.rabit.ui.theme.SuccessGreen
 import kotlinx.coroutines.delay
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun PasswordManagerScreen(
-    settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel, viewModel: com.example.rabit.ui.MainViewModel,
-    onBack: () -> Unit
+fun PasswordManagerContent(
+    settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel,
+    viewModel: com.example.rabit.ui.MainViewModel
 ) {
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -117,42 +116,9 @@ fun PasswordManagerScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
-            androidx.compose.material3.CenterAlignedTopAppBar(
-                title = {
-                    androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                        Text(
-                            "PASSWORD VAULT",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("SECURE CREDENTIALS", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { openDrawer?.invoke() }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Platinum, modifier = Modifier.size(20.dp))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Silver)
-                    }
-                },
-                colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -416,8 +382,6 @@ fun PasswordManagerScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
-
     if (showPasswordDialog) {
         var tempPass by remember { mutableStateOf(macPassword) }
         var hidden by remember { mutableStateOf(true) }

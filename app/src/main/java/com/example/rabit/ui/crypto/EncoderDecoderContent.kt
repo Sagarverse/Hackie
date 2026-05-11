@@ -24,9 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EncoderDecoderScreen(viewModel: EncoderDecoderViewModel, onBack: () -> Unit) {
+fun EncoderDecoderContent(viewModel: EncoderDecoderViewModel) {
     val inputText by viewModel.inputText.collectAsState()
     val base64Output by viewModel.base64Output.collectAsState()
     val hexOutput by viewModel.hexOutput.collectAsState()
@@ -35,51 +34,38 @@ fun EncoderDecoderScreen(viewModel: EncoderDecoderViewModel, onBack: () -> Unit)
     val rot13Output by viewModel.rot13Output.collectAsState()
     val context = LocalContext.current
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("CRYPTO ENCODER", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text(if (viewModel.isEncodingMode) "ENCODE MODE" else "DECODE MODE", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.setMode(!viewModel.isEncodingMode) }) {
-                        Icon(Icons.Default.SwapHoriz, null, tint = AccentBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { viewModel.updateInput(it) },
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                label = { Text("Input Payload", color = Silver) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Platinum,
-                    unfocusedTextColor = Platinum,
-                    focusedBorderColor = AccentBlue,
-                    unfocusedBorderColor = BorderColor
-                ),
-                textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { viewModel.updateInput(it) },
+                    modifier = Modifier.weight(1f).height(120.dp),
+                    label = { Text("Input Payload", color = Silver) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Platinum,
+                        unfocusedTextColor = Platinum,
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = BorderColor
+                    ),
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = { viewModel.setMode(!viewModel.isEncodingMode) },
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Icon(Icons.Default.SwapHoriz, contentDescription = "Toggle Mode", tint = AccentBlue)
+                }
+            }
 
             if (inputText.isNotEmpty()) {
                 CryptoResultCard("Base64", base64Output, context)
@@ -94,7 +80,6 @@ fun EncoderDecoderScreen(viewModel: EncoderDecoderViewModel, onBack: () -> Unit)
             }
         }
     }
-}
 
 @Composable
 fun CryptoResultCard(title: String, content: String, context: Context) {

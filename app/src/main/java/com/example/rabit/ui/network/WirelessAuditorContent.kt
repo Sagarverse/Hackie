@@ -24,75 +24,46 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WirelessAuditorScreen(
-    bleViewModel: BleAuditorViewModel,
+fun WirelessAuditorContent(
     wifiViewModel: WifiAttackerViewModel,
-    apiKey: String,
-    onBack: () -> Unit
+    bleViewModel: BleAuditorViewModel,
+    apiKey: String
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("WIFI AUDITOR", "BLE AUDITOR")
     val colors = listOf(Color(0xFFEAB308), AccentTeal)
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "WIRELESS AUDITOR",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp,
-                                    color = Platinum
-                                )
-                            )
-                            Text("RF SPECTRUM ANALYSIS", color = colors[selectedTab], fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = colors[selectedTab],
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = colors[selectedTab]
                 )
-                
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = colors[selectedTab],
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = colors[selectedTab]
-                        )
-                    },
-                    divider = {}
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { 
-                                Text(
-                                    title, 
-                                    fontSize = 11.sp, 
-                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
-                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
-                                ) 
-                            }
-                        )
+            },
+            divider = {}
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { 
+                        Text(
+                            title, 
+                            fontSize = 11.sp, 
+                            fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
+                            color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
+                        ) 
                     }
-                }
+                )
             }
         }
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
+
+        Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTab) {
                 0 -> {
                     val networks by wifiViewModel.networks.collectAsState()

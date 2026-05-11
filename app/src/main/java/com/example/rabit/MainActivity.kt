@@ -57,8 +57,7 @@ import com.example.rabit.ui.keyboard.KeyboardScreen
 import com.example.rabit.ui.home.HomeScreen
 import com.example.rabit.ui.onboarding.OnboardingScreen
 import com.example.rabit.ui.pairing.PairingScreen
-import com.example.rabit.ui.settings.PasswordManagerScreen
-import com.example.rabit.ui.settings.SettingsScreen
+
 import com.example.rabit.ui.snippets.SnippetsScreen
 import com.example.rabit.ui.profile.ProfileScreen
 import com.example.rabit.ui.automation.AutomationDashboardScreen
@@ -83,8 +82,7 @@ class MainActivity : FragmentActivity() {
     private val neuralQaViewModel: com.example.rabit.ui.qa.NeuralQaViewModel by viewModels()
     private val neuralWebAuditorViewModel: com.example.rabit.ui.qa.NeuralWebAuditorViewModel by viewModels()
     private val payloadForgeViewModel: com.example.rabit.ui.payload.PayloadForgeViewModel by viewModels()
-    private val rogueHorizonViewModel: com.example.rabit.ui.network.RogueHorizonViewModel by viewModels()
-    private val sensorLabViewModel: com.example.rabit.ui.sensors.SensorLabViewModel by viewModels()
+
     private val osintGhostViewModel: com.example.rabit.ui.osint.OsintGhostViewModel by viewModels()
     private val bluetoothShadowViewModel: com.example.rabit.ui.network.BluetoothShadowViewModel by viewModels()
     private val bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel by viewModels()
@@ -177,8 +175,6 @@ class MainActivity : FragmentActivity() {
                                     neuralQaViewModel = neuralQaViewModel,
                                     neuralWebAuditorViewModel = neuralWebAuditorViewModel,
                                     payloadForgeViewModel = payloadForgeViewModel,
-                                    rogueHorizonViewModel = rogueHorizonViewModel,
-                                    sensorLabViewModel = sensorLabViewModel,
                                     osintGhostViewModel = osintGhostViewModel,
                                     bluetoothShadowViewModel = bluetoothShadowViewModel,
                                     bluetoothMirrorViewModel = bluetoothMirrorViewModel,
@@ -242,8 +238,6 @@ fun AppNavigation(
     automationViewModel: com.example.rabit.ui.automation.AutomationViewModel,
     helperViewModel: com.example.rabit.ui.helper.HelperViewModel,
     browserViewModel: com.example.rabit.ui.browser.BrowserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    webHubViewModel: com.example.rabit.ui.webhub.WebHubViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    remoteDeckViewModel: com.example.rabit.ui.remotedeck.RemoteDeckViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     lockdownViewModel: com.example.rabit.ui.lockdown.LockdownViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     networkAuditorViewModel: com.example.rabit.ui.network.NetworkAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     bruteForceViewModel: com.example.rabit.ui.automation.HidBruteForceViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
@@ -255,8 +249,7 @@ fun AppNavigation(
     neuralQaViewModel: com.example.rabit.ui.qa.NeuralQaViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     neuralWebAuditorViewModel: com.example.rabit.ui.qa.NeuralWebAuditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     payloadForgeViewModel: com.example.rabit.ui.payload.PayloadForgeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    rogueHorizonViewModel: com.example.rabit.ui.network.RogueHorizonViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    sensorLabViewModel: com.example.rabit.ui.sensors.SensorLabViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+
     osintGhostViewModel: com.example.rabit.ui.osint.OsintGhostViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     bluetoothShadowViewModel: com.example.rabit.ui.network.BluetoothShadowViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     bluetoothMirrorViewModel: com.example.rabit.ui.network.BluetoothMirrorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
@@ -273,14 +266,10 @@ fun AppNavigation(
     pentestToolkitViewModel: com.example.rabit.ui.pentest.PentestToolkitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     phishPortalViewModel: com.example.rabit.ui.automation.PhishPortalViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    lootViewModel: com.example.rabit.ui.loot.LootViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    sessionClonerViewModel: com.example.rabit.ui.zero_touch.SessionClonerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    signalLabViewModel: com.example.rabit.ui.zero_touch.SignalLabViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    mediaExploitViewModel: com.example.rabit.ui.zero_touch.MediaExploitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    missionViewModel: com.example.rabit.ui.mission.MissionCommandViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    lootViewModel: com.example.rabit.ui.loot.LootViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val navController = rememberNavController()
-    val startDest = if (viewModel.onboardingCompleted) "mission_command" else "onboarding"
+    val startDest = if (viewModel.onboardingCompleted) "pairing" else "onboarding"
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: startDest
     val featureWebBridgeVisible by viewModel.featureWebBridgeVisible.collectAsState()
@@ -297,74 +286,7 @@ fun AppNavigation(
     val noDrawerRoutes = listOf("onboarding", "onboarding_splash")
     val showDrawer = currentRoute.split("?").first() !in noDrawerRoutes
 
-    fun routeAllowed(route: String): Boolean {
-        return when (route) {
-            "web_bridge" -> true
-            "automation" -> true
-            "shortcuts" -> true
-            "assistant" -> true
-            "snippets" -> true
-            "ssh_terminal" -> true
-            "auto_clicker" -> true
-            "system_monitor" -> true
-            "remote_explorer" -> true
-            "reverse_shell" -> true
-            "terminal_scanner" -> true
-            "process_manager" -> true
-            "system_stats" -> true
-            "wake_on_lan" -> true
-            "remote_deck" -> true
-            "lockdown" -> true
-            "network_auditor" -> true
-            "tactical_terminal" -> true
-            "screenshot_lab" -> true
-            "keystroke_monitor" -> true
-            "vision_lab" -> true
-            "macro_lab" -> true
-            "forensics_lab" -> true
-            "web_sniper" -> true
-            "panic_terminal" -> true
-            "bluetooth_shadow" -> true
-            "forensic_vault" -> true
-            "local_terminal" -> true
-            "ghost_recon" -> true
-            "wireless_auditor" -> true
-            "neural_lab" -> true
-            "payload_forge" -> true
-            "rogue_horizon" -> true
-            "sensor_lab" -> true
-            "hid_brute_force" -> true
-            "hash_cracker" -> true
-            "crypto_encoder" -> true
-            "subdomain_scanner" -> true
-            "exif_forensics" -> true
-            "reverse_shell" -> true
-            "port_scanner" -> true
-            "stego_lab" -> true
-            "ping_trace" -> true
-            "pentest_toolkit" -> true
-            "web_hub" -> true
-            "global_search" -> true
-            else -> true
-        }
-    }
-
-    LaunchedEffect(
-        currentRoute,
-        featureWebBridgeVisible,
-        featureAutomationVisible,
-        featureAssistantVisible,
-        featureSnippetsVisible,
-        featureSshTerminalVisible
-    ) {
-        val current = currentRoute.split("?").first()
-        if (!routeAllowed(current)) {
-            navController.navigate("keyboard") {
-                popUpTo(current) { inclusive = true }
-                launchSingleTop = true
-            }
-        }
-    }
+    // Route guard removed — all routes are accessible
 
     val navHost = @Composable { padding: androidx.compose.foundation.layout.PaddingValues ->
         Box(modifier = Modifier.padding(padding)) {
@@ -389,12 +311,6 @@ fun AppNavigation(
                         }
                     )
                 }
-                composable("mission_command") {
-                    com.example.rabit.ui.mission.MissionCommandScreen(
-                        viewModel = missionViewModel,
-                        onNavigate = { navController.navigate(it) }
-                    )
-                }
                 composable("pairing") {
                     com.example.rabit.ui.pairing.PairingScreen(
                         viewModel = viewModel,
@@ -408,11 +324,6 @@ fun AppNavigation(
                         },
                         onNavigateToSettings = { navController.navigate("settings") }
                     )
-                }
-                composable("media_deck") {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Media Deck Coming Soon", color = Platinum)
-                    }
                 }
                 composable("keyboard") {
                     KeyboardScreen(
@@ -433,8 +344,6 @@ fun AppNavigation(
                 composable("web_bridge") {
                     com.example.rabit.ui.webbridge.WebBridgeScreen(
                         viewModel = webBridgeViewModel,
-                        webHubViewModel = webHubViewModel,
-                        remoteDeckViewModel = remoteDeckViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -481,17 +390,7 @@ fun AppNavigation(
                         }
                     )
                 }
-                composable("web_hub") {
-                    com.example.rabit.ui.webhub.WebHubScreen(
-                        viewModel = webHubViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("remote_deck") {
-                    com.example.rabit.ui.remotedeck.RemoteDeckScreen(
-                        viewModel = remoteDeckViewModel
-                    )
-                }
+
                 composable("lockdown") {
                     com.example.rabit.ui.lockdown.LockdownScreen(
                         viewModel = lockdownViewModel,
@@ -499,10 +398,14 @@ fun AppNavigation(
                     )
                 }
                 composable("network_auditor") {
-                    com.example.rabit.ui.network.NetworkAuditorScreen(
-                        viewModel = networkAuditorViewModel,
+                    com.example.rabit.ui.network.NetworkReconScreen(
+                        networkAuditorViewModel = networkAuditorViewModel,
                         portScannerViewModel = portScannerViewModel,
                         pingTraceViewModel = pingTraceViewModel,
+                        bleViewModel = bleAuditorViewModel,
+                        wifiViewModel = wifiAttackerViewModel,
+                        bluetoothShadowViewModel = bluetoothShadowViewModel,
+                        apiKey = settingsViewModel.geminiApiKey,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -526,6 +429,13 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("code_typer") {
+                    com.example.rabit.ui.automation.CodeTyperScreen(
+                        viewModel = viewModel,
+                        automationViewModel = automationViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("auto_clicker") {
                     com.example.rabit.ui.automation.AutoClickerScreen(
                         mainViewModel = viewModel,
@@ -533,13 +443,7 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("system_monitor") {
-                    com.example.rabit.ui.automation.SystemMonitorScreen(
-                        helperViewModel = helperViewModel,
-                        initialSubFeature = "processes",
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("remote_explorer") {
                     com.example.rabit.ui.automation.RemoteExplorerScreen(
                         viewModel = helperViewModel,
@@ -582,13 +486,7 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("panic_terminal") {
-                    com.example.rabit.ui.opsec.PanicTerminalScreen(
-                        mainViewModel = viewModel,
-                        killSwitchViewModel = killSwitchViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("local_terminal") {
                     com.example.rabit.ui.automation.LocalTerminalScreen(
                         viewModel = localTerminalViewModel,
@@ -597,20 +495,14 @@ fun AppNavigation(
                     )
                 }
                 composable("ghost_recon") {
-                    com.example.rabit.ui.osint.OsintScreen(
-                        viewModel = osintViewModel,
-                        ghostViewModel = osintGhostViewModel,
+                    com.example.rabit.ui.osint.IntelOsintScreen(
+                        osintViewModel = osintViewModel,
+                        osintGhostViewModel = osintGhostViewModel,
+                        subdomainScannerViewModel = subdomainScannerViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("wireless_auditor") {
-                    com.example.rabit.ui.network.WirelessAuditorScreen(
-                        bleViewModel = bleAuditorViewModel,
-                        wifiViewModel = wifiAttackerViewModel,
-                        apiKey = settingsViewModel.geminiApiKey,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("neural_lab") {
                     com.example.rabit.ui.qa.NeuralLabScreen(
                         qaViewModel = neuralQaViewModel,
@@ -630,43 +522,16 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("session_cloner") {
-                    com.example.rabit.ui.zero_touch.SessionClonerScreen(
-                        viewModel = sessionClonerViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("signal_lab") {
-                    com.example.rabit.ui.zero_touch.SignalLabScreen(
-                        viewModel = signalLabViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("media_exploit") {
-                    com.example.rabit.ui.zero_touch.MediaExploitScreen(
-                        viewModel = mediaExploitViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("crypto_encoder") {
-                    com.example.rabit.ui.crypto.EncoderDecoderScreen(
-                        viewModel = encoderDecoderViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("subdomain_scanner") {
-                    com.example.rabit.ui.osint.SubdomainScannerScreen(
-                        viewModel = subdomainScannerViewModel,
+
+                composable("crypto_toolkit") {
+                    com.example.rabit.ui.crypto.CryptoToolkitScreen(
+                        encoderDecoderViewModel = encoderDecoderViewModel,
+                        steganographyViewModel = steganographyViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
 
-                composable("stego_lab") {
-                    com.example.rabit.ui.steganography.SteganographyScreen(
-                        viewModel = steganographyViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("pentest_toolkit") {
                     com.example.rabit.ui.pentest.PentestToolkitScreen(
                         viewModel = pentestToolkitViewModel,
@@ -688,18 +553,7 @@ fun AppNavigation(
                         }
                     )
                 }
-                composable("rogue_horizon") {
-                    com.example.rabit.ui.network.RogueHorizonScreen(
-                        viewModel = rogueHorizonViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("sensor_lab") {
-                    com.example.rabit.ui.sensors.SensorLabScreen(
-                        viewModel = sensorLabViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("security_auditor") {
                     com.example.rabit.ui.security.SecurityAuditorScreen(
                         viewModel = securityAuditorViewModel,
@@ -747,19 +601,11 @@ fun AppNavigation(
                     )
                 }
                 composable("settings") {
-                    SettingsScreen(
+                    com.example.rabit.ui.settings.SettingsOpsecScreen(
                         viewModel = viewModel,
                         settingsViewModel = settingsViewModel,
                         automationViewModel = automationViewModel,
-                        onBack = { navController.popBackStack() },
-                        onNavigateToProfile = { navController.navigate("profile") },
-                        onNavigateToPasswordManager = { navController.navigate("password_manager") }
-                    )
-                }
-                composable("password_manager") {
-                    PasswordManagerScreen(
-                        settingsViewModel = settingsViewModel,
-                        viewModel = viewModel,
+                        killSwitchViewModel = killSwitchViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -789,6 +635,7 @@ fun AppNavigation(
                         add("home")
                         add("keyboard")
                         add("injector")
+                        add("code_typer")
                         add("airplay_receiver")
                         add("settings")
                         add("customization")
@@ -821,7 +668,7 @@ fun AppNavigation(
                         availableActionIds = availableActions,
                         onBack = { navController.popBackStack() },
                         onNavigate = { route ->
-                            if (!routeAllowed(route)) return@GlobalSearchScreen
+
                             navController.navigate(route) {
                                 launchSingleTop = true
                             }
@@ -859,21 +706,7 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable("forensic_vault") {
-                    val forensicsViewModel: com.example.rabit.ui.forensics.ForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-                    val exifForensicsViewModel: com.example.rabit.ui.forensics.ExifForensicsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-                    com.example.rabit.ui.forensics.ForensicsLabScreen(
-                        viewModel = forensicsViewModel,
-                        exifViewModel = exifForensicsViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("bluetooth_shadow") {
-                    com.example.rabit.ui.network.BluetoothShadowScreen(
-                        viewModel = bluetoothShadowViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+
                 composable("process_manager") {
                     com.example.rabit.ui.automation.SystemMonitorScreen(
                         helperViewModel = helperViewModel,
@@ -885,17 +718,6 @@ fun AppNavigation(
                     com.example.rabit.ui.automation.SystemMonitorScreen(
                         helperViewModel = helperViewModel,
                         initialSubFeature = "stats",
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable("wake_on_lan") {
-                    // Map to automation dashboard as WOL is integrated there
-                    navController.navigate("automation") { launchSingleTop = true }
-                }
-                composable("tactical_terminal") {
-                    com.example.rabit.ui.opsec.PanicTerminalScreen(
-                        mainViewModel = viewModel,
-                        killSwitchViewModel = killSwitchViewModel,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -913,7 +735,7 @@ fun AppNavigation(
                     "main" -> if (isBluetoothConnected) "keyboard" else "pairing"
                     else -> route
                 }
-                if (!routeAllowed(target)) return@RabitAppScaffold
+
                 navController.navigate(target) {
                     popUpTo("keyboard") { saveState = true }
                     launchSingleTop = true

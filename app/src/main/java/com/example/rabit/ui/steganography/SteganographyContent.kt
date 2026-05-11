@@ -22,9 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SteganographyScreen(viewModel: SteganographyViewModel, onBack: () -> Unit) {
+fun SteganographyContent(viewModel: SteganographyViewModel) {
     val state by viewModel.state.collectAsState()
     val selectedUri by viewModel.selectedImageUri.collectAsState()
     var secretMessage by remember { mutableStateOf("") }
@@ -34,23 +33,8 @@ fun SteganographyScreen(viewModel: SteganographyViewModel, onBack: () -> Unit) {
         uri?.let { viewModel.selectImage(it) }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("STEGANOGRAPHY LAB", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text("COVERT DATA IN IMAGES", color = Color(0xFF8B5CF6), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum) } },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Mode Toggle
@@ -170,5 +154,4 @@ fun SteganographyScreen(viewModel: SteganographyViewModel, onBack: () -> Unit) {
                 else -> {}
             }
         }
-    }
 }

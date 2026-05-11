@@ -22,80 +22,50 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OsintScreen(
+fun OsintContent(
     viewModel: OsintViewModel,
-    ghostViewModel: OsintGhostViewModel,
-    onBack: () -> Unit
+    ghostViewModel: OsintGhostViewModel
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("QUICK RECON", "DEEP SEARCH")
     
-    // Removed viewModel.searchQuery as it doesn't exist. Using local state.
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isScanning.collectAsState()
 
     val ghostStatus by ghostViewModel.status.collectAsState()
     val ghostLogs by ghostViewModel.searchLogs.collectAsState()
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "GHOST RECON",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp,
-                                    color = Platinum
-                                )
-                            )
-                            Text("OPEN SOURCE INTELLIGENCE", color = if (selectedTab == 0) SuccessGreen else Color.Magenta, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = if (selectedTab == 0) SuccessGreen else Color.Magenta,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = if (selectedTab == 0) SuccessGreen else Color.Magenta
                 )
-
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = if (selectedTab == 0) SuccessGreen else Color.Magenta,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = if (selectedTab == 0) SuccessGreen else Color.Magenta
-                        )
-                    },
-                    divider = {}
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { 
-                                Text(
-                                    title, 
-                                    fontSize = 11.sp, 
-                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
-                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
-                                ) 
-                            }
-                        )
+            },
+            divider = {}
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { 
+                        Text(
+                            title, 
+                            fontSize = 11.sp, 
+                            fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
+                            color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
+                        ) 
                     }
-                }
+                )
             }
         }
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
+        
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             if (selectedTab == 0) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     var queryInput by remember { mutableStateOf("") }

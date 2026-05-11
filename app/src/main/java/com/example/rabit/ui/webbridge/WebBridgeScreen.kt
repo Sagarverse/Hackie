@@ -58,8 +58,6 @@ import android.database.Cursor
 @Composable
 fun WebBridgeScreen(
     viewModel: com.example.rabit.ui.webbridge.WebBridgeViewModel,
-    webHubViewModel: com.example.rabit.ui.webhub.WebHubViewModel,
-    remoteDeckViewModel: com.example.rabit.ui.remotedeck.RemoteDeckViewModel,
     onBack: () -> Unit
 ) {
     val isRunning by viewModel.isWebBridgeRunning.collectAsState(initial = RabitNetworkServer.isRunning)
@@ -105,7 +103,7 @@ fun WebBridgeScreen(
     // Connect Server Providers - Now handled in WebBridgeViewModel init
     // SideEffect block removed as logic migrated to ViewModel
 
-    var currentSubFeature by remember { mutableStateOf("bridge") } // "bridge", "hub", "lab"
+
 
     val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
 
@@ -147,17 +145,7 @@ fun WebBridgeScreen(
             Row(modifier = Modifier.fillMaxSize().padding(padding)) {
                 // Main Content Area
                 Box(modifier = Modifier.weight(1f)) {
-                    when (currentSubFeature) {
-                        "bridge" -> {
-                            WebBridgeContent(viewModel, filePickerLauncher, friendlyLanUrl, ipLanUrl, localUrl, p2pUrl, qrMode, onQrModeChange = { qrMode = it })
-                        }
-                        "hub" -> {
-                            com.example.rabit.ui.webhub.WebHubScreen(webHubViewModel, onBack = { currentSubFeature = "bridge" })
-                        }
-                        "lab" -> {
-                            com.example.rabit.ui.remotedeck.RemoteDeckScreen(remoteDeckViewModel)
-                        }
-                    }
+                    WebBridgeContent(viewModel, filePickerLauncher, friendlyLanUrl, ipLanUrl, localUrl, p2pUrl, qrMode, onQrModeChange = { qrMode = it })
                 }
 
                 // Right-side Mini Sidebar
@@ -176,18 +164,8 @@ fun WebBridgeScreen(
                     ) {
                         MiniSidebarIcon(
                             icon = Icons.Default.CloudSync,
-                            isSelected = currentSubFeature == "bridge",
-                            onClick = { currentSubFeature = "bridge" }
-                        )
-                        MiniSidebarIcon(
-                            icon = Icons.Default.CloudUpload,
-                            isSelected = currentSubFeature == "hub",
-                            onClick = { currentSubFeature = "hub" }
-                        )
-                        MiniSidebarIcon(
-                            icon = Icons.Default.BugReport,
-                            isSelected = currentSubFeature == "lab",
-                            onClick = { currentSubFeature = "lab" }
+                            isSelected = true,
+                            onClick = { }
                         )
                         
                         Spacer(modifier = Modifier.weight(1f))

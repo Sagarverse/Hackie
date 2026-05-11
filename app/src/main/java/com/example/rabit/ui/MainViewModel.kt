@@ -58,6 +58,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val discoveredDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
     
+    // Unified HID connection: true when EITHER Bluetooth OR USB HID is active
+    private val _isUsbHidConnected = MutableStateFlow(false)
+    val isHidConnected: StateFlow<Boolean> = combine(
+        isBluetoothConnected,
+        _isUsbHidConnected
+    ) { bt, usb -> bt || usb }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     private val _isAdvertising = MutableStateFlow(false)
     val isAdvertising = _isAdvertising.asStateFlow()
     
@@ -117,6 +124,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _autoReconnectEnabled = MutableStateFlow(prefs.getBoolean("auto_reconnect_enabled", false))
     val autoReconnectEnabled = _autoReconnectEnabled.asStateFlow()
+
+    // ═══ USB HID Transport Mode ═══
+    enum class HidTransportMode { BLUETOOTH, USB }
+
+    private val _hidTransportMode = MutableStateFlow(
+        if (prefs.getString("hid_transport_mode", "BLUETOOTH") == "USB") HidTransportMode.USB else HidTransportMode.BLUETOOTH
+    )
+    val hidTransportMode: StateFlow<HidTransportMode> = _hidTransportMode.asStateFlow()
+
+    val usbHidGadget = com.example.rabit.data.bluetooth.UsbHidGadgetManager.getInstance(application)
+    val usbGadgetState = usbHidGadget.state
+    val isRootAvailable = usbHidGadget.isRootAvailable
+
+    private val _isUsbConnected = MutableStateFlow(false)
+    val isUsbConnected = _isUsbConnected.asStateFlow()
+
+    fun setHidTransportMode(mode: HidTransportMode) {
+        _hidTransportMode.value = mode
+        prefs.edit().putString("hid_transport_mode", mode.name).apply()
+
+        // Update the repository transport
+        (repository as? com.example.rabit.data.repository.KeyboardRepositoryImpl)?.setTransportMode(
+            if (mode == HidTransportMode.USB) com.example.rabit.data.repository.KeyboardRepositoryImpl.TransportMode.USB
+            else com.example.rabit.data.repository.KeyboardRepositoryImpl.TransportMode.BLUETOOTH
+        )
+
+        if (mode == HidTransportMode.USB) {
+            // Disconnect Bluetooth, connect USB
+            repository.disconnect()
+            connectUsbHid()
+        } else {
+            // Disconnect USB
+            disconnectUsbHid()
+        }
+    }
+
+    fun connectUsbHid() {
+        usbHidGadget.connect()
+        viewModelScope.launch {
+            // Monitor USB gadget state and mirror to connection states
+            usbHidGadget.state.collect { state ->
+                val connected = state is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected
+                _isUsbConnected.value = connected
+                _isUsbHidConnected.value = connected
+            }
+        }
+    }
+
+    fun disconnectUsbHid() {
+        usbHidGadget.disconnect()
+        _isUsbConnected.value = false
+        _isUsbHidConnected.value = false
+    }
 
     // Feature visibility toggles
     private val _featureWebBridgeVisible = MutableStateFlow(prefs.getBoolean("feature_web_bridge_visible", true))
