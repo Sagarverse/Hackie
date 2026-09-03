@@ -14,14 +14,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.theme.HackieSpacing
+import com.example.rabit.ui.theme.Success
 
+/**
+ * Clean, Apple-style chat top bar.
+ * Shows the active model, connection status, and a row of action icons.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PremiumChatTopBar(
@@ -43,199 +46,207 @@ fun PremiumChatTopBar(
     var showHistoryDialog by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "orbPulse")
     val orbAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f, targetValue = 1f,
+        initialValue = 0.5f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (isThinking) AssistantMotion.PULSE_FAST else AssistantMotion.PULSE_IDLE, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ), label = "orbAlpha"
+            animation = tween(
+                durationMillis = if (isThinking) AssistantMotion.PULSE_FAST else AssistantMotion.PULSE_IDLE,
+                easing = EaseInOutSine,
+            ),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "orbAlpha",
     )
+    val accent = MaterialTheme.colorScheme.primary
     val orbColor by animateColorAsState(
-        targetValue = if (isThinking) AccentBlue else AiOrbGlow,
-        animationSpec = tween(AssistantMotion.COLOR_TWEEN),
-        label = "orbColor"
-    )
-    val statusColor by animateColorAsState(
-        targetValue = if (isThinking) AccentBlue.copy(alpha = 0.9f) else Platinum.copy(alpha = 0.7f),
-        animationSpec = tween(AssistantMotion.COLOR_TWEEN),
-        label = "statusColor"
+        targetValue = accent,
+        label = "orbColor",
     )
 
     Surface(
-        color = Color.Transparent
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(ChatSurface, ChatSurface.copy(alpha = 0.95f), Color.Transparent)
-                    )
-                )
+                .padding(horizontal = HackieSpacing.md, vertical = HackieSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
         ) {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Model indicator with subtle pulse while thinking
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                if (modelName.contains("Gemini")) "G" else "M",
-                                color = orbColor,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 22.sp,
-                                modifier = Modifier.alpha(if (isThinking) orbAlpha else 1f)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                modelName,
-                                color = Platinum,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .background(
-                                            if (isThinking) AccentBlue
-                                            else if (connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected) SuccessGreen
-                                            else Silver,
-                                            CircleShape
-                                        )
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    when {
-                                        isThinking -> "Generating…"
-                                        connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected -> "Ring: Connected"
-                                        else -> "Ring: Disconnected"
-                                    },
-                                    color = statusColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onLeftPanelClick,
+            // Model avatar
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(accent.copy(alpha = 0.15f), CircleShape)
+                    .border(1.dp, accent.copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (modelName.contains("Gemini")) "G" else "M",
+                    color = orbColor,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.alpha(if (isThinking) orbAlpha else 1f),
+                )
+            }
+
+            // Title + status
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = modelName,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
                         modifier = Modifier
-                            .padding(start = 4.dp)
-                            .background(Graphite.copy(alpha = 0.45f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Platinum, modifier = Modifier.size(18.dp))
-                    }
-                },
-                actions = {
-                    Box {
-                        IconButton(
-                            onClick = { showSettingsMenu = true },
-                            modifier = Modifier.background(Graphite.copy(alpha = 0.4f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Tune, contentDescription = "Settings", tint = AccentBlue, modifier = Modifier.size(18.dp))
-                        }
-                        DropdownMenu(
-                            expanded = showSettingsMenu,
-                            onDismissRequest = { showSettingsMenu = false },
-                            containerColor = Graphite.copy(alpha = 0.98f),
-                            modifier = Modifier.border(0.5.dp, BorderColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Hardware Monitor", color = Platinum) },
-                                leadingIcon = { Icon(Icons.Default.SettingsInputComponent, contentDescription = null, tint = AccentBlue) },
-                                onClick = {
-                                    showSettingsMenu = false
-                                    onRightPanelClick()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Chat History", color = Platinum) },
-                                leadingIcon = { Icon(Icons.Default.History, contentDescription = null, tint = AccentBlue) },
-                                onClick = {
-                                    showSettingsMenu = false
-                                    showHistoryDialog = true
-                                }
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = onNewChat,
-                        modifier = Modifier.background(Graphite.copy(alpha = 0.4f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "New Chat", tint = Platinum, modifier = Modifier.size(18.dp))
-                    }
-                    Box {
-                        IconButton(onClick = { showMoreMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More actions", tint = Silver.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
-                        }
-                        DropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false },
-                            containerColor = Graphite.copy(alpha = 0.95f)
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Export Chat", color = Platinum) },
-                                leadingIcon = { Icon(Icons.Default.IosShare, contentDescription = null, tint = Silver.copy(alpha = 0.9f)) },
-                                onClick = {
-                                    showMoreMenu = false
-                                    onExportChat()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Clear Chat", color = Platinum) },
-                                leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Silver.copy(alpha = 0.85f)) },
-                                onClick = {
-                                    showMoreMenu = false
-                                    onClearChat()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Settings", color = Platinum) },
-                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Silver.copy(alpha = 0.9f)) },
-                                onClick = {
-                                    showMoreMenu = false
-                                    onSettingsClick()
-                                }
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
+                            .size(6.dp)
+                            .background(
+                                color = when {
+                                    isThinking -> accent
+                                    connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected ->
+                                        Success
+                                    else -> MaterialTheme.colorScheme.outline
+                                },
+                                shape = CircleShape,
+                            ),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        text = when {
+                            isThinking -> "Thinking…"
+                            connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected ->
+                                "Connected"
+                            else -> "Disconnected"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // New chat
+            FilledTonalIconButton(
+                onClick = onNewChat,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "New chat",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            // Settings menu
+            Box {
+                FilledTonalIconButton(
+                    onClick = { showSettingsMenu = true },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Options",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showSettingsMenu,
+                    onDismissRequest = { showSettingsMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Hardware monitor") },
+                        leadingIcon = { Icon(Icons.Default.SettingsInputComponent, null) },
+                        onClick = {
+                            showSettingsMenu = false
+                            onRightPanelClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Chat history") },
+                        leadingIcon = { Icon(Icons.Default.History, null) },
+                        onClick = {
+                            showSettingsMenu = false
+                            showHistoryDialog = true
+                        },
+                    )
+                }
+            }
+
+            // More menu
+            Box {
+                FilledTonalIconButton(onClick = { showMoreMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Export chat") },
+                        leadingIcon = { Icon(Icons.Default.IosShare, null) },
+                        onClick = {
+                            showMoreMenu = false
+                            onExportChat()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Clear chat") },
+                        leadingIcon = { Icon(Icons.Default.DeleteSweep, null) },
+                        onClick = {
+                            showMoreMenu = false
+                            onClearChat()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Settings") },
+                        leadingIcon = { Icon(Icons.Default.Settings, null) },
+                        onClick = {
+                            showMoreMenu = false
+                            onSettingsClick()
+                        },
+                    )
+                }
+            }
         }
     }
 
     if (showHistoryDialog) {
         AlertDialog(
             onDismissRequest = { showHistoryDialog = false },
-            containerColor = ChatSurface,
-            titleContentColor = Platinum,
-            textContentColor = Silver,
-            title = { 
+            title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.History, contentDescription = null, tint = AccentBlue)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Chat History")
+                    Icon(Icons.Default.History, contentDescription = null, tint = accent)
+                    Spacer(Modifier.size(HackieSpacing.xs))
+                    Text("Chat history")
                 }
             },
             text = {
                 if (chatSessions.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text("No saved sessions", color = Silver.copy(alpha = 0.5f))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(HackieSpacing.lg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "No saved sessions",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 } else {
                     androidx.compose.foundation.lazy.LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
                     ) {
                         items(chatSessions.size) { index ->
                             val session = chatSessions[index]
@@ -244,24 +255,38 @@ fun PremiumChatTopBar(
                                     onSessionClick(session.id)
                                     showHistoryDialog = false
                                 },
-                                color = Graphite.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                shape = MaterialTheme.shapes.medium,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.padding(HackieSpacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(session.title, color = Platinum, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(
-                                            "${session.messageCount} messages · ${java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(session.lastModified)}",
-                                            color = Silver.copy(alpha = 0.7f),
-                                            fontSize = 11.sp
+                                            text = session.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = "${session.messageCount} messages · " +
+                                                java.text.SimpleDateFormat(
+                                                    "MMM dd, HH:mm",
+                                                    java.util.Locale.getDefault(),
+                                                ).format(session.lastModified),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
                                     IconButton(onClick = { onDeleteSession(session.id) }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteOutline,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
                                     }
                                 }
                             }
@@ -271,9 +296,9 @@ fun PremiumChatTopBar(
             },
             confirmButton = {
                 TextButton(onClick = { showHistoryDialog = false }) {
-                    Text("Close", color = AccentBlue)
+                    Text("Close")
                 }
-            }
+            },
         )
     }
 }

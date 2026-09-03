@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.domain.model.RemoteFile
 import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -192,42 +193,23 @@ fun RemoteExplorerScreen(
         )
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("REMOTE EXPLORER", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text("SOURCE: $remoteSource", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum) } },
-                actions = {
-                    if (isReverseShellActive) {
-                        IconButton(onClick = onNavigateToDesktop) {
-                            Icon(Icons.Default.Monitor, "Remote Desktop", tint = AccentBlue)
-                        }
-                    }
-                    IconButton(onClick = { showNewFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, null, tint = AccentBlue) }
-                    IconButton(onClick = { viewModel.refreshRemoteFiles() }) { Icon(Icons.Default.Refresh, null, tint = AccentTeal) }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { filePickerLauncher.launch("*/*") },
-                containerColor = AccentBlue,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Default.Add, "Upload File")
+    ScreenScaffold(
+        title = "Remote explorer",
+        subtitle = "Source: $remoteSource",
+        onBack = onBack,
+        actions = {
+            if (isReverseShellActive) {
+                IconButton(onClick = onNavigateToDesktop) {
+                    Icon(Icons.Default.Monitor, "Remote Desktop", tint = AccentBlue)
+                }
             }
-        }
+            IconButton(onClick = { showNewFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, null, tint = AccentBlue) }
+            IconButton(onClick = { viewModel.refreshRemoteFiles() }) { Icon(Icons.Default.Refresh, null, tint = AccentTeal) }
+        },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Source Toggle: SSH / ADB
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Source Toggle: SSH / ADB
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -372,6 +354,16 @@ fun RemoteExplorerScreen(
                 }
             }
         }
+        FloatingActionButton(
+            onClick = { filePickerLauncher.launch("*/*") },
+            containerColor = AccentBlue,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+        ) {
+            Icon(Icons.Default.Add, "Upload File")
+        }
+    }
     }
 }
 

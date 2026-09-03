@@ -2,229 +2,266 @@ package com.example.rabit.ui.profile
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.theme.*
-import com.example.rabit.ui.components.*
-import kotlinx.coroutines.delay
+import com.example.rabit.ui.components.AppCard
+import com.example.rabit.ui.components.ScreenScaffold
+import com.example.rabit.ui.components.SectionHeader
+import com.example.rabit.ui.theme.HackieSpacing
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    
-    Box(modifier = Modifier.fillMaxSize().background(Obsidian)) {
-        // Animated Background Layer (Orion Particles)
-        OrionBackground()
+    val accent = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
-        Scaffold(
-            containerColor = Color.Transparent
-        ) { padding ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        StarfieldBackground()
+
+        ScreenScaffold(
+            title = "Profile",
+            subtitle = "About the maker.",
+            onBack = onBack,
+        ) { _ ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = HackieSpacing.md),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
             ) {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(Modifier.height(HackieSpacing.md))
 
-                // Premium Glassmorphic Card
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .padding(bottom = 32.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = Graphite.copy(alpha = 0.4f),
-                    border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent)))
-                ) {
+                // ── Identity card ───────────────────────────────
+                AppCard {
                     Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = HackieSpacing.md),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
                     ) {
-                        // Profile Avatar with Glow
-                        Box(contentAlignment = Alignment.Center) {
-                            Box(
-                                modifier = Modifier
-                                    .size(130.dp)
-                                    .blur(20.dp)
-                                    .background(AccentBlue.copy(alpha = 0.3f), CircleShape)
-                            )
-                            Surface(
-                                modifier = Modifier.size(110.dp),
-                                shape = CircleShape,
-                                color = Platinum,
-                                border = BorderStroke(2.dp, Color.White.copy(alpha = 0.5f))
-                            ) {
-                                // Fallback icon
-                                Icon(
-                                    Icons.Default.Person, 
-                                    contentDescription = null, 
-                                    tint = Obsidian, 
-                                    modifier = Modifier.padding(24.dp).size(60.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Text(
-                            "Sagar M",
-                            color = Platinum,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            "Software Craftsman & Creator",
-                            color = AccentBlue,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        HorizontalDivider(color = BorderColor.copy(alpha = 0.2f))
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Text(
-                            "Building premium digital experiences from Bengaluru. Passionate about AI, P2P networking, and high-performance mobile interfaces.",
-                            color = Silver,
-                            fontSize = 15.sp,
-                            lineHeight = 24.sp,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
-
-                        // Connect Links
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                        Box(
+                            modifier = Modifier
+                                .size(96.dp)
+                                .background(accent.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            TransparentSocialButton(
-                                icon = Icons.Default.Code,
-                                label = "GitHub",
-                                onClick = { 
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sgrkannada")))
-                                }
-                            )
-                            TransparentSocialButton(
-                                icon = Icons.Default.Group,
-                                label = "LinkedIn",
-                                onClick = { 
-                                    // Placeholder
-                                }
-                            )
-                            TransparentSocialButton(
-                                icon = Icons.Default.PhotoCamera,
-                                label = "Instagram",
-                                onClick = { 
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/mr.saga_rix_?igsh=NHNxMnNsMTV4NW05")))
-                                }
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(48.dp),
                             )
                         }
-                    }
-                }
-
-                // App Info Card
-                PremiumGlassCard(
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    backgroundColor = Color.White.copy(alpha = 0.03f)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = AccentGold, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("PRO INFRASTRUCTURE", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "Designed and developed for speed, privacy, and seamless cross-device productivity.",
-                            color = Silver.copy(alpha = 0.7f),
-                            fontSize = 13.sp
+                            text = "Sagar M",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Software craftsman and creator",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = accent,
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = HackieSpacing.sm),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                        Text(
+                            text = "Building premium digital experiences from Bengaluru. Passionate about AI, P2P networking, and high-performance mobile interfaces.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = onSurfaceVariant,
+                            textAlign = TextAlign.Center,
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                PremiumGlassCard(
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    backgroundColor = Color.White.copy(alpha = 0.03f)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text("ALL FEATURES", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        }
-
-                        FeatureRow("Bluetooth HID keyboard + modifiers")
-                        FeatureRow("Trackpad and air-mouse controls")
-                        FeatureRow("AI assistant with auto-push typing")
-                        FeatureRow("Prompt templates, copy, and speak response")
-                        FeatureRow("Web Bridge with QR + secure PIN")
-                        FeatureRow("File sharing and universal clipboard sync")
-                        FeatureRow("URL handoff from Android share sheet")
-                        FeatureRow("Automation dashboard and custom macros")
-                        FeatureRow("Wake-on-LAN and SSH terminal tools")
-                        FeatureRow("Snippets and shortcuts guide")
-                        FeatureRow("Biometric lock, stealth mode, auto reconnect")
-                        FeatureRow("Shake-to-disconnect and haptic presets")
-                        FeatureRow("Theme, voice settings, and feature visibility controls")
+                // ── Social links ────────────────────────────────
+                SectionHeader(title = "Connect")
+                AppCard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = HackieSpacing.sm),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        SocialButton(
+                            icon = Icons.Default.Code,
+                            label = "GitHub",
+                            onClick = {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/sgrkannada"),
+                                    ),
+                                )
+                            },
+                        )
+                        SocialButton(
+                            icon = Icons.Default.Group,
+                            label = "LinkedIn",
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://www.linkedin.com/in/sagar-m-595b33298"),
+                                        ),
+                                    )
+                                }
+                            },
+                        )
+                        SocialButton(
+                            icon = Icons.Default.PhotoCamera,
+                            label = "Instagram",
+                            onClick = {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://www.instagram.com/mr.saga_rix_"),
+                                    ),
+                                )
+                            },
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                // ── About the app ───────────────────────────────
+                SectionHeader(title = "About the app")
+                AppCard {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WorkspacePremium,
+                            contentDescription = null,
+                            tint = accent,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Hackie",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = onSurface,
+                            )
+                            Text(
+                                text = "Designed and developed for speed, privacy, and seamless cross-device productivity.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                // ── Features ────────────────────────────────────
+                SectionHeader(title = "What's included")
+                AppCard {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
+                        modifier = Modifier.padding(vertical = HackieSpacing.xs),
+                    ) {
+                        listOf(
+                            "Bluetooth HID keyboard with modifiers",
+                            "Trackpad and air-mouse controls",
+                            "AI assistant with auto-push typing",
+                            "Prompt templates, copy, and speak response",
+                            "Web Bridge with QR + secure PIN",
+                            "File sharing and universal clipboard sync",
+                            "URL handoff from Android share sheet",
+                            "Automation dashboard and custom macros",
+                            "Wake-on-LAN and SSH terminal tools",
+                            "Snippets and shortcuts guide",
+                            "Biometric lock, stealth mode, auto reconnect",
+                            "Shake-to-disconnect and haptic presets",
+                            "Theme, voice settings, and feature visibility controls",
+                        ).forEach { FeatureRow(text = it) }
+                    }
+                }
+
+                Spacer(Modifier.height(HackieSpacing.xl))
             }
         }
     }
 }
 
 @Composable
-fun OrionBackground() {
+private fun StarfieldBackground() {
     val infiniteTransition = rememberInfiniteTransition(label = "particles")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.2f,
         targetValue = 0.5f,
-        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "alpha"
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "alpha",
     )
-
+    val bg = MaterialTheme.colorScheme.background
+    val bgDeep = MaterialTheme.colorScheme.surface
     Canvas(modifier = Modifier.fillMaxSize()) {
-        // Subtle gradient background
         drawRect(
             brush = Brush.verticalGradient(
-                listOf(Obsidian, Color(0xFF000510), Obsidian)
-            )
+                listOf(
+                    bg,
+                    bgDeep,
+                    bg,
+                ),
+            ),
         )
-        
-        // Draw static random stars (for demo simplicity, we'll draw a few dots)
-        // In a real implementation, we might use a custom particle system
         val random = java.util.Random(42)
         repeat(50) {
             val x = random.nextFloat() * size.width
@@ -233,36 +270,56 @@ fun OrionBackground() {
             drawCircle(
                 color = Color.White.copy(alpha = alpha * random.nextFloat()),
                 radius = radius,
-                center = androidx.compose.ui.geometry.Offset(x, y)
+                center = androidx.compose.ui.geometry.Offset(x, y),
             )
         }
     }
 }
 
 @Composable
-fun TransparentSocialButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun SocialButton(
+    icon: ImageVector,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable { onClick() }
-            .padding(12.dp)
+            .padding(HackieSpacing.sm),
     ) {
-        Icon(icon, contentDescription = label, tint = Platinum, modifier = Modifier.size(28.dp))
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(label, color = Silver, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(28.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
 private fun FeatureRow(text: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Text("•", color = AccentBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text, color = Silver, fontSize = 13.sp, lineHeight = 18.sp)
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
+    ) {
+        Text(
+            text = "•",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

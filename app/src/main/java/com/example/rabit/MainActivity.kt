@@ -10,15 +10,24 @@ import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -27,6 +36,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +73,7 @@ import com.example.rabit.ui.profile.ProfileScreen
 import com.example.rabit.ui.automation.AutomationDashboardScreen
 import com.example.rabit.ui.automation.MacroOrchestratorScreen
 import com.example.rabit.ui.search.GlobalSearchScreen
+import com.example.rabit.data.prefs.UserPreferences
 import com.example.rabit.ui.theme.RabitTheme
 
 class MainActivity : FragmentActivity() {
@@ -111,7 +122,14 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent)
 
         setContent {
-            RabitTheme {
+            // Observe the theme mode flow so any change in the side
+            // panel chip or the Settings picker swaps the theme live
+            // without an activity restart. UserPreferences.themeMode(this)
+            // is also called here so the flow is initialized with the
+            // value the user actually persisted last session.
+            UserPreferences.themeMode(this)
+            val themeMode by viewModel.themeMode.collectAsState()
+            RabitTheme(themeMode = themeMode) {
                 val isDecoyMode by viewModel.isDecoyMode.collectAsState()
                 
                 if (isDecoyMode) {
@@ -282,6 +300,11 @@ fun AppNavigation(
     val bluetoothState by viewModel.connectionState.collectAsState()
     val isBluetoothConnected = bluetoothState is HidDeviceManager.ConnectionState.Connected
 
+    // Panic-lock state: when true, the entire app is overlaid with a
+    // padlock until the user explicitly unlocks. Auto-disconnects the
+    // HID target so we don't leave a live channel around.
+    var isPanicLocked by remember { mutableStateOf(false) }
+
     // Routes that should NOT show the professional drawer (Onboarding & Initial Pairing)
     val noDrawerRoutes = listOf("onboarding", "onboarding_splash")
     val showDrawer = currentRoute.split("?").first() !in noDrawerRoutes
@@ -305,10 +328,25 @@ fun AppNavigation(
                     HomeScreen(
                         viewModel = viewModel,
                         onOpenHelper = {
-                            navController.navigate("helper") {
-                                launchSingleTop = true
-                            }
-                        }
+                            navController.navigate("helper") { launchSingleTop = true }
+                        },
+                        onOpenKeyboard = {
+                            navController.navigate("keyboard") { launchSingleTop = true }
+                        },
+                        onOpenAssistant = {
+                            navController.navigate("assistant") { launchSingleTop = true }
+                        },
+                        onOpenMacros = {
+                            navController.navigate("automation") { launchSingleTop = true }
+                        },
+                        onOpenVault = {
+                            // The vault is hidden behind the decoy calculator; route
+                            // to the calculator screen (it handles its own unlock).
+                            navController.navigate("decoy_calculator") { launchSingleTop = true }
+                        },
+                        onOpenWebBridge = {
+                            navController.navigate("web_bridge") { launchSingleTop = true }
+                        },
                     )
                 }
                 composable("pairing") {
@@ -727,48 +765,163 @@ fun AppNavigation(
 
     val activeApp by viewModel.activeApp.collectAsState()
 
-    if (showDrawer) {
-        com.example.rabit.ui.components.RabitAppScaffold(
-            currentRoute = if (currentRoute == "keyboard") "main" else currentRoute,
-            onNavigate = { route ->
-                val target = when (route) {
-                    "main" -> if (isBluetoothConnected) "keyboard" else "pairing"
-                    else -> route
-                }
-
-                navController.navigate(target) {
-                    popUpTo("keyboard") { saveState = true }
-                    launchSingleTop = true
-                    restoreState = target != "assistant"
-                }
-            },
-            showTopBar = false,
-            featureWebBridgeVisible = featureWebBridgeVisible,
-            featureAutomationVisible = featureAutomationVisible,
-            featureAssistantVisible = featureAssistantVisible,
-            featureSnippetsVisible = featureSnippetsVisible,
-            featureShortcutsVisible = featureShortcutsVisible,
-            featureSshTerminalVisible = featureSshTerminalVisible,
-            activeApp = activeApp,
-            onBack = { navController.popBackStack() },
-            topBarActions = {
-                val route = currentRoute.split("?").first()
-                IconButton(onClick = {
-                    if (route != "global_search") {
-                        navController.navigate("global_search") { launchSingleTop = true }
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showDrawer) {
+            com.example.rabit.ui.components.RabitAppScaffold(
+                currentRoute = if (currentRoute == "keyboard") "main" else currentRoute,
+                onNavigate = { route ->
+                    val target = when (route) {
+                        "main" -> if (isBluetoothConnected) "keyboard" else "pairing"
+                        else -> route
                     }
-                }) {
-                    Icon(Icons.Default.Search, contentDescription = "Open global search")
+
+                    navController.navigate(target) {
+                        popUpTo("keyboard") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = target != "assistant"
+                    }
+                },
+                showTopBar = false,
+                featureWebBridgeVisible = featureWebBridgeVisible,
+                featureAutomationVisible = featureAutomationVisible,
+                featureAssistantVisible = featureAssistantVisible,
+                featureSnippetsVisible = featureSnippetsVisible,
+                featureShortcutsVisible = featureShortcutsVisible,
+                featureSshTerminalVisible = featureSshTerminalVisible,
+                activeApp = activeApp,
+                isHidConnected = isBluetoothConnected,
+                onBack = { navController.popBackStack() },
+                onPanicLock = {
+                    // Tear down the HID transport before showing the lock
+                    // screen so we never leave an active channel around.
+                    viewModel.disconnectKeyboard()
+                    isPanicLocked = true
+                },
+                topBarActions = {
+                    val route = currentRoute.split("?").first()
+                    IconButton(onClick = {
+                        if (route != "global_search") {
+                            navController.navigate("global_search") { launchSingleTop = true }
+                        }
+                    }) {
+                        Icon(Icons.Default.Search, contentDescription = "Open global search")
+                    }
+                    if (route == "assistant") return@RabitAppScaffold
                 }
-                if (route == "assistant") return@RabitAppScaffold
+            ) { padding ->
+                navHost(padding)
             }
-        ) { padding ->
-            navHost(padding)
+        } else {
+            navHost(androidx.compose.foundation.layout.PaddingValues(0.dp))
         }
-    } else {
-        navHost(androidx.compose.foundation.layout.PaddingValues(0.dp))
+
+        // Panic lock overlay sits on top of everything. The user must
+        // explicitly unlock to return to the app.
+        AnimatedVisibility(
+            visible = isPanicLocked,
+            enter = fadeIn(animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(180)),
+        ) {
+            PanicLockOverlay(onUnlock = { isPanicLocked = false })
+        }
     }
 }
+
+/**
+ * Full-screen overlay shown when the user triggers the panic lock from
+ * the side panel. Hides the entire app under a padlock; the only way
+ * out is the "Unlock" button (tap twice to confirm). Auto-disconnect
+ * happens at the caller.
+ */
+@Composable
+private fun PanicLockOverlay(onUnlock: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val error = MaterialTheme.colorScheme.error
+    var unlockArmed by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.padding(32.dp),
+        ) {
+            // Pulsing padlock
+            val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "panic")
+            val pulse by transition.animateFloat(
+                initialValue = 0.85f,
+                targetValue = 1.05f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        1400,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing,
+                    ),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                ),
+                label = "panic-pulse",
+            )
+            Box(
+                modifier = Modifier
+                    .size(112.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(error.copy(alpha = 0.18f), androidx.compose.ui.graphics.Color.Transparent),
+                            radius = 220f,
+                        ),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Locked",
+                    tint = error,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .androidxPulse(pulse),
+                )
+            }
+            Text(
+                text = "Session locked",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "All HID channels have been torn down. Tap unlock to return to Hackie.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    if (unlockArmed) {
+                        onUnlock()
+                    } else {
+                        unlockArmed = true
+                    }
+                },
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                    contentColor = accent,
+                ),
+            ) {
+                Text(
+                    text = if (unlockArmed) "Tap again to unlock" else "Unlock",
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+private fun Modifier.androidxPulse(scale: Float): Modifier =
+    this.graphicsLayer { this.scaleX = scale; this.scaleY = scale }
 
 @Composable
 fun BluetoothPermissions(content: @Composable () -> Unit) {

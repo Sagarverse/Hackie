@@ -31,6 +31,7 @@ import com.example.rabit.ui.theme.Obsidian
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
 import com.example.rabit.ui.theme.SuccessGreen
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,31 +51,10 @@ fun LocalTerminalScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "LOCAL SHELL",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("TERMUX-LIKE EMULATOR", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Local shell",
+        subtitle = "Termux-like emulator",
+        onBack = onBack,
     ) { padding ->
         Column(
             modifier = Modifier

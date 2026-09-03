@@ -38,9 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.rabit.data.voice.VoiceState
 import com.example.rabit.ui.components.PulsingVoiceButton
 import com.example.rabit.ui.components.LocalOpenGlobalDrawer
+import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.ChatSurface
-import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.theme.hackieColors
 
 @Composable
 fun AssistantScreen(
@@ -99,14 +100,16 @@ fun AssistantScreen(
     // Observe sessions
     val chatSessions by viewModel.chatSessions.collectAsState()
 
-    Scaffold(
-        containerColor = ChatSurface,
-        topBar = {
+    ScreenScaffold(
+        title = "Assistant",
+        subtitle = "Conversational control",
+        onBack = onBack,
+        actions = {
             PremiumChatTopBar(
                 modelName = selectedModelName,
                 isThinking = uiState is AssistantUiState.Loading,
                 connectionState = connectionState,
-                onLeftPanelClick = { openGlobalDrawer?.invoke() },
+                onLeftPanelClick = { coroutineScope.launch { drawerState.open() } },
                 onRightPanelClick = { showHardwareMonitor = true },
                 onClearChat = { viewModel.clearConversation() },
                 onNewChat = { viewModel.clearConversation() },
@@ -122,35 +125,54 @@ fun AssistantScreen(
         val modelCopyProgress by viewModel.modelCopyProgress.collectAsState()
         val modelLastError by viewModel.modelLastError.collectAsState()
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    modifier = Modifier.width(320.dp),
+                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    AssistantDrawerContent(
+                        viewModel = viewModel,
+                        messageCount = messages.size,
+                        onPromptLibraryClick = { showPromptLibrary = true },
+                        onHardwareMonitorClick = { showHardwareMonitor = true },
+                        onMacroGenieClick = { showMacroGenie = true },
+                    )
+                }
+            },
+            gesturesEnabled = true,
         ) {
-            LocalModelStatusBar(
-                state = modelLoadState,
-                progress = modelCopyProgress,
-                error = modelLastError,
-                onDismiss = { viewModel.clearModelError() }
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                LocalModelStatusBar(
+                    state = modelLoadState,
+                    progress = modelCopyProgress,
+                    error = modelLastError,
+                    onDismiss = { viewModel.clearModelError() }
+                )
 
-            Box(modifier = Modifier.weight(1f)) {
-                if (messages.isEmpty()) {
-                    PremiumWelcomeScreen(viewModel)
-                } else {
-                    androidx.compose.foundation.lazy.LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(messages, key = { it.id }) { message ->
-                            ChatBubble(message, viewModel, mainViewModel)
+                Box(modifier = Modifier.weight(1f)) {
+                    if (messages.isEmpty()) {
+                        PremiumWelcomeScreen(viewModel)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(messages, key = { it.id }) { message ->
+                                ChatBubble(message, viewModel, mainViewModel)
+                            }
                         }
                     }
                 }
+                PremiumInputArea(viewModel, mainViewModel)
             }
-            PremiumInputArea(viewModel, mainViewModel)
         }
     }
 
@@ -186,6 +208,7 @@ private fun AssistantLeftPanelContent(
 ) {
     val scrollState = androidx.compose.foundation.rememberScrollState()
 
+    val colors = hackieColors()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -195,12 +218,12 @@ private fun AssistantLeftPanelContent(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
-                color = AccentBlue.copy(alpha = 0.12f),
+                color = colors.accentTeal.copy(alpha = 0.12f),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text(
                     "HACKIE",
-                    color = AccentBlue,
+                    color = colors.accentTeal,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.sp,
@@ -208,7 +231,7 @@ private fun AssistantLeftPanelContent(
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
-            Text("Navigation", color = Silver, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("Navigation", color = colors.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
 
         AssistantNavDrawerItem(
@@ -311,13 +334,14 @@ private fun AssistantNavDrawerItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val colors = hackieColors()
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) AccentBlue.copy(alpha = 0.18f) else Color.Transparent,
+        color = if (isSelected) colors.accentTeal.copy(alpha = 0.18f) else Color.Transparent,
         border = BorderStroke(
             0.5.dp,
-            if (isSelected) AccentBlue.copy(alpha = 0.35f) else BorderColor.copy(alpha = 0.2f)
+            if (isSelected) colors.accentTeal.copy(alpha = 0.35f) else colors.outline.copy(alpha = 0.2f)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -328,13 +352,13 @@ private fun AssistantNavDrawerItem(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (isSelected) AccentBlue else Silver,
+                tint = if (isSelected) colors.accentTeal else colors.textSecondary,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(label, color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Text(subLabel, color = Silver.copy(alpha = 0.7f), fontSize = 12.sp)
+                Text(label, color = colors.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(subLabel, color = colors.textSecondary.copy(alpha = 0.7f), fontSize = 12.sp)
             }
         }
     }
@@ -363,12 +387,13 @@ fun MacroGenieModal(
 ) {
     var intent by remember { mutableStateOf("") }
     val genieState by viewModel.genieState.collectAsState()
+    val colors = hackieColors()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = ChatSurface,
+        containerColor = colors.canvas,
         dragHandle = {
-            BottomSheetDefaults.DragHandle(color = Silver.copy(alpha = 0.3f))
+            BottomSheetDefaults.DragHandle(color = colors.textSecondary.copy(alpha = 0.3f))
         },
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
@@ -386,7 +411,7 @@ fun MacroGenieModal(
                 Column {
                     Text(
                         "SMART MACRO GENIE",
-                        color = AccentBlue,
+                        color = colors.accentTeal,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp
@@ -394,12 +419,12 @@ fun MacroGenieModal(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "Generate and execute HID macros from natural language.",
-                        color = Silver.copy(alpha = 0.8f),
+                        color = colors.textSecondary.copy(alpha = 0.8f),
                         fontSize = 13.sp
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close macro genie", tint = Silver)
+                    Icon(Icons.Default.Close, contentDescription = "Close macro genie", tint = colors.textSecondary)
                 }
             }
 
@@ -407,14 +432,14 @@ fun MacroGenieModal(
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Graphite.copy(alpha = 0.45f),
-                border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f)),
+                color = colors.surface1.copy(alpha = 0.45f),
+                border = BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         "Macro Intent",
-                        color = Silver.copy(alpha = 0.65f),
+                        color = colors.textSecondary.copy(alpha = 0.65f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -423,7 +448,7 @@ fun MacroGenieModal(
                     TextField(
                         value = intent,
                         onValueChange = { intent = it },
-                        placeholder = { Text("e.g. 'Mute Zoom' or 'New Window'", color = Silver.copy(alpha = 0.5f)) },
+                        placeholder = { Text("e.g. 'Mute Zoom' or 'New Window'", color = colors.textSecondary.copy(alpha = 0.5f)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp)),
@@ -445,12 +470,12 @@ fun MacroGenieModal(
                             )
                         },
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Graphite.copy(alpha = 0.5f),
-                            unfocusedContainerColor = Graphite.copy(alpha = 0.3f),
+                            focusedContainerColor = colors.surface1.copy(alpha = 0.5f),
+                            unfocusedContainerColor = colors.surface1.copy(alpha = 0.3f),
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
-                            focusedTextColor = Platinum,
-                            unfocusedTextColor = Platinum
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
                         )
                     )
                 }
@@ -461,44 +486,44 @@ fun MacroGenieModal(
             when (val state = genieState) {
                 is com.example.rabit.ui.MainViewModel.GenieState.Thinking -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AccentBlue, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = colors.accentTeal, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("AI is brewing your macro...", color = Silver, fontSize = 14.sp)
+                        Text("AI is brewing your macro...", color = colors.textSecondary, fontSize = 14.sp)
                     }
                 }
                 is com.example.rabit.ui.MainViewModel.GenieState.Executing -> {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Bolt, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = colors.accentTeal, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(state.currentStep, color = Platinum, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(state.currentStep, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         }
-                        
+
                         LinearProgressIndicator(
                             progress = { state.progress },
                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                            color = AccentBlue,
-                            trackColor = Graphite
+                            color = colors.accentTeal,
+                            trackColor = colors.surface1
                         )
-                        
+
                         TextButton(
                             onClick = { viewModel.cancelMacro() },
                             modifier = Modifier.align(Alignment.End)
                         ) {
-                            Text("ABORT SEQUENCE", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("ABORT SEQUENCE", color = colors.accentTeal, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
                 is com.example.rabit.ui.MainViewModel.GenieState.Success -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = colors.accentTeal, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Macro Complete: ${state.macroName}", color = AccentBlue, fontSize = 14.sp)
+                        Text("Macro Complete: ${state.macroName}", color = colors.accentTeal, fontSize = 14.sp)
                     }
                 }
                 is com.example.rabit.ui.MainViewModel.GenieState.Error -> {
                     Column {
-                        Text(state.message, color = StopRed, fontSize = 14.sp)
+                        Text(state.message, color = colors.error, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(12.dp))
                         com.example.rabit.ui.components.VibrantGradientButton(
                             text = "Try Again",

@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,31 +37,17 @@ fun LootViewerScreen(
     val contacts by viewModel.contacts.collectAsState()
     val calls by viewModel.calls.collectAsState()
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TACTICAL LOOT", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text("REMOTE EXFILTRATION HUB", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.generateDemoLoot() }) {
-                        Icon(Icons.Default.Refresh, null, tint = AccentBlue)
-                    }
-                    IconButton(onClick = { viewModel.clearLoot() }) {
-                        Icon(Icons.Default.DeleteForever, null, tint = Color.Red)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
+    ScreenScaffold(
+        title = "Loot viewer",
+        subtitle = "Recovered files and notes",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { viewModel.generateDemoLoot() }) {
+                Icon(Icons.Default.Refresh, null, tint = AccentBlue)
+            }
+            IconButton(onClick = { viewModel.clearLoot() }) {
+                Icon(Icons.Default.DeleteForever, null, tint = Color.Red)
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {

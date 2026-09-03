@@ -196,9 +196,10 @@ fun ShadowDeviceItem(device: ShadowDevice, onClick: () -> Unit) {
     var showVuln by remember { mutableStateOf(false) }
 
     Surface(
+        onClick = { showVuln = !showVuln },
         color = Color.White.copy(alpha = 0.05f),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth().clickable { showVuln = !showVuln },
+        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth(),
         border = androidx.compose.foundation.BorderStroke(1.dp, if (device.status.contains("Link")) SuccessGreen.copy(alpha = 0.3f) else Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {

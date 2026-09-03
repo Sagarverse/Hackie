@@ -15,6 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,91 +27,85 @@ fun DecoyScreen(onDeactivate: () -> Unit) {
     val lightBg = Color(0xFFF9F9F9)
     val lightText = Color(0xFF333333)
 
-    Scaffold(
-        containerColor = lightBg,
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "My Notes", 
-                        color = lightText, 
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.pointerInput(Unit) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    // The Secret Knock: If title is "1337" and user long-presses the "My Notes" header
-                                    if (noteTitle.trim() == "1337" || noteBody.trim() == "1337") {
-                                        onDeactivate()
-                                    }
+    ScreenScaffold(
+        title = "Decoy",
+        subtitle = "Plausible-deniability layer",
+        onBack = null
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    "My Notes",
+                    color = lightText,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 22.sp,
+                    modifier = Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = {
+                                if (noteTitle.trim() == "1337" || noteBody.trim() == "1337") {
+                                    onDeactivate()
                                 }
-                            )
-                        }
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Default.Menu, "Menu", tint = lightText)
+                            }
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
-                modifier = Modifier.background(Color.White)
-            )
-        },
-        floatingActionButton = {
+                )
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                TextField(
+                    value = noteTitle,
+                    onValueChange = { noteTitle = it },
+                    placeholder = { Text("Title", fontSize = 22.sp, color = Color.Gray) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = lightText,
+                        unfocusedTextColor = lightText
+                    ),
+                    textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Divider(color = Color(0xFFEEEEEE))
+
+                TextField(
+                    value = noteBody,
+                    onValueChange = { noteBody = it },
+                    placeholder = { Text("Start typing your note here...", color = Color.Gray) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = lightText,
+                        unfocusedTextColor = lightText
+                    ),
+                    textStyle = TextStyle(fontSize = 16.sp),
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
             FloatingActionButton(
                 onClick = {
-                    // Normal behavior: Clear note or save it (locally benign)
                     noteTitle = ""
                     noteBody = ""
                 },
                 containerColor = Color(0xFF2196F3),
-                contentColor = Color.White
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomEnd)
+                    .padding(16.dp)
             ) {
                 Icon(Icons.Default.Add, "New Note")
             }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            TextField(
-                value = noteTitle,
-                onValueChange = { noteTitle = it },
-                placeholder = { Text("Title", fontSize = 22.sp, color = Color.Gray) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = lightText,
-                    unfocusedTextColor = lightText
-                ),
-                textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Divider(color = Color(0xFFEEEEEE))
-            
-            TextField(
-                value = noteBody,
-                onValueChange = { noteBody = it },
-                placeholder = { Text("Start typing your note here...", color = Color.Gray) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = lightText,
-                    unfocusedTextColor = lightText
-                ),
-                textStyle = TextStyle(fontSize = 16.sp),
-                modifier = Modifier.fillMaxSize()
-            )
         }
     }
 }

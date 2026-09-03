@@ -1,37 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="512"
-    android:viewportHeight="512">
-
-    <!-- Left Pillar -->
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Bottom-left vertical segment (Green) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 150,120
-                          A 30,30 0 0,1 180,150
-                          L 180,362
-                          A 30,30 0 0,1 150,392
-                          A 30,30 0 0,1 120,362
-                          L 120,150
-                          A 30,30 0 0,1 150,120
-                          Z" />
-
-    <!-- Right Pillar -->
+        android:fillColor="#34A853"
+        android:pathData="M 42,54 L 42,74 A 4,4 0 0,1 38,78 L 34,78 A 4,4 0 0,1 30,74 L 30,54 Z" />
+        
+    <!-- Middle horizontal segment + Bottom-right vertical segment (Yellow) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 362,120
-                          A 30,30 0 0,1 392,150
-                          L 392,362
-                          A 30,30 0 0,1 362,392
-                          A 30,30 0 0,1 332,362
-                          L 332,150
-                          A 30,30 0 0,1 362,120
-                          Z" />
+        android:fillColor="#FBBC05"
+        android:pathData="M 42,48 L 66,48 L 66,54 L 78,54 L 78,74 A 4,4 0 0,1 74,78 L 70,78 A 4,4 0 0,1 66,74 L 66,60 L 42,60 Z" />
 
-    <!-- Middle Crossbar -->
+    <!-- Shadows cast by Blue and Red blocks for the layered paper effect -->
+    
+    <!-- Shadow below Blue -->
+    <path android:pathData="M 30,54 h12 v4 h-12 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="36" android:startY="54" android:endX="36" android:endY="58">
+                <item android:color="#44000000" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Shadow right of Blue -->
+    <path android:pathData="M 42,48 h4 v6 h-4 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="42" android:startY="51" android:endX="46" android:endY="51">
+                <item android:color="#44000000" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Shadow below Red -->
+    <path android:pathData="M 66,54 h12 v4 h-12 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="72" android:startY="54" android:endX="72" android:endY="58">
+                <item android:color="#44000000" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Top-left vertical segment (Blue) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 180,226 L 332,226 L 332,286 L 180,286 Z" />
-
+        android:fillColor="#4285F4"
+        android:pathData="M 30,54 L 30,34 A 4,4 0 0,1 34,30 L 38,30 A 4,4 0 0,1 42,34 L 42,54 Z" />
+        
+    <!-- Top-right vertical segment (Red) -->
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M 66,54 L 66,34 A 4,4 0 0,1 70,30 L 74,30 A 4,4 0 0,1 78,34 L 78,54 Z" />
+        
 </vector>

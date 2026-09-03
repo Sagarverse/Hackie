@@ -1,43 +1,74 @@
 package com.example.rabit.ui.components
 
-import kotlinx.coroutines.launch
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.rabit.ui.theme.*
+import com.example.rabit.data.prefs.UserPreferences
+import kotlinx.coroutines.launch
 
 val LocalOpenGlobalDrawer = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /**
- * RabitAppScaffold — Ultra-minimal global container.
- * Provides a grouped modal drawer and a refined top bar.
+ * The set of routes that the navigation graph actually resolves. Used by
+ * the drawer to show a Snackbar instead of silently navigating to a
+ * dead screen. Keep this in sync with MainActivity's NavHost.
+ */
+private val ValidRoutes: Set<String> = setOf(
+    "home", "pairing", "main", "keyboard",
+    "web_bridge", "automation", "airplay_receiver", "ssh_terminal",
+    "assistant", "lockdown", "network_auditor", "hid_brute_force",
+    "adb_mirror", "injector", "code_typer", "auto_clicker",
+    "remote_explorer", "reverse_shell", "c2_tunnel", "remote_desktop",
+    "terminal_scanner", "screenshot_lab", "local_terminal", "ghost_recon",
+    "neural_lab", "phish_portal", "loot_viewer", "crypto_toolkit",
+    "pentest_toolkit", "payload_forge", "security_auditor",
+    "traffic_analyzer", "web_sniper", "keystroke_monitor", "vision_lab",
+    "macro_lab", "forensics_lab", "settings", "helper", "adb_manager",
+    "profile", "snippets", "global_search", "browser",
+    "macro_orchestrator", "process_manager", "system_stats",
+    "onboarding", "decoy", "wake_on_lan", "password_manager",
+)
+
+/**
+ * Hackie global scaffold.
+ *
+ * - `ModalNavigationDrawer` on phones, `PermanentNavigationDrawer` on
+ *   tablets / wide screens (>= 600dp). The single source of truth for
+ *   the side panel UI (see [SidePanelBody]).
+ * - `topBar = false` because every screen uses its own `ScreenScaffold`.
+ *   The drawer here is purely navigation chrome.
+ * - Dead-route guard: a Snackbar at the bottom of the drawer if the
+ *   user taps a route that doesn't exist in the NavHost.
+ * - The new side panel body lives in [SidePanelBody] and is shared by
+ *   both the modal and permanent drawer variants.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,666 +84,147 @@ fun RabitAppScaffold(
     featureWakeOnLanVisible: Boolean = true,
     featureSshTerminalVisible: Boolean = true,
     activeApp: String? = null,
+    isHidConnected: Boolean = false,
     onBack: (() -> Unit)? = null,
     topBarActions: @Composable RowScope.() -> Unit = {},
     onPanicLock: (() -> Unit)? = null,
-    content: @Composable (PaddingValues) -> Unit
+    content: @Composable (PaddingValues) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    val mainRoutes = listOf("home", "main", "keyboard", "web_bridge", "assistant", "browser", "settings", "ssh_terminal", "airplay_receiver", "global_search", "automation", "password_manager", "helper", "auto_clicker", "process_manager", "pentest_toolkit", "remote_explorer", "reverse_shell", "terminal_scanner", "code_typer")
+    val snackbarHostState = remember { SnackbarHostState() }
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
-    val screenTitle = when(currentRoute) {
-        "home" -> "Home"
-        "main", "keyboard" -> "Control Hub"
-        "web_bridge" -> "Web Bridge"
-        "assistant" -> "Genie AI"
-        "settings" -> "Settings"
-        "profile" -> "Profile"
-        "customization" -> "Theme"
-        "password_manager" -> "Passwords"
-        "snippets" -> "Snippets"
-        "shortcuts" -> "Automation"
-        "ssh_terminal" -> "SSH Terminal"
-        "airplay_receiver" -> "AirPlay"
-        "global_search" -> "Search"
-        "helper" -> "Hackie Helper"
-        "auto_clicker" -> "Auto Clicker"
-        "process_manager" -> "Processes"
-        "pentest_toolkit" -> "Pentest Toolkit"
-        "remote_explorer" -> "Remote Explorer"
-        "reverse_shell" -> "Reverse Shell"
-        "terminal_scanner" -> "Scanner"
-        "browser" -> "Browser"
-        "code_typer" -> "Code Typer"
-        else -> "Hackie"
+    val configuration = LocalConfiguration.current
+    val isWide = configuration.screenWidthDp >= 600
+    val view = LocalView.current
+
+    // Snackbar message for unknown routes. We capture the message in a
+    // state so the snackbar can be triggered from the navigation lambda.
+    val unknownRouteMessage = "This screen is not available yet."
+
+    fun dispatchNavigate(route: String) {
+        if (ValidRoutes.contains(route)) {
+            onNavigate(route)
+        } else {
+            scope.launch { snackbarHostState.showSnackbar(unknownRouteMessage) }
+        }
     }
 
-    val appBarSubtitle = when {
-        currentRoute == "assistant" -> "AI Workspace"
-        currentRoute == "browser" -> "Web Explorer"
-        currentRoute == "airplay_receiver" -> "Wireless Audio"
-        currentRoute == "helper" -> "Desktop Bridge"
-        !activeApp.isNullOrBlank() && currentRoute in listOf("main", "keyboard") -> activeApp
-        else -> "Hackie Pro"
+    fun closeDrawer() {
+        scope.launch { drawerState.close() }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = Surface0,
-                drawerContentColor = TextPrimary,
-                drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
-                modifier = Modifier
-                    .width(300.dp)
-                    .fillMaxHeight()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize()
+    fun navigateAndClose(route: String) {
+        dispatchNavigate(route)
+        closeDrawer()
+    }
+
+    val drawerContent: @Composable () -> Unit = {
+        SidePanelBody(
+            currentRoute = currentRoute,
+            isHidConnected = isHidConnected,
+            callbacks = SidePanelCallbacks(
+                onNavigate = ::navigateAndClose,
+                onPanicLock = {
+                    closeDrawer()
+                    onPanicLock?.invoke()
+                },
+                onToggleTheme = {
+                    val ctx = view.context
+                    val current = UserPreferences.themeMode(ctx)
+                    val next = when (current) {
+                        UserPreferences.ThemeMode.SYSTEM -> UserPreferences.ThemeMode.DARK
+                        UserPreferences.ThemeMode.DARK -> UserPreferences.ThemeMode.LIGHT
+                        UserPreferences.ThemeMode.LIGHT -> UserPreferences.ThemeMode.SYSTEM
+                    }
+                    UserPreferences.setThemeMode(ctx, next)
+                },
+                onRunScan = {
+                    // Navigate to home; HomeScreen's scan toggle is the
+                    // universal scan entry point.
+                    dispatchNavigate("home")
+                    closeDrawer()
+                },
+                onOpenSnippets = {
+                    dispatchNavigate("snippets")
+                    closeDrawer()
+                },
+            ),
+            featureWebBridgeVisible = featureWebBridgeVisible,
+            featureAutomationVisible = featureAutomationVisible,
+            featureAssistantVisible = featureAssistantVisible,
+            featureSnippetsVisible = featureSnippetsVisible,
+            featureSshTerminalVisible = featureSshTerminalVisible,
+        )
+    }
+
+    if (isWide) {
+        PermanentNavigationDrawer(
+            modifier = Modifier.fillMaxHeight(),
+            drawerContent = {
+                PermanentDrawerSheet(
+                    modifier = Modifier.width(304.dp).fillMaxHeight(),
                 ) {
-                    // ── Brand Header ──
-                    Spacer(modifier = Modifier.height(48.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Hackie",
-                            color = TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.W300,
-                            letterSpacing = (-0.5).sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        drawerContent()
+                        SnackbarHost(
+                            hostState = snackbarHostState,
                             modifier = Modifier
-                                .background(AccentBlue.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                "PRO",
-                                color = AccentBlue,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.W700,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                    }
-                    
-                    // ── Tactical Search ──
-                    var searchQuery by remember { mutableStateOf("") }
-                    
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        placeholder = { Text("Search Labs...", color = TextTertiary, fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = TextTertiary, modifier = Modifier.size(16.dp)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentBlue.copy(alpha = 0.5f),
-                            unfocusedBorderColor = BorderColor,
-                            focusedContainerColor = Surface1.copy(alpha = 0.5f),
-                            unfocusedContainerColor = Color.Transparent
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(color = TextPrimary)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // ── Scrollable Navigation ──
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        fun matches(label: String) = searchQuery.isBlank() || label.contains(searchQuery, ignoreCase = true)
-
-                        // ── Primary ──
-                        if (matches("Home")) {
-                            DrawerNavItem(
-                                label = "Home",
-                                icon = Icons.Default.Home,
-                                isSelected = currentRoute == "home",
-                                onClick = { onNavigate("home"); scope.launch { drawerState.close() } }
-                            )
-                        }
-                        if (matches("Control Hub")) {
-                            DrawerNavItem(
-                                label = "Control Hub",
-                                icon = Icons.AutoMirrored.Filled.Dvr,
-                                isSelected = currentRoute == "main" || currentRoute == "keyboard",
-                                onClick = { onNavigate("main"); scope.launch { drawerState.close() } }
-                            )
-                        }
-                        if (matches("Code Typer")) {
-                            DrawerNavItem(
-                                label = "Code Typer",
-                                icon = Icons.Default.Keyboard,
-                                isSelected = currentRoute == "code_typer",
-                                onClick = { onNavigate("code_typer"); scope.launch { drawerState.close() } }
-                            )
-                        }
-
-                        // ── Connectivity ──
-                        if (matches("Connectivity") || matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab") || matches("Network Auditor") || matches("Hackie Helper") || matches("AirPlay")) {
-                            DrawerSectionLabel("Connectivity")
-
-                            if (matches("Web Bridge") || matches("Web Hub") || matches("Remote Lab")) {
-                                DrawerNavItem(
-                                    label = "Web Bridge",
-                                    icon = Icons.Default.CloudSync,
-                                    isSelected = currentRoute == "web_bridge",
-                                    onClick = { onNavigate("web_bridge"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Hackie Helper")) {
-                                DrawerNavItem(
-                                    label = "Hackie Helper",
-                                    icon = Icons.Default.Devices,
-                                    isSelected = currentRoute == "helper",
-                                    onClick = { onNavigate("helper"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("AirPlay")) {
-                                DrawerNavItem(
-                                    label = "AirPlay Receiver",
-                                    icon = Icons.Default.Speaker,
-                                    isSelected = currentRoute == "airplay_receiver",
-                                    onClick = { onNavigate("airplay_receiver"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                        }
-
-                        // ── Tools ──
-                        if (matches("Tools") || matches("Automation") || matches("Macro") || matches("HID") || matches("SSH") || matches("Remote Explorer") || matches("ADB") || matches("Process") || matches("Stats") || matches("Auto Clicker") || matches("Injector") || matches("Wake-on-LAN") || matches("Code Typer")) {
-                            DrawerSectionLabel("Tools")
-
-                            if (matches("Automation")) {
-                                DrawerNavItem(
-                                    label = "Automation",
-                                    icon = Icons.Default.Bolt,
-                                    isSelected = currentRoute == "automation",
-                                    onClick = { onNavigate("automation"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Macro Orchestrator")) {
-                                DrawerNavItem(
-                                    label = "Macro Orchestrator",
-                                    icon = Icons.Default.SettingsInputComponent,
-                                    isSelected = currentRoute == "macro_orchestrator",
-                                    onClick = { onNavigate("macro_orchestrator"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("HID Brute Force")) {
-                                DrawerNavItem(
-                                    label = "HID Brute Force",
-                                    icon = Icons.Default.Security,
-                                    isSelected = currentRoute == "hid_brute_force",
-                                    onClick = { onNavigate("hid_brute_force"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("SSH Terminal")) {
-                                DrawerNavItem(
-                                    label = "SSH Terminal",
-                                    icon = Icons.Default.Terminal,
-                                    isSelected = currentRoute == "ssh_terminal",
-                                    onClick = { onNavigate("ssh_terminal"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Remote Explorer")) {
-                                DrawerNavItem(
-                                    label = "Remote Explorer",
-                                    icon = Icons.Default.FolderZip,
-                                    isSelected = currentRoute == "remote_explorer",
-                                    onClick = { onNavigate("remote_explorer"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("ADB Manager")) {
-                                DrawerNavItem(
-                                    label = "ADB Manager",
-                                    icon = Icons.Default.PhoneAndroid,
-                                    isSelected = currentRoute == "adb_manager",
-                                    onClick = { onNavigate("adb_manager"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Process Manager")) {
-                                DrawerNavItem(
-                                    label = "Process Manager",
-                                    icon = Icons.Default.Memory,
-                                    isSelected = currentRoute == "process_manager",
-                                    onClick = { onNavigate("process_manager"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Auto Clicker")) {
-                                DrawerNavItem(
-                                    label = "Auto Clicker",
-                                    icon = Icons.Default.AdsClick,
-                                    isSelected = currentRoute == "auto_clicker",
-                                    onClick = { onNavigate("auto_clicker"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Payload Injector")) {
-                                DrawerNavItem(
-                                    label = "Payload Injector",
-                                    icon = Icons.Default.ElectricBolt,
-                                    isSelected = currentRoute == "injector",
-                                    onClick = { onNavigate("injector"); scope.launch { drawerState.close() } }
-                                )
-                            }
-
-                        }
-
-                        // ── Intelligence ──
-                        if (matches("Intelligence") || matches("AI") || matches("Assistant") || matches("Browser") || matches("Snippets")) {
-                            DrawerSectionLabel("Intelligence")
-
-                            DrawerNavItem(
-                                label = "AI Assistant",
-                                icon = Icons.Default.AutoAwesome,
-                                isSelected = currentRoute == "assistant",
-                                onClick = { onNavigate("assistant"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Browser",
-                                icon = Icons.Default.Explore,
-                                isSelected = currentRoute == "browser",
-                                onClick = { onNavigate("browser"); scope.launch { drawerState.close() } }
-                            )
-                            DrawerNavItem(
-                                label = "Snippets",
-                                icon = Icons.Default.ContentPaste,
-                                isSelected = currentRoute == "snippets",
-                                onClick = { onNavigate("snippets"); scope.launch { drawerState.close() } }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 24.dp),
-                            thickness = 0.5.dp,
-                            color = BorderColor
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // ── Strategic Labs ──
-                        if (matches("Strategic Labs") || matches("Terminal") || matches("Recon") || matches("Auditor") || matches("Attacker") || matches("QA") || matches("Web") || matches("Forge") || matches("Horizon") || matches("Sensor") || matches("OSINT") || matches("Shadow") || matches("Mirror") || matches("Port") || matches("Ping") || matches("Traceroute") || matches("Labs")) {
-                            DrawerSectionLabel("Strategic Labs")
-                            if (matches("Local Terminal")) {
-                                DrawerNavItem(
-                                    label = "Local Terminal",
-                                    icon = Icons.Default.Code,
-                                    isSelected = currentRoute == "local_terminal",
-                                    onClick = { onNavigate("local_terminal"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Intel & OSINT") || matches("Recon") || matches("Intel") || matches("OSINT") || matches("Subdomain") || matches("Ghost")) {
-                                DrawerNavItem(
-                                    label = "Intel & OSINT",
-                                    icon = Icons.Default.Radar,
-                                    isSelected = currentRoute == "ghost_recon",
-                                    onClick = { onNavigate("ghost_recon"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                             if (matches("Network Recon") || matches("Network") || matches("Port") || matches("Ping") || matches("Traceroute") || matches("Wireless") || matches("Bluetooth") || matches("Wi-Fi") || matches("BLE")) {
-                                 DrawerNavItem(
-                                     label = "Network Recon",
-                                     icon = Icons.Default.ScreenSearchDesktop,
-                                     isSelected = currentRoute == "network_auditor",
-                                     onClick = { onNavigate("network_auditor"); scope.launch { drawerState.close() } }
-                                 )
-                             }
-                            if (matches("Neural Payload Forge")) {
-                                DrawerNavItem(
-                                    label = "Neural Payload Forge",
-                                    icon = Icons.Default.Bolt,
-                                    isSelected = currentRoute == "payload_forge",
-                                    onClick = { onNavigate("payload_forge"); scope.launch { drawerState.close() } }
-                                )
-                            }
-
-
-
-
-                            // LABS SUBSECTION
-                        }
-
-                        // ── Ethical Hacking ──
-                        if (matches("Ethical Hacking") || matches("Pentest") || matches("Penetration") || matches("Auditor") || matches("Security") || matches("NVA") || matches("Hash") || matches("Cracker") || matches("Reverse") || matches("Shell") || matches("Stego")) {
-                            DrawerSectionLabel("Ethical Hacking")
-                            if (matches("Penetration Tools")) {
-                                DrawerNavItem(
-                                    label = "Penetration Tools",
-                                    icon = Icons.Default.Handyman,
-                                    isSelected = currentRoute == "pentest_toolkit",
-                                    onClick = { onNavigate("pentest_toolkit"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Crypto Toolkit") || matches("Encoder") || matches("Decoder") || matches("Stego")) {
-                                DrawerNavItem(
-                                    label = "Crypto Toolkit",
-                                    icon = Icons.Default.Code,
-                                    isSelected = currentRoute == "crypto_toolkit",
-                                    onClick = { onNavigate("crypto_toolkit"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Neural Auditor")) {
-                                DrawerNavItem(
-                                    label = "Neural Auditor",
-                                    icon = Icons.Default.Shield,
-                                    isSelected = currentRoute == "security_auditor",
-                                    onClick = { onNavigate("security_auditor"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Neural Packet Inspector") || matches("Sniffer") || matches("Traffic")) {
-                                DrawerNavItem(
-                                    label = "Neural Packet Inspector",
-                                    icon = Icons.Default.Monitor,
-                                    isSelected = currentRoute == "traffic_analyzer",
-                                    onClick = { onNavigate("traffic_analyzer"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                            if (matches("Reverse Shell")) {
-                                DrawerNavItem(
-                                    label = "Reverse Shell Suite",
-                                    icon = Icons.Default.Language,
-                                    isSelected = currentRoute == "reverse_shell",
-                                    onClick = { onNavigate("reverse_shell"); scope.launch { drawerState.close() } }
-                                )
-                                DrawerNavItem(
-                                    label = "Global C2 Tunnel",
-                                    icon = Icons.Default.CloudSync,
-                                    isSelected = currentRoute == "c2_tunnel",
-                                    onClick = { onNavigate("c2_tunnel"); scope.launch { drawerState.close() } }
-                                )
-                                DrawerNavItem(
-                                    label = "Phish Portal",
-                                    icon = Icons.Default.Radar,
-                                    isSelected = currentRoute == "phish_portal",
-                                    onClick = { onNavigate("phish_portal"); scope.launch { drawerState.close() } }
-                                )
-                                DrawerNavItem(
-                                    label = "Tactical Loot",
-                                    icon = Icons.Default.Inventory,
-                                    isSelected = currentRoute == "loot_viewer",
-                                    onClick = { onNavigate("loot_viewer"); scope.launch { drawerState.close() } }
-                                )
-                            }
-                        }
-
-                        
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
-
-                        // ── Tactical Research Labs ──
-                        if (matches("Lab") || matches("Research") || matches("Neural") || matches("Vision") || matches("Macro") || matches("Steganography")) {
-                            DrawerSectionLabel("Tactical Research Labs")
-                            DrawerNavItem(label = "Neural Lab", icon = Icons.Default.BugReport, isSelected = currentRoute == "neural_lab", onClick = { onNavigate("neural_lab"); scope.launch { drawerState.close() } })
-                            DrawerNavItem(label = "Screenshot Lab", icon = Icons.Default.AddAPhoto, isSelected = currentRoute == "screenshot_lab", onClick = { onNavigate("screenshot_lab"); scope.launch { drawerState.close() } })
-                            DrawerNavItem(label = "Vision Lab", icon = Icons.Default.Visibility, isSelected = currentRoute == "vision_lab", onClick = { onNavigate("vision_lab"); scope.launch { drawerState.close() } })
-                            DrawerNavItem(label = "Macro Lab", icon = Icons.Default.FiberManualRecord, isSelected = currentRoute == "macro_lab", onClick = { onNavigate("macro_lab"); scope.launch { drawerState.close() } })
-
-                            DrawerNavItem(label = "Keystroke Monitor", icon = Icons.Default.KeyboardAlt, isSelected = currentRoute == "keystroke_monitor", onClick = { onNavigate("keystroke_monitor"); scope.launch { drawerState.close() } })
-                        }
-                        
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
-                        
-                        // Stealth Decoy Toggle
-                        val decoyViewModel: com.example.rabit.ui.stealth.DecoyViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-                        val isStealth by decoyViewModel.isStealthMode.collectAsState()
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(if (isStealth) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = if (isStealth) Color.Red else SuccessGreen, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text("DECOY PROTOCOL", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = isStealth,
-                                onCheckedChange = { decoyViewModel.toggleStealthIcon(it) },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.Red, checkedTrackColor = Color.Red.copy(alpha = 0.3f))
-                            )
-                        }
-                        // Items moved to Strategic Labs
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // --- Active Exploitation ---
-                        Text(
-                            text = "ACTIVE EXPLOITATION",
-                            color = Silver.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // ── Web Sniper (DAST) ──
-                        if (matches("Web Sniper") || matches("DAST") || matches("Auto-Pwn") || matches("Fuzzer") || matches("Enumerator") || matches("Repeater")) {
-                            DrawerSectionLabel("Web Sniper (DAST)")
-                            DrawerNavItem(
-                                label = "Web Sniper Hub",
-                                icon = Icons.Default.LocationSearching,
-                                isSelected = currentRoute == "web_sniper",
-                                onClick = { onNavigate("web_sniper"); scope.launch { drawerState.close() } }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // --- OPSEC & SECURITY ---
-                        Text(
-                            text = "OPSEC & SECURITY",
-                            color = Silver.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-                        if (onPanicLock != null) {
-                            Surface(
-                                onClick = { 
-                                    onPanicLock()
-                                    scope.launch { drawerState.close() }
-                                },
-                                color = Color.Red.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Lock, null, tint = Color.Red, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(14.dp))
-                                    Text("LOCK SESSION", color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Black)
-                                }
-                            }
-                        }
-                        DrawerNavItem(
-                            label = "Settings & OPSEC",
-                            icon = Icons.Default.Security,
-                            isSelected = currentRoute == "settings",
-                            onClick = { onNavigate("settings"); scope.launch { drawerState.close() } }
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                        ) { data -> Snackbar(snackbarData = data) }
                     }
                 }
-            }
-        }
-    ) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                if (showTopBar) {
-                    Surface(
-                        color = Surface0.copy(alpha = 0.98f),
-                        shadowElevation = 0.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TopAppBar(
-                            title = {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(end = 8.dp)
-                                ) {
-                                    Text(
-                                        text = screenTitle,
-                                        color = TextPrimary,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        letterSpacing = 0.3.sp
-                                    )
-                                    Text(
-                                        text = appBarSubtitle,
-                                        color = TextSecondary.copy(alpha = 0.9f),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.alpha(0.95f)
-                                    )
-                                }
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = openDrawer) {
-                                    Icon(
-                                        Icons.Default.Menu,
-                                        contentDescription = "Open navigation menu",
-                                        tint = TextPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            },
-                            actions = {
-                                topBarActions()
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Transparent,
-                                titleContentColor = TextPrimary
-                            ),
-                            modifier = Modifier.height(74.dp)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            Color.Transparent,
-                                            AccentBlue.copy(alpha = 0.35f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                        )
-                    }
-                }
-            }
-        ) { padding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(AppAtmosphereGradient)
-            ) {
-                CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
-                    content(padding)
-                }
-            }
-        }
-    }
-}
-
-// ── Drawer Components ────────────────────────────────────────────────────────
-
-@Composable
-private fun DrawerSectionLabel(title: String) {
-    Text(
-        text = title.uppercase(),
-        color = TextTertiary,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.W700,
-        letterSpacing = 1.2.sp,
-        modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 6.dp)
-    )
-}
-
-@Composable
-private fun DrawerNavItem(
-    label: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val textColor = if (isSelected) TextPrimary else TextSecondary
-    val iconTint = if (isSelected) AccentBlue else TextSecondary.copy(alpha = 0.7f)
-
-    Surface(
-        onClick = onClick,
-        color = if (isSelected) AccentBlue.copy(alpha = 0.08f) else Color.Transparent,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier
-            .padding(horizontal = 12.dp, vertical = 1.dp)
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                contentDescription = label
-                selected = isSelected
-                stateDescription = if (isSelected) "Selected" else "Not selected"
-            }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            },
         ) {
-            // Accent edge indicator
-            if (isSelected) {
+            Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
                 Box(
                     modifier = Modifier
-                        .width(3.dp)
-                        .height(18.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(AccentBlue)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
+                        .fillMaxSize()
+                        .padding(padding),
+                ) {
+                    CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
+                        content(PaddingValues(0.dp))
+                    }
+                }
             }
-
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(
-                label,
-                color = textColor,
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.W600 else FontWeight.W400
-            )
+        }
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    modifier = Modifier
+                        .width(340.dp)
+                        .fillMaxHeight(),
+                    drawerShape = RoundedCornerShape(
+                        topEnd = 24.dp, bottomEnd = 24.dp,
+                    ),
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        drawerContent()
+                        SnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                        ) { data -> Snackbar(snackbarData = data) }
+                    }
+                }
+            },
+        ) {
+            Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                ) {
+                    CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
+                        content(PaddingValues(0.dp))
+                    }
+                }
+            }
         }
     }
-}
-
-// Keep the old DrawerItem signature for any external callers
-@Composable
-fun DrawerItem(
-    label: String,
-    subLabel: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    DrawerNavItem(
-        label = label,
-        icon = icon,
-        isSelected = isSelected,
-        onClick = onClick
-    )
 }

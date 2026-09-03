@@ -10,6 +10,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 /**
  * UsbHidGadgetManager — Full USB HID gadget: keyboard + mouse.
@@ -489,8 +490,10 @@ class UsbHidGadgetManager private constructor(private val context: Context) {
         mouseAccumX += dx
         mouseAccumY += dy
 
-        val sendX = mouseAccumX.toInt()
-        val sendY = mouseAccumY.toInt()
+        // roundToInt() preserves sub-pixel residuals symmetrically; see
+        // HidDeviceManager.sendMouseMove for the full explanation.
+        val sendX = mouseAccumX.roundToInt()
+        val sendY = mouseAccumY.roundToInt()
 
         // Only send if there's at least 1 pixel of movement or button/wheel activity
         if (sendX == 0 && sendY == 0 && buttons == 0 && wheel == 0) return

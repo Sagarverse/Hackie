@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,110 +32,88 @@ fun NeuralLabScreen(
     val tabs = listOf("APP AUDITOR", "WEB AUDITOR")
     val colors = listOf(AccentBlue, Color.Magenta)
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    ScreenScaffold(
+        title = "Neural lab",
+        subtitle = "Model experiments",
+        onBack = onBack
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = colors[selectedTab],
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = colors[selectedTab]
+                    )
+                },
+                divider = {}
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
                             Text(
-                                "NEURAL LAB",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp,
-                                    color = Platinum
-                                )
+                                title,
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
+                                color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
                             )
-                            Text("QUALITY & SECURITY ASSURANCE", color = colors[selectedTab], fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-                
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = colors[selectedTab],
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = colors[selectedTab]
-                        )
-                    },
-                    divider = {}
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { 
-                                Text(
-                                    title, 
-                                    fontSize = 11.sp, 
-                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
-                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
-                                ) 
-                            }
-                        )
-                    }
+                    )
                 }
             }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
-            when (selectedTab) {
-                0 -> {
-                    val status by qaViewModel.status.collectAsState()
-                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                        if (status is QaAuditStatus.Idle) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Button(
-                                    onClick = { qaViewModel.startAudit("") },
-                                    colors = ButtonDefaults.buttonColors(containerColor = colors[0]),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("START APP AUDIT", fontWeight = FontWeight.Black)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (selectedTab) {
+                    0 -> {
+                        val status by qaViewModel.status.collectAsState()
+                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            if (status is QaAuditStatus.Idle) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Button(
+                                        onClick = { qaViewModel.startAudit("") },
+                                        colors = ButtonDefaults.buttonColors(containerColor = colors[0]),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("START APP AUDIT", fontWeight = FontWeight.Black)
+                                    }
                                 }
+                            } else {
+                                AuditDashboard(qaViewModel)
                             }
-                        } else {
-                            AuditDashboard(qaViewModel)
                         }
                     }
-                }
-                1 -> {
-                    val status by webViewModel.status.collectAsState()
-                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                        if (status is WebAuditStatus.Idle) {
-                            var urlInput by remember { mutableStateOf("") }
-                            OutlinedTextField(
-                                value = urlInput,
-                                onValueChange = { urlInput = it },
-                                label = { Text("Target URL", color = Silver) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Platinum,
-                                    unfocusedTextColor = Platinum,
-                                    focusedBorderColor = colors[1],
-                                    unfocusedBorderColor = BorderColor
+                    1 -> {
+                        val status by webViewModel.status.collectAsState()
+                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            if (status is WebAuditStatus.Idle) {
+                                var urlInput by remember { mutableStateOf("") }
+                                OutlinedTextField(
+                                    value = urlInput,
+                                    onValueChange = { urlInput = it },
+                                    label = { Text("Target URL", color = Silver) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Platinum,
+                                        unfocusedTextColor = Platinum,
+                                        focusedBorderColor = colors[1],
+                                        unfocusedBorderColor = BorderColor
+                                    )
                                 )
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Button(
-                                onClick = { webViewModel.startAudit(urlInput) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = colors[1]),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("START WEB AUDIT", fontWeight = FontWeight.Black)
+                                Spacer(Modifier.height(16.dp))
+                                Button(
+                                    onClick = { webViewModel.startAudit(urlInput) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = colors[1]),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("START WEB AUDIT", fontWeight = FontWeight.Black)
+                                }
+                            } else {
+                                WebAuditDashboard(webViewModel)
                             }
-                        } else {
-                            WebAuditDashboard(webViewModel)
                         }
                     }
                 }

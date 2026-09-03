@@ -25,6 +25,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -40,7 +41,8 @@ fun CodeTyperScreen(
     val isConnected by viewModel.isHidConnected.collectAsState()
 
     var codeInput by remember { mutableStateOf("") }
-    var selectedProfile by remember { mutableStateOf("Balanced") }
+    var delayMsPerChar by remember { mutableFloatStateOf(10f) }
+    var formatOnSend by remember { mutableStateOf(false) }
 
     val isCodeTyping by automationViewModel.isCodeTyperRunning.collectAsState()
     val isCodeTyperPaused by automationViewModel.isCodeTyperPaused.collectAsState()
@@ -50,97 +52,73 @@ fun CodeTyperScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Typing profiles: tuned for different editor contexts
-    val profiles = remember {
+    // Speed presets — each picks a constant delay between characters.
+    // The user can also drag the slider to any value in the 0–100ms range.
+    data class SpeedPreset(val label: String, val msPerChar: Float, val hint: String)
+    val presets = remember {
         listOf(
-            "Careful" to "60-180ms per key, long pauses at newlines. Best for watched demos.",
-            "Balanced" to "40-140ms per key, moderate pauses. Default for IDE coding.",
-            "Fluent" to "25-90ms per key, short pauses. Mimics experienced developer.",
-            "Interview" to "50-160ms per key, thinking pauses at blocks. Mimics live coding.",
-            "Stealth" to "30-120ms per key, micro-variations. Maximum anti-detection.",
-            "Turbo" to "MAX SPEED. Zero delays, no human mimicry. For emergency use."
+            SpeedPreset("Fast",       0f,  "0 ms — type as fast as the HID channel allows"),
+            SpeedPreset("Normal",     10f, "10 ms — default speed, looks like quick typing"),
+            SpeedPreset("Deliberate", 30f, "30 ms — easy to follow along"),
+            SpeedPreset("Slow",       60f, "60 ms — good for teaching / pair-programming"),
+            SpeedPreset("Very slow",  100f,"100 ms — character by character"),
+            SpeedPreset("Custom",     -1f, "Use the slider below"),
         )
     }
+    val selectedPresetLabel = presets.firstOrNull { it.msPerChar == delayMsPerChar }?.label
+        ?: "Custom"
 
     // Stats
     val totalChars = codeInput.length
     val totalLines = if (codeInput.isBlank()) 0 else codeInput.lines().size
 
-    Scaffold(
-        containerColor = Obsidian,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            "CODE TYPER",
-                            color = AccentTeal,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            "Human-Grade HID Code Injection",
-                            color = Silver.copy(alpha = 0.7f),
-                            fontSize = 11.sp
-                        )
+    ScreenScaffold(
+        title = "Code typer",
+        subtitle = "Send text over HID",
+        onBack = onBack,
+        actions = {
+            if (isCodeTyping) {
+                if (isCodeTyperPaused) {
+                    IconButton(onClick = { automationViewModel.resumeCodeTyper() }) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Platinum)
+                } else {
+                    IconButton(onClick = { automationViewModel.pauseCodeTyper() }) {
+                        Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
                     }
-                },
-                actions = {
-                    if (isCodeTyping) {
-                        if (isCodeTyperPaused) {
-                            IconButton(onClick = { automationViewModel.resumeCodeTyper() }) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
-                            }
-                        } else {
-                            IconButton(onClick = { automationViewModel.pauseCodeTyper() }) {
-                                Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
-                            }
-                        }
-                        IconButton(onClick = { automationViewModel.abortCodeTyper() }) {
-                            Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
-                        }
-                    }
-                    // Connection pill
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isConnected) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f),
-                        border = BorderStroke(0.5.dp, if (isConnected) SuccessGreen.copy(alpha = 0.5f) else ErrorRed.copy(alpha = 0.4f)),
-                        modifier = Modifier.padding(end = 16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(if (isConnected) SuccessGreen else ErrorRed)
-                            )
-                            Text(
-                                if (isConnected) "LINKED" else "NO LINK",
-                                color = if (isConnected) SuccessGreen else ErrorRed,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Graphite.copy(alpha = 0.7f),
-                    scrolledContainerColor = Graphite.copy(alpha = 0.7f)
-                )
-            )
-        }
+                }
+                IconButton(onClick = { automationViewModel.abortCodeTyper() }) {
+                    Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+                }
+            }
+            // Connection pill
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (isConnected) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f),
+                border = BorderStroke(0.5.dp, if (isConnected) SuccessGreen.copy(alpha = 0.5f) else ErrorRed.copy(alpha = 0.4f)),
+                modifier = Modifier.padding(end = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isConnected) SuccessGreen else ErrorRed)
+                    )
+                    Text(
+                        if (isConnected) "LINKED" else "NO LINK",
+                        color = if (isConnected) SuccessGreen else ErrorRed,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -170,7 +148,7 @@ fun CodeTyperScreen(
                     ) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(16.dp))
                         Text(
-                            "Paste your code below. Every character — spaces, tabs, newlines, brackets — will be typed exactly as-is via HID, with human-realistic timing that defeats keystroke analysis.",
+                            "Paste your code below. Every character — spaces, tabs, newlines, brackets — will be typed exactly as-is over the HID channel. Pick a speed; toggle Format on send to clean up whitespace before typing.",
                             color = Silver,
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -298,13 +276,20 @@ fun CodeTyperScreen(
                     }
                 }
 
-                // ══ TYPING PROFILE SELECTOR ══
-                Text("TYPING PROFILE", color = Silver.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                // ══ SPEED PRESET SELECTOR ══
+                Text("SPEED", color = Silver.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    profiles.forEach { (name, desc) ->
-                        val isActive = selectedProfile == name
+                    presets.forEach { preset ->
+                        val isActive =
+                            preset.label != "Custom" && preset.msPerChar == delayMsPerChar
                         Surface(
-                            onClick = { selectedProfile = name },
+                            onClick = {
+                                if (preset.label == "Custom") {
+                                    // keep current slider value
+                                } else {
+                                    delayMsPerChar = preset.msPerChar
+                                }
+                            },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isActive) AccentTeal.copy(alpha = 0.12f) else Color.Transparent,
                             border = BorderStroke(
@@ -326,8 +311,8 @@ fun CodeTyperScreen(
                                         .background(if (isActive) AccentTeal else BorderColor.copy(alpha = 0.4f))
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(name, color = if (isActive) AccentTeal else Platinum, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                    Text(desc, color = Silver.copy(alpha = 0.6f), fontSize = 10.sp, lineHeight = 14.sp)
+                                    Text(preset.label, color = if (isActive) AccentTeal else Platinum, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(preset.hint, color = Silver.copy(alpha = 0.6f), fontSize = 10.sp, lineHeight = 14.sp)
                                 }
                                 if (isActive) {
                                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(16.dp))
@@ -337,28 +322,96 @@ fun CodeTyperScreen(
                     }
                 }
 
-                // ══ ANTI-DETECTION FEATURES ══
+                Spacer(Modifier.height(4.dp))
+
+                // ══ DELAY SLIDER (also active in "Custom" mode) ══
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Graphite.copy(alpha = 0.4f),
+                    color = Graphite.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f))
+                    border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.25f)),
                 ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("ANTI-DETECTION ENGINE", color = AccentTeal.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                        val features = listOf(
-                            "✓ Gaussian-distributed inter-key timing (not uniform)",
-                            "✓ Context-aware pauses: longer after {, (, newlines",
-                            "✓ Burst acceleration within common keywords",
-                            "✓ Natural deceleration at special characters",
-                            "✓ Variable key hold duration (30-70ms)",
-                            "✓ Micro-hesitations at indentation changes",
-                            "✓ Thinking pauses at blank lines & block boundaries",
-                            "✓ Zero typo injection — exact fidelity guaranteed"
-                        )
-                        features.forEach { feature ->
-                            Text(feature, color = Silver.copy(alpha = 0.7f), fontSize = 10.sp, lineHeight = 14.sp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Delay per character",
+                                color = Silver,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "${delayMsPerChar.toInt()} ms",
+                                color = if (selectedPresetLabel == "Custom") AccentTeal else Platinum,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                            )
                         }
+                        Slider(
+                            value = delayMsPerChar,
+                            onValueChange = { delayMsPerChar = it },
+                            valueRange = 0f..100f,
+                            steps = 99,
+                            colors = SliderDefaults.colors(
+                                thumbColor = AccentTeal,
+                                activeTrackColor = AccentTeal,
+                                inactiveTrackColor = Graphite,
+                            ),
+                        )
+                        Text(
+                            "Drag to fine-tune. The selected preset auto-switches to \"Custom\" when you move off the preset value.",
+                            color = Silver.copy(alpha = 0.55f),
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                        )
+                    }
+                }
+
+                // ══ FORMAT ON SEND TOGGLE ══
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Graphite.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.25f)),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            tint = if (formatOnSend) AccentTeal else Silver.copy(alpha = 0.5f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Format on send",
+                                color = Platinum,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Tabs → 4 spaces, trim trailing whitespace. No other changes.",
+                                color = Silver.copy(alpha = 0.6f),
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp,
+                            )
+                        }
+                        Switch(
+                            checked = formatOnSend,
+                            onCheckedChange = { formatOnSend = it },
+                        )
                     }
                 }
 
@@ -373,8 +426,17 @@ fun CodeTyperScreen(
                             scope.launch { snackbarHostState.showSnackbar("Paste some code first") }
                             return@Button
                         }
-                        automationViewModel.startCodeTyper(codeInput, selectedProfile)
-                        scope.launch { snackbarHostState.showSnackbar("⌨ Code typing started — $selectedProfile profile") }
+                        automationViewModel.startCodeTyper(
+                            code = codeInput,
+                            delayMsPerChar = delayMsPerChar.toLong(),
+                            formatOnSend = formatOnSend,
+                        )
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                "⌨ Typing started — ${delayMsPerChar.toInt()} ms / char" +
+                                    if (formatOnSend) " (format on)" else "",
+                            )
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()

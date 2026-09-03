@@ -1,26 +1,26 @@
 package com.example.rabit.ui.settings
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.automation.AutomationViewModel
+import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.opsec.KillSwitchViewModel
 import com.example.rabit.ui.opsec.PanicTerminalContent
-import com.example.rabit.ui.components.LocalOpenGlobalDrawer
-import com.example.rabit.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsOpsecScreen(
     viewModel: MainViewModel,
@@ -30,91 +30,60 @@ fun SettingsOpsecScreen(
     onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("SYSTEM SETTINGS", "PASSWORD VAULT", "PANIC TERMINAL")
-    val colors = listOf(AccentTeal, AccentBlue, Color(0xFFE11D48))
+    val tabs = listOf("General", "Passwords", "Panic")
+    val accent = MaterialTheme.colorScheme.primary
+    val error = MaterialTheme.colorScheme.error
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            val openDrawer = LocalOpenGlobalDrawer.current
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "SETTINGS & OPSEC",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp,
-                                    color = Platinum
-                                )
-                            )
-                            Text("SECURITY OPERATIONS CENTER", color = colors[selectedTab], fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { openDrawer?.invoke() }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Platinum, modifier = Modifier.size(20.dp))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Silver)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-                
-                ScrollableTabRow(
+    ScreenScaffold(
+        title = "Settings",
+        subtitle = "App preferences and security.",
+        onBack = onBack,
+    ) { _ ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = colors[selectedTab],
-                    edgePadding = 16.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = accent,
                     indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = colors[selectedTab]
-                        )
+                        if (selectedTab < tabPositions.size) {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                color = if (selectedTab == 2) error else accent,
+                            )
+                        }
                     },
-                    divider = {}
                 ) {
                     tabs.forEachIndexed { index, title ->
+                        val color = if (index == 2) error else accent
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            text = { 
+                            text = {
                                 Text(
-                                    title, 
-                                    fontSize = 11.sp, 
-                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
-                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
-                                ) 
-                            }
+                                    text = title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (selectedTab == index) color
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
                         )
                     }
                 }
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (selectedTab) {
-                0 -> {
-                    SettingsContent(
+
+                when (selectedTab) {
+                    0 -> SettingsContent(
                         viewModel = viewModel,
                         settingsViewModel = settingsViewModel,
-                        automationViewModel = automationViewModel
+                        automationViewModel = automationViewModel,
                     )
-                }
-                1 -> {
-                    PasswordManagerContent(
+                    1 -> PasswordManagerContent(
                         settingsViewModel = settingsViewModel,
-                        viewModel = viewModel
-                    )
-                }
-                2 -> {
-                    PanicTerminalContent(
                         viewModel = viewModel,
-                        killSwitchViewModel = killSwitchViewModel
+                    )
+                    2 -> PanicTerminalContent(
+                        viewModel = viewModel,
+                        killSwitchViewModel = killSwitchViewModel,
                     )
                 }
             }

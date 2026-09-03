@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
@@ -36,36 +37,15 @@ fun PhishPortalScreen(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val context = LocalContext.current
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "PHISH PORTAL",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = (1.5).sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("TACTICAL GPS TRAP", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.clearLoot() }) {
-                        Icon(Icons.Default.DeleteSweep, null, tint = Color.Red)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Phish portal",
+        subtitle = "Tactical GPS trap",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { viewModel.clearLoot() }) {
+                Icon(Icons.Default.DeleteSweep, null, tint = Color.Red)
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier

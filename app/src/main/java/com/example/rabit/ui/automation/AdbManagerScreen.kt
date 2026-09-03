@@ -30,6 +30,7 @@ import com.example.rabit.ui.automation.AutomationViewModel
 import com.example.rabit.ui.theme.Platinum
 import com.example.rabit.ui.theme.Silver
 import androidx.compose.material.icons.filled.Search
+import com.example.rabit.ui.components.ScreenScaffold
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,8 +72,10 @@ fun AdbManagerScreen(
         if (isGranted) showQrScanner = true
     }
 
-    Scaffold(
-        containerColor = Color.Transparent
+    ScreenScaffold(
+        title = "ADB manager",
+        subtitle = "Wireless ADB controls",
+        onBack = onBack
     ) { padding ->
         Column(
             modifier = Modifier

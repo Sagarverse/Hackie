@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.domain.model.TerminalDevice
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,30 +46,10 @@ fun TerminalScannerScreen(
         else "PROBING SUBNET [${(progress * 100).toInt()}%]"
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "TERMINAL LAB",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 2.sp,
-                            color = Platinum
-                        )
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        }
+    ScreenScaffold(
+        title = "Terminal scanner",
+        subtitle = "Local network probes",
+        onBack = onBack
     ) { padding ->
         Column(
             modifier = Modifier

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.exploit.ReverseShellViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,83 +45,55 @@ fun ReverseShellScreen(
     onBack: () -> Unit,
     onNavigateToDesktop: () -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("TACTICAL HUB", "PAYLOAD FACTORY")
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    val tabs = listOf("Tactical hub", "Payload factory")
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                "REVERSE SHELL SUITE",
-                                color = AccentTeal,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp
-                            )
-                            Text(
-                                "C2 Tunnel & Payload Generator",
-                                color = Silver.copy(alpha = 0.7f),
-                                fontSize = 11.sp
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = onNavigateToDesktop) {
-                            Icon(Icons.Default.Monitor, "Desktop View", tint = AccentTeal)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Graphite.copy(alpha = 0.5f),
-                        scrolledContainerColor = Graphite.copy(alpha = 0.5f)
-                    )
-                )
-                // Tab Row
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Graphite.copy(alpha = 0.5f),
-                    contentColor = Platinum,
-                    indicator = { tabPositions ->
-                        if (selectedTab < tabPositions.size) {
-                            TabRowDefaults.SecondaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                color = AccentTeal
-                            )
-                        }
-                    }
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = {
-                                Text(
-                                    title,
-                                    color = if (selectedTab == index) AccentTeal else Silver.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    letterSpacing = 1.sp
-                                )
-                            }
+    ScreenScaffold(
+        title = "Reverse shell suite",
+        subtitle = "C2 tunnel & payload generator",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = onNavigateToDesktop) {
+                Icon(Icons.Default.Monitor, "Desktop View", tint = AccentTeal)
+            }
+        },
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Graphite.copy(alpha = 0.5f),
+                contentColor = Platinum,
+                indicator = { tabPositions ->
+                    if (selectedTab < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = AccentTeal
                         )
                     }
                 }
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
+                            Text(
+                                title,
+                                color = if (selectedTab == index) AccentTeal else Silver.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    )
+                }
             }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Crossfade(targetState = selectedTab, label = "tab_crossfade") { tab ->
-                when (tab) {
-                    0 -> HubTab(viewModel = viewModel)
-                    1 -> FactoryTab(genViewModel = genViewModel)
+            Box(modifier = Modifier.fillMaxSize()) {
+                Crossfade(targetState = selectedTab, label = "tab_crossfade") { tab ->
+                    when (tab) {
+                        0 -> HubTab(viewModel = viewModel)
+                        1 -> FactoryTab(genViewModel = genViewModel)
+                    }
                 }
             }
         }
@@ -133,8 +107,8 @@ private fun HubTab(viewModel: AutomationViewModel) {
     val isConnected by viewModel.reverseShellConnected.collectAsState()
     val isListening by viewModel.isReverseShellListening.collectAsState()
 
-    var commandInput by remember { mutableStateOf("") }
-    var portInput by remember { mutableStateOf("4444") }
+    var commandInput by rememberSaveable { mutableStateOf("") }
+    var portInput by rememberSaveable { mutableStateOf("4444") }
     val keyboardController = LocalSoftwareKeyboardController.current
     val listState = rememberLazyListState()
 
@@ -239,6 +213,53 @@ private fun HubTab(viewModel: AutomationViewModel) {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Last-session recovery chip. Shows when the listener is off but we
+        // restored state from disk — gives the user a one-tap way to resume.
+        val lastIp = remember { viewModel.lastReverseShellIp }
+        val lastPort = remember { viewModel.lastReverseShellPort }
+        val recoveredLineCount = remember(lines) { lines.size }
+        val hasRestoredSession = !isConnected && !isListening &&
+            lastIp.isNotBlank() && recoveredLineCount > 0
+        if (hasRestoredSession) {
+            Surface(
+                color = AccentTeal.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AccentTeal.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(
+                        Icons.Default.History,
+                        contentDescription = null,
+                        tint = AccentTeal,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Last session: $lastIp:$lastPort",
+                            color = Platinum,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        Text(
+                            "$recoveredLineCount captured lines — resume listener to continue",
+                            color = Silver.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                        )
+                    }
+                    TextButton(onClick = { viewModel.startReverseShellListener(lastPort) }) {
+                        Text("Resume", color = AccentTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         if (!isConnected && !isListening) {
             val context = LocalContext.current

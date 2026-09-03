@@ -2,7 +2,6 @@ package com.example.rabit.ui.network
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -216,7 +215,8 @@ fun DeviceList(devices: List<com.example.rabit.ui.network.BleDevice>, onSelect: 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
         items(devices) { dev ->
             Surface(
-                modifier = Modifier.fillMaxWidth().clickable { onSelect(dev) },
+                onClick = { onSelect(dev) },
+                modifier = Modifier.fillMaxWidth(),
                 color = Color.White.copy(alpha = 0.05f),
                 shape = RoundedCornerShape(12.dp)
             ) {

@@ -84,12 +84,42 @@ class BluetoothScanner(private val context: Context) {
 
     fun startScanning() {
         if (_isScanning.value) return
-        
-        val adapter = bluetoothAdapter ?: return
-        
+
+        val adapter = bluetoothAdapter ?: run {
+            Log.w("BluetoothScanner", "No Bluetooth adapter on this device")
+            return
+        }
+
+        // Mark scanning=true up front so the UI shows a "Requesting Bluetooth…"
+        // state during the permission / enable prompts. The flip to true is
+        // also a useful signal that *something* is happening, even when we
+        // bail because of permissions or BT-off.
+        _isScanning.value = true
+
+        // Modern Android needs BLUETOOTH_SCAN at scan time. If it isn't
+        // granted, log and stop — the UI layer should have requested it
+        // before calling us.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val scanGranted = context.checkSelfPermission(
+                android.Manifest.permission.BLUETOOTH_SCAN,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val connectGranted = context.checkSelfPermission(
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!scanGranted || !connectGranted) {
+                Log.w("BluetoothScanner", "Missing BT permissions (scan=$scanGranted connect=$connectGranted)")
+                _isScanning.value = false
+                return
+            }
+        }
+
         if (!adapter.isEnabled) {
-            // Cannot programmatically enable BT on Android 13+.
-            // PairingScreen will direct user to system Bluetooth settings.
+            // On Android 13+ we cannot programmatically enable BT; the
+            // UI layer is responsible for launching
+            // BluetoothAdapter.ACTION_REQUEST_ENABLE. We return early
+            // but keep _isScanning = false so the button resets.
+            Log.w("BluetoothScanner", "Bluetooth is off; UI must request enable")
+            _isScanning.value = false
             return
         }
 
@@ -114,7 +144,6 @@ class BluetoothScanner(private val context: Context) {
             }
         }
 
-        _isScanning.value = true
         // Reduced from 15s to 8s for faster turnaround
         handler.postDelayed(scanStopRunnable, 8000)
     }

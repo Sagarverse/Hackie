@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -34,9 +35,11 @@ import java.util.*
 import kotlin.math.*
 import android.content.Intent
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import androidx.core.content.ContextCompat
 import com.example.rabit.data.voice.VoiceState
 import com.example.rabit.data.airplay.AirPlayReceiverService
+import com.example.rabit.data.prefs.UserPreferences
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     enum class SystemShortcut { MUTE, PLAY_PAUSE, NEXT, PREV, VOL_UP, VOL_DOWN, LOCK_SCREEN }
@@ -53,9 +56,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> = repository.connectionState
     val scannedDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
     val isScanning: StateFlow<Boolean> = repository.isScanning
-    val isBluetoothConnected: StateFlow<Boolean> = repository.connectionState.map { 
-        it is HidDeviceManager.ConnectionState.Connected 
+    val isBluetoothConnected: StateFlow<Boolean> = repository.connectionState.map {
+        it is HidDeviceManager.ConnectionState.Connected
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // Theme mode is sourced from UserPreferences (singleton). The flow
+    // updates the moment the user picks a new mode in the side panel or
+    // the Settings picker, so the activity re-applies the theme live.
+    val themeMode: StateFlow<UserPreferences.ThemeMode> = UserPreferences.themeModeFlow
     val discoveredDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
     
     // Unified HID connection: true when EITHER Bluetooth OR USB HID is active
@@ -370,7 +378,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val helperDeviceIp = _helperDeviceIp.asStateFlow()
 
     val p2pStatus = MutableStateFlow("Disconnected").asStateFlow()
-    val helperConnectionStatus = MutableStateFlow("Ready").asStateFlow()
+    private val _helperConnectionStatus = MutableStateFlow("Ready")
+    val helperConnectionStatus = _helperConnectionStatus.asStateFlow()
     val helperTransferEvents = MutableStateFlow<List<String>>(emptyList()).asStateFlow()
     
     private val _nowPlayingTitle = MutableStateFlow("Nothing playing")
@@ -788,7 +797,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val intent = Intent(context, AirPlayReceiverService::class.java).apply {
             action = AirPlayReceiverService.ACTION_START
         }
-        ContextCompat.startForegroundService(context, intent)
+        // Must be startForegroundService on Android 8+; startService will
+        // throw IllegalStateException when the app is backgrounded.
+        runCatching {
+            ContextCompat.startForegroundService(context, intent)
+        }.onFailure {
+            // Fall back for very old devices; service has its own
+            // startForeground() call inside updateRuntimeStatus().
+            try { context.startService(intent) } catch (_: Exception) {}
+        }
         _airPlayReceiverEnabled.value = true
     }
 
@@ -797,7 +814,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val intent = Intent(context, AirPlayReceiverService::class.java).apply {
             action = AirPlayReceiverService.ACTION_STOP
         }
-        context.startService(intent)
+        // stopService is the correct way to ask a foreground service to
+        // tear itself down. startService() from a backgrounded app
+        // throws IllegalStateException on Android 8+.
+        runCatching {
+            context.stopService(intent)
+        }
         _airPlayReceiverEnabled.value = false
     }
 
@@ -853,8 +875,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun discoverHelperOnLocalWifi() { /* Stub */ }
-    fun pingRemoteDevice() { /* Stub */ }
+    fun discoverHelperOnLocalWifi() {
+        // Mark a rescan request so the user gets visible feedback. The real
+        // mDNS / UDP scan lives in HelperViewModel; the home screen only
+        // surfaces the intent.
+        _helperConnectionStatus.value = "Rescan requested — open Helper for full scan"
+    }
+    fun pingRemoteDevice() {
+        val host = _helperDeviceIp.value.takeIf { it.isNotBlank() } ?: _helperBaseUrl.value.let { Uri.parse(it).host.orEmpty() }
+        if (host.isBlank()) {
+            _helperConnectionStatus.value = "No host available to ping"
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            _helperConnectionStatus.value = "Pinging $host…"
+            val reachable = runCatching {
+                val addr = java.net.InetAddress.getByName(host)
+                addr.isReachable(1500)
+            }.getOrDefault(false)
+            _helperConnectionStatus.value = if (reachable) "$host reachable" else "$host unreachable"
+        }
+    }
 
     fun sendSystemShortcut(shortcut: SystemShortcut) {
         when (shortcut) {
@@ -888,9 +929,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val onboardingCompleted: Boolean get() = prefs.getBoolean("onboarding_completed", false)
 
     fun requestEnableBluetooth(context: Context) {
+        // Must have BLUETOOTH_CONNECT to even check / request enable on
+        // Android 12+. Without it, the system intent would silently no-op
+        // and the user would think the button is broken.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.BLUETOOTH_CONNECT,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                Log.w("MainViewModel", "requestEnableBluetooth: BLUETOOTH_CONNECT not granted")
+                return
+            }
+        }
+        val adapter = try {
+            (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+        } catch (e: Exception) { null }
+        if (adapter == null) {
+            Log.w("MainViewModel", "requestEnableBluetooth: no Bluetooth adapter")
+            return
+        }
+        if (adapter.isEnabled) return
         val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "requestEnableBluetooth: startActivity failed", e)
+        }
     }
 
     fun requestDiscoverable() {

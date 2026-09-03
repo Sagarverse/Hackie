@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,35 +36,14 @@ fun ScreenshotLabScreen(
     val screenshots by viewModel.screenshots.collectAsState()
     var selectedScreenshot by remember { mutableStateOf<File?>(null) }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "SCREENSHOT LAB",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("DARK EXFILTRATION VAULT", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* Refresh logic in VM */ }) {
-                        Icon(Icons.Default.Refresh, null, tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
+    ScreenScaffold(
+        title = "Screenshot lab",
+        subtitle = "Capture and annotate",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { /* Refresh logic in VM */ }) {
+                Icon(Icons.Default.Refresh, null, tint = Platinum)
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {

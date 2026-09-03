@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,33 +36,10 @@ fun HidBruteForceScreen(
     val hashAccentColor = Color(0xFFEAB308) // Gold
     val bgColor = Color(0xFF05050A)
 
-    Scaffold(
-        containerColor = bgColor,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "BRUTE FORCE LAB",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp,
-                            color = Color.White
-                        )
-                        Text(
-                            if (selectedTab == 0) "HID INJECTION" else "HASH CRACKER",
-                            color = if (selectedTab == 0) accentColor else hashAccentColor,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White) }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Brute force lab",
+        subtitle = if (selectedTab == 0) "HID injection" else "Hash cracker",
+        onBack = onBack,
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // --- Feature Tabs ---

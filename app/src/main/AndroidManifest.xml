@@ -121,7 +121,7 @@
         <service
             android:name="com.example.rabit.data.bluetooth.RabitQsTile"
             android:label="Hackie"
-            android:icon="@android:drawable/stat_sys_data_bluetooth"
+            android:icon="@mipmap/ic_launcher"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>
@@ -132,7 +132,7 @@
         <service
             android:name="com.example.rabit.data.bluetooth.LockMacTile"
             android:label="Lock Mac"
-            android:icon="@android:drawable/ic_lock_lock"
+            android:icon="@mipmap/ic_launcher"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>
@@ -143,7 +143,7 @@
         <service
             android:name="com.example.rabit.data.bluetooth.SleepMacTile"
             android:label="Sleep Mac"
-            android:icon="@android:drawable/ic_lock_power_off"
+            android:icon="@mipmap/ic_launcher"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>

@@ -20,6 +20,7 @@ import java.util.concurrent.Executors
 import kotlin.experimental.and
 import kotlin.experimental.inv
 import kotlin.experimental.or
+import kotlin.math.roundToInt
 
 @SuppressLint("MissingPermission")
 class HidDeviceManager private constructor(private val context: Context) {
@@ -477,20 +478,29 @@ class HidDeviceManager private constructor(private val context: Context) {
     }
 
     fun sendMouseMove(dx: Float, dy: Float, buttons: Int = 0, wheel: Int = 0) {
-        if (isMouseLocked) return
+        if (isMouseLocked) {
+            // Drop any pending residual so we don't replay it on unlock.
+            mouseAccumX = 0f
+            mouseAccumY = 0f
+            return
+        }
         mouseAccumX += dx
         mouseAccumY += dy
-        
-        val outX = mouseAccumX.toInt()
-        val outY = mouseAccumY.toInt()
-        
+
+        // roundToInt() preserves sub-pixel residuals symmetrically.
+        // toInt() truncates toward zero, which dropped small negative
+        // deltas and let the accumulator grow on the positive side,
+        // causing a visible "drift" when the drag direction reversed.
+        val outX = mouseAccumX.roundToInt()
+        val outY = mouseAccumY.roundToInt()
+
         val buttonsChanged = buttons != lastButtons
-        
+
         if (outX != 0 || outY != 0 || buttonsChanged || wheel != 0) {
             lastButtons = buttons
             mouseAccumX -= outX
             mouseAccumY -= outY
-            
+
             val report = ByteArray(4).apply {
                 this[0] = buttons.toByte()
                 this[1] = outX.coerceIn(-127, 127).toByte()

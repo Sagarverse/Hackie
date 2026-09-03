@@ -1,28 +1,71 @@
 package com.example.rabit.ui.security
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.rabit.data.security.NeuralAuditEngine
-import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.AppCard
+import com.example.rabit.ui.components.IconTile
+import com.example.rabit.ui.components.LabelPill
+import com.example.rabit.ui.components.PrimaryButton
+import com.example.rabit.ui.components.ScreenScaffold
+import com.example.rabit.ui.components.SectionHeader
+import com.example.rabit.ui.theme.HackieSpacing
+import com.example.rabit.ui.theme.Success
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Security auditor: scan a device for weaknesses and review past audits.
+ * Tabs: Live audit, History.
+ */
 @Composable
 fun SecurityAuditorScreen(
     viewModel: SecurityAuditorViewModel,
@@ -30,80 +73,84 @@ fun SecurityAuditorScreen(
 ) {
     val findings by viewModel.findings.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
-    val progress by viewModel.scanProgress.collectAsState()
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("NEURAL AUDITOR", style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 2.sp, fontWeight = FontWeight.Black))
-                        Text("ETHICAL COMPLIANCE ENGINE", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = TextPrimary) }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Surface0)
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            
-            // --- Tactical Briefing ---
-            var showBriefing by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var showBriefing by remember { mutableStateOf(true) }
+    val tabs = listOf("Live audit", "History")
+    val accent = MaterialTheme.colorScheme.primary
+
+    ScreenScaffold(
+        title = "Security auditor",
+        subtitle = "Scan a device for known weaknesses.",
+        onBack = onBack,
+    ) { _ ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = HackieSpacing.md),
+        ) {
             if (showBriefing) {
-                Surface(
-                    color = SuccessGreen.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Info, null, tint = SuccessGreen, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("SECURITY BRIEFING", color = SuccessGreen, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
-                            Spacer(Modifier.weight(1f))
-                            IconButton(onClick = { showBriefing = false }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, null, tint = Silver, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "This tool looks for 'open windows' and weaknesses in any phone you connect. It tells you if the phone is safe or needs fixing.",
-                            color = Platinum, fontSize = 13.sp, lineHeight = 18.sp
+                AppCard {
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
                         )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "About this tool",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "Looks for open windows and weaknesses in any phone you connect, and tells you if it is safe or needs fixing.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(onClick = { showBriefing = false }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
 
-            var selectedTab by remember { mutableStateOf(0) }
-            val tabs = listOf("LIVE AUDIT", "TACTICAL HISTORY")
-
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = Color.Transparent,
-                contentColor = AccentBlue,
-                divider = {},
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = accent,
                 indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = AccentBlue
-                    )
-                }
+                    if (selectedTab < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = accent,
+                        )
+                    }
+                },
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(title, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
+                        text = {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (selectedTab == index) accent
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
                     )
                 }
             }
-
-            Spacer(Modifier.height(20.dp))
 
             if (selectedTab == 0) {
                 LiveAuditContent(viewModel)
@@ -115,140 +162,180 @@ fun SecurityAuditorScreen(
 }
 
 @Composable
-fun LiveAuditContent(viewModel: SecurityAuditorViewModel) {
+private fun LiveAuditContent(viewModel: SecurityAuditorViewModel) {
     val findings by viewModel.findings.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val progress by viewModel.scanProgress.collectAsState()
+    var showReportDialog by remember { mutableStateOf(false) }
 
-    Column {
-        // --- Audit Control ---
-        Surface(
-            color = Surface1,
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Shield, null, tint = if (findings.isEmpty()) Silver else SuccessGreen, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Target Security Posture", color = TextPrimary, fontWeight = FontWeight.Bold)
-                        Text(if (isScanning) "Neural analysis in progress..." else "${findings.size} Security Findings Detected", color = TextSecondary, fontSize = 12.sp)
-                    }
-                    
-                    if (findings.isNotEmpty() && !isScanning) {
-                        var showReportDialog by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showReportDialog = true }) {
-                            Icon(Icons.Default.Description, "Report", tint = AccentBlue)
-                        }
-
-                        if (showReportDialog) {
-                            val reportText = viewModel.getReportText()
-                            val context = androidx.compose.ui.platform.LocalContext.current
-                            AlertDialog(
-                                onDismissRequest = { showReportDialog = false },
-                                containerColor = Surface1,
-                                title = { Text("TACTICAL SECURITY REPORT", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Black) },
-                                text = {
-                                    Surface(
-                                        color = Color.Black,
-                                        modifier = Modifier.height(300.dp).fillMaxWidth(),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        LazyColumn(modifier = Modifier.padding(12.dp)) {
-                                            item {
-                                                Text(reportText, color = SuccessGreen, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                                            }
-                                        }
-                                    }
-                                },
-                                confirmButton = {
-                                    Button(onClick = { 
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(android.content.Intent.EXTRA_TEXT, reportText)
-                                        }
-                                        context.startActivity(android.content.Intent.createChooser(intent, "Exfiltrate Report"))
-                                        showReportDialog = false 
-                                    }, colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)) {
-                                        Text("SHARE / EXFILTRATE")
-                                    }
-                                }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = HackieSpacing.md, bottom = HackieSpacing.xl),
+        verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
+    ) {
+        item {
+            AppCard {
+                Column(verticalArrangement = Arrangement.spacedBy(HackieSpacing.md)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    ) {
+                        IconTile(
+                            icon = Icons.Default.Shield,
+                            color = if (findings.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
+                            else Success,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Target security posture",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = if (isScanning) "Analysis in progress…"
+                                else "${findings.size} finding${if (findings.size == 1) "" else "s"} detected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        if (findings.isNotEmpty() && !isScanning) {
+                            IconButton(onClick = { showReportDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = "Report",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                     }
-                }
-                
-                Spacer(Modifier.height(20.dp))
-                
-                if (isScanning) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth().height(4.dp),
-                        color = AccentBlue,
-                        trackColor = BorderColor
-                    )
-                } else {
-                    Button(
-                        onClick = { viewModel.runFullAudit() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Radar, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("COMMENCE FULL SECURITY AUDIT")
+                    if (isScanning) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                        )
+                    } else {
+                        PrimaryButton(
+                            text = "Run security audit",
+                            onClick = { viewModel.runFullAudit() },
+                            modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Radar,
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // --- Findings List ---
-        Text("VULNERABILITY REPORT", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(findings) { finding ->
+        if (findings.isNotEmpty()) {
+            item { SectionHeader(title = "Findings") }
+            items(findings, key = { it.title.hashCode() }) { finding ->
                 FindingCard(finding)
             }
-            
-            if (findings.isEmpty() && !isScanning) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        Text("No findings yet. Run a scan to identify risks.", color = TextTertiary, fontSize = 13.sp)
-                    }
+        } else if (!isScanning) {
+            item {
+                AppCard {
+                    Text(
+                        text = "No findings yet. Run a scan to identify risks.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = HackieSpacing.xs),
+                    )
                 }
             }
         }
     }
+
+    if (showReportDialog) {
+        val reportText = viewModel.getReportText()
+        val context = LocalContext.current
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = { Text("Security report") },
+            text = {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .height(300.dp)
+                        .fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Box(modifier = Modifier.padding(HackieSpacing.sm)) {
+                        Text(
+                            text = reportText,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, reportText)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share report"))
+                        showReportDialog = false
+                    },
+                ) { Text("Share") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportDialog = false }) { Text("Close") }
+            },
+        )
+    }
 }
 
 @Composable
-fun HistoryContent(viewModel: SecurityAuditorViewModel) {
+private fun HistoryContent(viewModel: SecurityAuditorViewModel) {
     val history by viewModel.auditHistory.collectAsState()
 
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("PAST TACTICAL AUDITS", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-            TextButton(onClick = { viewModel.clearTacticalHistory() }) {
-                Text("CLEAR ALL", color = Color.Red, fontSize = 10.sp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = HackieSpacing.md),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = HackieSpacing.xs),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${history.size} saved",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (history.isNotEmpty()) {
+                TextButton(onClick = { viewModel.clearTacticalHistory() }) {
+                    Text("Clear all", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(history) { record ->
-                HistoryRecordCard(record)
+        if (history.isEmpty()) {
+            AppCard {
+                Text(
+                    text = "No past audits. Run a scan to save one here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = HackieSpacing.xs),
+                )
             }
-            
-            if (history.isEmpty()) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        Text("No history found. Complete an audit to save it here.", color = TextTertiary, fontSize = 13.sp)
-                    }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = HackieSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+            ) {
+                items(history, key = { it.timestamp.toString() + it.targetName }) { record ->
+                    HistoryRecordCard(record)
                 }
             }
         }
@@ -256,82 +343,123 @@ fun HistoryContent(viewModel: SecurityAuditorViewModel) {
 }
 
 @Composable
-fun HistoryRecordCard(record: com.example.rabit.data.security.TacticalStorageManager.AuditRecord) {
-    Surface(
-        color = Surface1,
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.History, null, tint = AccentBlue, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
+private fun HistoryRecordCard(
+    record: com.example.rabit.data.security.TacticalStorageManager.AuditRecord
+) {
+    AppCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+        ) {
+            IconTile(
+                icon = Icons.Default.History,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(record.timestamp)),
-                    color = Platinum,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    text = java.text.SimpleDateFormat("MMM dd, yyyy • HH:mm", java.util.Locale.getDefault())
+                        .format(java.util.Date(record.timestamp)),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = record.targetName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            Text("TARGET: ${record.targetName}", color = Silver, fontSize = 11.sp)
-            Text("FINDINGS: ${record.findings.size}", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            LabelPill(
+                text = "${record.findings.size} findings",
+                background = if (record.findings.isEmpty()) Success.copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                foreground = if (record.findings.isEmpty()) Success
+                else MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
 
 @Composable
-fun FindingCard(finding: NeuralAuditEngine.Finding) {
+private fun FindingCard(finding: NeuralAuditEngine.Finding) {
     val severityColor = when (finding.severity) {
-        NeuralAuditEngine.Severity.CRITICAL -> Color(0xFFEF4444)
+        NeuralAuditEngine.Severity.CRITICAL -> MaterialTheme.colorScheme.error
         NeuralAuditEngine.Severity.HIGH -> Color(0xFFF97316)
         NeuralAuditEngine.Severity.MEDIUM -> Color(0xFFEAB308)
-        NeuralAuditEngine.Severity.LOW -> Color(0xFF3B82F6)
-        NeuralAuditEngine.Severity.INFO -> SuccessGreen
+        NeuralAuditEngine.Severity.LOW -> MaterialTheme.colorScheme.primary
+        NeuralAuditEngine.Severity.INFO -> Success
     }
 
-    Surface(
-        color = Surface1,
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
+    AppCard {
+        Column(verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm)) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+            ) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(severityColor, RoundedCornerShape(2.dp))
-                        .padding(top = 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(severityColor)
+                        .padding(top = 4.dp),
                 )
-                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(finding.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(finding.category.name, color = severityColor, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text(
+                        text = finding.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = finding.category.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = severityColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
-                Text(finding.severity.name, color = severityColor.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = finding.severity.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = severityColor.copy(alpha = 0.8f),
+                )
             }
-            
-            Spacer(Modifier.height(12.dp))
-            Text(finding.description, color = TextSecondary, fontSize = 12.sp, lineHeight = 18.sp)
-            
-            Spacer(Modifier.height(16.dp))
-            
-            // Remediation Box
+
+            Text(
+                text = finding.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // Remediation box
             Surface(
-                color = Color.Black.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Handyman, null, tint = SuccessGreen, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("REMEDIATION STEPS", color = SuccessGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.padding(HackieSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Handyman,
+                            contentDescription = null,
+                            tint = Success,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "How to fix",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Success,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(finding.remediation, color = TextPrimary, fontSize = 12.sp, lineHeight = 16.sp)
+                    Text(
+                        text = finding.remediation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
         }

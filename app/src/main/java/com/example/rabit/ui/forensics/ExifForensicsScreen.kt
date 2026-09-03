@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,28 +31,14 @@ fun ExifForensicsScreen(viewModel: ExifForensicsViewModel, onBack: () -> Unit) {
         uri?.let { viewModel.analyzeImage(it) }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("EXIF FORENSICS LAB", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black, color = Platinum))
-                        Text("METADATA EXTRACTION", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.ImageSearch, null, tint = AccentBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
+    ScreenScaffold(
+        title = "Exif forensics",
+        subtitle = "Inspect image metadata",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                Icon(Icons.Default.ImageSearch, null, tint = AccentBlue)
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
@@ -88,7 +75,7 @@ fun ExifForensicsContent(viewModel: ExifForensicsViewModel) {
         } else if (error != null) {
             Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Info, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                    Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(error!!, color = Platinum, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(modifier = Modifier.height(24.dp))
@@ -113,13 +100,14 @@ fun ExifForensicsContent(viewModel: ExifForensicsViewModel) {
                 }
                 items(tags) { tag ->
                     val isGps = tag.name.contains("GPS")
+                    val errorColor = MaterialTheme.colorScheme.error
                     Surface(
                         color = Surface1,
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isGps) Color.Red.copy(alpha = 0.5f) else BorderColor)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isGps) errorColor.copy(alpha = 0.5f) else BorderColor)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                            Text(tag.name, color = if (isGps) Color.Red else AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(tag.name, color = if (isGps) errorColor else AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(tag.value, color = Platinum, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
                         }

@@ -4,7 +4,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,55 +17,58 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.NetworkPing
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import com.example.rabit.ui.components.LocalOpenGlobalDrawer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.*
-import com.example.rabit.ui.components.*
+import com.example.rabit.ui.components.AppCard
+import com.example.rabit.ui.components.AppCardElevated
+import com.example.rabit.ui.components.IconTile
+import com.example.rabit.ui.components.InfoPill
+import com.example.rabit.ui.components.LabelPill
+import com.example.rabit.ui.components.MediaMiniPlayer
+import com.example.rabit.ui.components.PrimaryButton
+import com.example.rabit.ui.components.ScreenScaffold
+import com.example.rabit.ui.components.StatusDot
+import com.example.rabit.ui.theme.HackieSpacing
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
-    onOpenHelper: () -> Unit
+    onOpenHelper: () -> Unit,
+    onOpenKeyboard: () -> Unit,
+    onOpenAssistant: () -> Unit,
+    onOpenMacros: () -> Unit,
+    onOpenVault: () -> Unit,
+    onOpenWebBridge: () -> Unit,
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
     val knownWorkstations by viewModel.knownWorkstations.collectAsState()
@@ -75,9 +77,7 @@ fun HomeScreen(
     val helperMac by viewModel.helperDeviceMac.collectAsState()
     val helperBaseUrl by viewModel.helperBaseUrl.collectAsState()
     val helperIp by viewModel.helperDeviceIp.collectAsState()
-    val p2pStatus by viewModel.p2pStatus.collectAsState()
     val helperConnectionStatus by viewModel.helperConnectionStatus.collectAsState()
-    val transfers by viewModel.helperTransferEvents.collectAsState()
     val nowPlayingTitle by viewModel.nowPlayingTitle.collectAsState()
     val nowPlayingArtist by viewModel.nowPlayingArtist.collectAsState()
     val nowPlayingAlbum by viewModel.nowPlayingAlbum.collectAsState()
@@ -94,7 +94,8 @@ fun HomeScreen(
         }
     }
 
-    val bluetoothConnectedName = (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName
+    val bluetoothConnectedName =
+        (connectionState as? HidDeviceManager.ConnectionState.Connected)?.deviceName
     val bluetoothConnectedMac = if (bluetoothConnectedName != null) {
         knownWorkstations.firstOrNull { it.name == bluetoothConnectedName }?.address
             ?: knownWorkstations.firstOrNull()?.address
@@ -117,360 +118,321 @@ fun HomeScreen(
         else -> null
     }
 
-    val openDrawer = LocalOpenGlobalDrawer.current
-
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "HACKIE PRO",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("MISSION CONTROL", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { openDrawer?.invoke() }) {
-                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* Search */ }) {
-                        Icon(Icons.Default.Search, "Search", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        Column(
+    ScreenScaffold(
+        title = "Home",
+        subtitle = if (online) "Connected" else "Not connected",
+    ) { _ ->
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .background(AppAtmosphereGradient)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = HackieSpacing.md),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = HackieSpacing.sm,
+                bottom = HackieSpacing.xl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
         ) {
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // ── Compact Status Header ──────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (online) "Connected" else "Offline",
-                    color = if (online) SuccessGreen else TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.W600,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    deviceDisplayName ?: "No device linked",
-                    color = TextPrimary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.W300,
-                    letterSpacing = (-0.3).sp
+            // ── Hero status card ─────────────────────────────────────
+            item {
+                HeroStatusCard(
+                    online = online,
+                    deviceName = deviceDisplayName,
+                    helperStatus = helperConnectionStatus,
+                    bluetoothName = bluetoothConnectedName,
+                    helperHost = resolvedHelperHost,
+                    bluetoothMac = bluetoothConnectedMac,
+                    helperMac = helperMac,
+                    onPrimaryAction = if (online) onOpenKeyboard else onOpenHelper,
+                    primaryLabel = if (online) "Open keyboard" else "Connect a device",
                 )
             }
-            // Status indicator dot
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(
-                        if (online) SuccessGreen else TextTertiary.copy(alpha = 0.4f),
-                        CircleShape
+
+            // ── Now playing mini bar ─────────────────────────────────
+            if (online) {
+                item {
+                    AppCardElevated(
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = HackieSpacing.xs,
+                            vertical = HackieSpacing.xs,
+                        ),
+                    ) {
+                        MediaMiniPlayer(
+                            title = nowPlayingTitle.ifBlank { "Nothing playing" },
+                            artist = nowPlayingArtist.ifBlank { null },
+                            isPlaying = nowPlayingTitle.isNotBlank() && nowPlayingTitle != "Nothing playing",
+                            onTogglePlay = { viewModel.sendMediaPlayPause() },
+                            onNext = { viewModel.sendMediaNextTrack() },
+                            onPrevious = { viewModel.sendMediaPreviousTrack() },
+                        )
+                    }
+                }
+            }
+
+            // ── Shortcuts grid ───────────────────────────────────────
+            item {
+                Text(
+                    text = "Shortcuts",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.xs),
+                )
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                ) {
+                    ShortcutTile(
+                        icon = Icons.Default.Bolt,
+                        label = "Macros",
+                        onClick = onOpenMacros,
+                        modifier = Modifier.weight(1f),
                     )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ── Connection Details Card ──────────────────────────────────────────
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Surface1,
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(AccentBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Devices, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Device Link", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.W600)
-                        Text(
-                            helperConnectionStatus,
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (online) {
-                        StatusPill(text = "Online", color = SuccessGreen)
-                    }
-                }
-
-                if (online) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = BorderColor)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        InfoChip(
-                            label = "IP",
-                            value = when {
-                                isHelperConnected && !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
-                                bluetoothConnectedName != null -> "Bluetooth"
-                                !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
-                                else -> "—"
-                            }
-                        )
-                        InfoChip(label = "MAC", value = (bluetoothConnectedMac ?: helperMac).take(17))
-                        InfoChip(label = "P2P", value = p2pStatus)
-                    }
-
-                    if (bluetoothConnectedName != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(4.dp).background(AccentTeal, CircleShape))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Bluetooth HID", color = AccentTeal, fontSize = 11.sp, fontWeight = FontWeight.W500)
-                        }
-                    }
+                    ShortcutTile(
+                        icon = Icons.Default.SmartToy,
+                        label = "AI Assistant",
+                        onClick = onOpenAssistant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ShortcutTile(
+                        icon = Icons.Default.AccountTree,
+                        label = "Web Bridge",
+                        onClick = onOpenWebBridge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ShortcutTile(
+                        icon = Icons.Default.ContentPaste,
+                        label = "Vault",
+                        onClick = onOpenVault,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ── Now Playing ─────────────────────────────────────────────────────
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Surface1,
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Compact header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Now Playing", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.W600, letterSpacing = 0.5.sp)
-                    }
-                    IconButton(onClick = { viewModel.requestNowPlayingFromHost() }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextTertiary, modifier = Modifier.size(14.dp))
-                    }
+            // ── Device details (when connected) ──────────────────────
+            if (online) {
+                item {
+                    Text(
+                        text = "Connection",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.sm),
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Song info + controls
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Album art
-                    if (artwork != null) {
-                        Image(
-                            bitmap = artwork,
-                            contentDescription = "Album art",
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Surface2),
-                            contentAlignment = Alignment.Center
+                item {
+                    AppCard {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                            verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
                         ) {
-                            Icon(Icons.Default.MusicNote, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(20.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            nowPlayingTitle.ifBlank { "Nothing playing" },
-                            color = TextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.W600,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (nowPlayingArtist.isNotBlank()) {
-                            Text(
-                                nowPlayingArtist,
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            InfoPill(
+                                label = "IP",
+                                value = when {
+                                    isHelperConnected && !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
+                                    bluetoothConnectedName != null -> "Bluetooth"
+                                    !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
+                                    else -> "—"
+                                },
                             )
+                            InfoPill(
+                                label = "MAC",
+                                value = (bluetoothConnectedMac ?: helperMac).take(17),
+                            )
+                            if (bluetoothConnectedName != null) {
+                                LabelPill(
+                                    text = "Bluetooth HID",
+                                    background = MaterialTheme.colorScheme.secondaryContainer,
+                                    foreground = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
                         }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Inline controls
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    MediaControl(icon = Icons.Default.Remove, onClick = { viewModel.sendMediaVolumeDown() })
-                    MediaControl(icon = Icons.Default.FastRewind, onClick = { viewModel.sendMediaPreviousTrack() })
-                    
-                    // Play/Pause button — primary accent
-                    IconButton(
-                        onClick = { viewModel.sendMediaPlayPause() },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(AccentBlue, CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = if (nowPlayingTitle.isNotBlank() && nowPlayingTitle != "Nothing playing") Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+            // ── Diagnostic row (Helper, Rescan) ──────────────────────
+            item {
+                Spacer(Modifier.height(HackieSpacing.xs))
+            }
+            item {
+                AppCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        DiagnosticRow(
+                            icon = Icons.Default.Devices,
+                            title = "Helper",
+                            subtitle = helperConnectionStatus,
+                            onClick = onOpenHelper,
+                        )
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(vertical = HackieSpacing.xxs),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                        DiagnosticRow(
+                            icon = Icons.Default.Sensors,
+                            title = "Rescan",
+                            subtitle = "Re-detect the helper on the local network",
+                            onClick = { viewModel.discoverHelperOnLocalWifi() },
+                        )
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(vertical = HackieSpacing.xxs),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                        DiagnosticRow(
+                            icon = Icons.Default.Wifi,
+                            title = "Ping",
+                            subtitle = "Send a ping to the connected device",
+                            onClick = { viewModel.pingRemoteDevice() },
                         )
                     }
-
-                    MediaControl(icon = Icons.Default.FastForward, onClick = { viewModel.sendMediaNextTrack() })
-                    MediaControl(icon = Icons.Default.Add, onClick = { viewModel.sendMediaVolumeUp() })
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ── Quick Actions Grid ──────────────────────────────────────────────
-        Text(
-            "QUICK ACTIONS",
-            color = TextTertiary,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.W700,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            QuickActionCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Devices,
-                label = "Helper",
-                onClick = onOpenHelper
-            )
-            QuickActionCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Wifi,
-                label = "Rescan",
-                onClick = { viewModel.discoverHelperOnLocalWifi() }
-            )
-            QuickActionCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.NetworkPing,
-                label = "Ping",
-                onClick = { viewModel.pingRemoteDevice() }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-    }
-}
-}
-
-// ── Sub-components ───────────────────────────────────────────────────────────
-
-@Composable
-private fun StatusPill(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(color.copy(alpha = 0.1f))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.W600)
     }
 }
 
-@Composable
-private fun InfoChip(label: String, value: String) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Surface2)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
-    ) {
-        Text(label.uppercase(), color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.W700, letterSpacing = 0.5.sp)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.W500, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
+// ── Hero status card ─────────────────────────────────────────────────────
 
 @Composable
-private fun MediaControl(icon: ImageVector, onClick: () -> Unit) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(36.dp)
-            .background(Surface2, CircleShape)
-    ) {
-        Icon(icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-    }
-}
-
-@Composable
-private fun QuickActionCard(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit
+private fun HeroStatusCard(
+    online: Boolean,
+    deviceName: String?,
+    helperStatus: String,
+    bluetoothName: String?,
+    helperHost: String?,
+    bluetoothMac: String?,
+    helperMac: String?,
+    onPrimaryAction: () -> Unit,
+    primaryLabel: String,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        color = Surface1,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.padding(HackieSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
         ) {
-            Icon(icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(label, color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.W500)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusDot(
+                    color = if (online) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline,
+                )
+                Spacer(Modifier.size(HackieSpacing.xs))
+                Text(
+                    text = if (online) "Connected" else "Not connected",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (online) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Text(
+                text = deviceName ?: "No device linked",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Text(
+                text = when {
+                    online && bluetoothName != null -> "Paired over Bluetooth HID"
+                    online -> helperStatus.ifBlank { "Helper connected" }
+                    else -> "Pair a Mac, PC, or Android to start."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(HackieSpacing.xs))
+
+            PrimaryButton(
+                text = primaryLabel,
+                onClick = onPrimaryAction,
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            )
         }
+    }
+}
+
+// ── Shortcut tile ────────────────────────────────────────────────────────
+
+@Composable
+private fun ShortcutTile(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AppCard(
+        onClick = onClick,
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            horizontal = HackieSpacing.md,
+            vertical = HackieSpacing.md,
+        ),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+        ) {
+            IconTile(icon = icon, size = 40.dp, iconSize = 20.dp)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+// ── Diagnostic row (used in the bottom card) ─────────────────────────────
+
+@Composable
+private fun DiagnosticRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = HackieSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = icon, size = 36.dp, iconSize = 18.dp)
+        Spacer(Modifier.size(HackieSpacing.sm))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

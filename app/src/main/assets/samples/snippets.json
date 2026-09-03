@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Email signature",
+    "content": "Best regards,\n[Your Name]\n[Your Title]\n[Your Company]",
+    "category": "Communication"
+  },
+  {
+    "name": "Git add + commit + push",
+    "content": "git add . && git commit -m \"\" && git push",
+    "category": "Developer"
+  },
+  {
+    "name": "Meeting response",
+    "content": "Thanks for the invite. I'll be there.",
+    "category": "Communication"
+  },
+  {
+    "name": "Stand-up update",
+    "content": "Yesterday: \nToday: \nBlockers: ",
+    "category": "Communication"
+  }
+]

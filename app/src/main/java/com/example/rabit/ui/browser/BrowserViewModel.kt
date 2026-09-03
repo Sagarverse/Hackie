@@ -9,7 +9,14 @@ import kotlinx.coroutines.flow.asStateFlow
 class BrowserViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("rabit_browser_prefs", Context.MODE_PRIVATE)
 
-    private val _currentUrl = MutableStateFlow(prefs.getString("home_page", "https://www.google.com") ?: "https://www.google.com")
+    // Restore the last-visited URL so the user returns to where they left off.
+    // The "home_page" key is a separate concept (user's chosen home), distinct
+    // from "last_visited".
+    private val _currentUrl = MutableStateFlow(
+        prefs.getString("last_visited", null)
+            ?: prefs.getString("home_page", "https://www.google.com")
+            ?: "https://www.google.com"
+    )
     val currentUrl = _currentUrl.asStateFlow()
 
     private val _canGoBack = MutableStateFlow(false)
@@ -26,6 +33,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateUrl(url: String) {
         _currentUrl.value = url
+        prefs.edit().putString("last_visited", url).apply()
     }
 
     fun setNavigationState(canBack: Boolean, canForward: Boolean) {

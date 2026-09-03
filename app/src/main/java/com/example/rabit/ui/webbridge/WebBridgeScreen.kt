@@ -46,9 +46,10 @@ import androidx.compose.ui.res.painterResource
 import com.sagar.rabit.R
 import com.example.rabit.data.network.RabitNetworkServer
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.components.QrCodeGenerator
-import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.GlassCard
+import com.example.rabit.ui.components.QrCodeGenerator
+import com.example.rabit.ui.components.ScreenScaffold
+import com.example.rabit.ui.theme.*
 import java.io.File
 import android.net.Uri
 import android.content.Context
@@ -107,107 +108,26 @@ fun WebBridgeScreen(
 
     val openDrawer = com.example.rabit.ui.components.LocalOpenGlobalDrawer.current
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "WEB BRIDGE HUB",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("REMOTE ASSET GATEWAY", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { openDrawer?.invoke() }) {
-                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* Search */ }) {
-                        Icon(Icons.Default.Search, "Search", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
+    ScreenScaffold(
+        title = "Web Bridge",
+        subtitle = "Share files with any browser.",
+        onBack = onBack,
+    ) { _ ->
         Box(modifier = Modifier.fillMaxSize().background(Obsidian)) {
             // High-End Mesh Gradient Background
             PremiumMeshBackground()
 
-            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
-                // Main Content Area
-                Box(modifier = Modifier.weight(1f)) {
-                    WebBridgeContent(viewModel, filePickerLauncher, friendlyLanUrl, ipLanUrl, localUrl, p2pUrl, qrMode, onQrModeChange = { qrMode = it })
-                }
-
-                // Right-side Mini Sidebar
-                Surface(
-                    color = Graphite.copy(alpha = 0.4f),
-                    modifier = Modifier
-                        .width(60.dp)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)),
-                    border = BorderStroke(1.dp, Platinum.copy(alpha = 0.05f))
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        MiniSidebarIcon(
-                            icon = Icons.Default.CloudSync,
-                            isSelected = true,
-                            onClick = { }
-                        )
-                        
-                        Spacer(modifier = Modifier.weight(1f))
-                        
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Silver.copy(alpha = 0.6f))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MiniSidebarIcon(
-    icon: ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        color = if (isSelected) AccentBlue.copy(alpha = 0.15f) else Color.Transparent,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.size(44.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                icon,
-                null,
-                tint = if (isSelected) AccentBlue else Silver.copy(alpha = 0.4f),
-                modifier = Modifier.size(24.dp)
+            // Main Content Area (right rail removed: it held a single dead icon)
+            WebBridgeContent(
+                viewModel = viewModel,
+                filePickerLauncher = filePickerLauncher,
+                friendlyLanUrl = friendlyLanUrl,
+                ipLanUrl = ipLanUrl,
+                localUrl = localUrl,
+                p2pUrl = p2pUrl,
+                qrMode = qrMode,
+                onQrModeChange = { qrMode = it },
             )
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 4.dp)
-                        .background(AccentBlue, CircleShape)
-                )
-            }
         }
     }
 }
@@ -277,7 +197,7 @@ private fun WebBridgeContent(
                             Button(
                                 onClick = { if (isRunning) viewModel.stopWebBridge() else viewModel.startWebBridge() },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isRunning) Color(0xFFE11D48).copy(alpha = 0.9f) else AccentBlue
+                                    containerColor = if (isRunning) MaterialTheme.colorScheme.error else AccentBlue
                                 ),
                                 modifier = Modifier.weight(1f).height(60.dp),
                                 shape = RoundedCornerShape(20.dp),

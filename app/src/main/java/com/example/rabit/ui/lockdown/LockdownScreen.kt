@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,10 +32,9 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
     val isActive by viewModel.isLockdownActive.collectAsState()
     val connState by viewModel.connectionState.collectAsState()
     val isConnected = connState is HidDeviceManager.ConnectionState.Connected
-    
-    val bgColor = Color(0xFF05050A)
-    val warningRed = Color(0xFFFF3131)
-    val accentCyan = Color(0xFF00F2FF)
+
+    val warningRed = MaterialTheme.colorScheme.error
+    val accentCyan = MaterialTheme.colorScheme.primary
 
     val infiniteTransition = rememberInfiniteTransition()
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -46,17 +46,10 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
         )
     )
 
-    Scaffold(
-        containerColor = bgColor,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("INPUT INTERLOCK", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White) }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Lockdown",
+        subtitle = "Tighten device security",
+        onBack = onBack
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Background Alert Glow
@@ -78,7 +71,7 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
                     .fillMaxSize()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(32.dp)
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // Connection Status
                 ConnectionBadge(isConnected = isConnected)
@@ -93,37 +86,35 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
                 )
 
                 Text(
-                    text = if (isActive) "SATURATION ACTIVE" else "IDLE READY",
-                    color = if (isActive) warningRed else Color.Gray,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
+                    text = if (isActive) "Saturation active" else "Idle",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isActive) warningRed
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
                 // Tactical Actions
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "SYSTEM LOCK MACROS",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        fontWeight = FontWeight.Bold,
+                        "Lock actions",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
-                    
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TacticalActionButton(
-                            label = "MAC LOCK",
+                            label = "Mac lock",
                             icon = Icons.Default.Computer,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             onClick = { viewModel.triggerMacLock() },
                             modifier = Modifier.weight(1f),
                             enabled = isConnected
                         )
                         TacticalActionButton(
-                            label = "WIN LOCK",
+                            label = "Windows lock",
                             icon = Icons.Default.GridOn,
                             color = accentCyan,
                             onClick = { viewModel.triggerWindowsLock() },
@@ -132,13 +123,12 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
                         )
                     }
                 }
-                
+
                 Text(
-                    "Note: HID interlock spams conflicting mouse/keyboard reports to disrupt functional usage on the target device.",
-                    fontSize = 9.sp,
-                    color = Color.Gray.copy(alpha = 0.5f),
+                    "Sends conflicting mouse and keyboard reports to disrupt the target device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    lineHeight = 14.sp
                 )
             }
         }
@@ -147,7 +137,7 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
 
 @Composable
 fun InterlockButton(isActive: Boolean, isConnected: Boolean, onClick: () -> Unit) {
-    val targetColor = if (isActive) Color(0xFFFF3131) else Color(0xFF00F2FF)
+    val targetColor = if (isActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val interactionSource = remember { MutableInteractionSource() }
     
     Box(

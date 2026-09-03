@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,79 +26,48 @@ fun IntelOsintScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("GHOST RECON", "SUBDOMAIN SCANNER")
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    ScreenScaffold(
+        title = "Intel & OSINT",
+        subtitle = "Open-source lookups",
+        onBack = onBack
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = Color.Transparent,
+                contentColor = SuccessGreen,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                        color = SuccessGreen,
+                        height = 3.dp
+                    )
+                },
+                divider = { HorizontalDivider(color = Color.White.copy(alpha = 0.1f)) }
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = {
                             Text(
-                                "INTEL & OSINT",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    color = Platinum,
-                                    letterSpacing = 2.sp
-                                )
-                            )
-                            Text(
-                                "TARGET RECONNAISSANCE",
-                                color = SuccessGreen,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
+                                title,
+                                fontWeight = if (selectedTabIndex == index) FontWeight.Black else FontWeight.Medium,
+                                fontSize = 11.sp,
+                                color = if (selectedTabIndex == index) SuccessGreen else Silver
                             )
                         }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = Color.Transparent,
-                    contentColor = SuccessGreen,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            color = SuccessGreen,
-                            height = 3.dp
-                        )
-                    },
-                    divider = { HorizontalDivider(color = Color.White.copy(alpha = 0.1f)) }
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = {
-                                Text(
-                                    title,
-                                    fontWeight = if (selectedTabIndex == index) FontWeight.Black else FontWeight.Medium,
-                                    fontSize = 11.sp,
-                                    color = if (selectedTabIndex == index) SuccessGreen else Silver
-                                )
-                            }
-                        )
-                    }
+                    )
                 }
             }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (selectedTabIndex) {
-                0 -> {
-                    OsintContent(osintViewModel, osintGhostViewModel)
-                }
-                1 -> {
-                    SubdomainScannerContent(subdomainScannerViewModel)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (selectedTabIndex) {
+                    0 -> {
+                        OsintContent(osintViewModel, osintGhostViewModel)
+                    }
+                    1 -> {
+                        SubdomainScannerContent(subdomainScannerViewModel)
+                    }
                 }
             }
         }

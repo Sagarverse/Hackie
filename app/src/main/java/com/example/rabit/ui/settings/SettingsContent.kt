@@ -154,7 +154,84 @@ fun SettingsContent(
         ) {
 
             GeminiApiSettingsSection(viewModel = geminiSettingsViewModel)
-            
+
+            // ─── Appearance ───
+            PremiumSectionHeader("APPEARANCE")
+            PremiumGlassCard {
+                // The picker reads from the activity-level theme flow so
+                // it always reflects the value the activity is currently
+                // rendering with. Tapping a radio updates the flow; the
+                // activity re-applies the theme in the same frame.
+                val themeMode by viewModel.themeMode.collectAsState()
+                val context = LocalContext.current
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = AccentTeal,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Theme",
+                                color = Platinum,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Changes apply instantly",
+                                color = Silver.copy(alpha = 0.65f),
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.example.rabit.data.prefs.UserPreferences.ThemeMode.values().forEach { mode ->
+                            val selected = themeMode == mode
+                            Surface(
+                                onClick = {
+                                    com.example.rabit.data.prefs.UserPreferences
+                                        .setThemeMode(context, mode)
+                                },
+                                color = if (selected) AccentTeal.copy(alpha = 0.18f) else Color.Transparent,
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(
+                                    0.5.dp,
+                                    if (selected) AccentTeal.copy(alpha = 0.6f) else BorderColor.copy(alpha = 0.3f),
+                                ),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                ) {
+                                    Icon(
+                                        when (mode) {
+                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.SYSTEM -> Icons.Default.PhoneAndroid
+                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.LIGHT -> Icons.Default.LightMode
+                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.DARK -> Icons.Default.DarkMode
+                                        },
+                                        contentDescription = null,
+                                        tint = if (selected) AccentTeal else Silver,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        mode.name.lowercase()
+                                            .replaceFirstChar { it.uppercase() },
+                                        color = if (selected) AccentTeal else Platinum,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ─── Security & Access ───
             PremiumSectionHeader("SECURITY & ACCESS")
             PremiumGlassCard {

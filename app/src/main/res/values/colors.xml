@@ -2,4 +2,13 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!--
+        Window background that the system shows before Compose draws its first
+        frame. Values match the Material 3 light + dark surface tokens in
+        ui/theme/Color.kt.
+    -->
+    <color name="brand_window_background_light">#FFFAFBFD</color>
+    <color name="brand_window_background_dark">#FF0E1116</color>
+    <color name="brand_window_background">@color/brand_window_background_light</color>
 </resources>

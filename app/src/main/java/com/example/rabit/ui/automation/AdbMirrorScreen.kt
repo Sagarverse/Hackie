@@ -21,6 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.rabit.data.adb.AdbMirrorStreamer
 import com.example.rabit.ui.MainViewModel
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.theme.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -81,17 +82,9 @@ fun AdbMirrorScreen(
 
     var showMirrorOverlay by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            TopAppBar(
-                title = { Text("ADB Mirror Center", color = TextPrimary) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = TextPrimary) }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface0)
-            )
-        }
+    ScreenScaffold(
+        title = "ADB mirror center",
+        onBack = onBack,
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,68 +41,46 @@ fun WebSniperScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("AUTO-PWN", "FUZZER", "ENUMERATOR", "REPEATER")
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    ScreenScaffold(
+        title = "Web sniper",
+        subtitle = "Targeted fetches and scrapes",
+        onBack = onBack
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = Color(0xFFBC13FE),
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = Color(0xFFBC13FE)
+                    )
+                },
+                divider = {}
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
                             Text(
-                                "WEB SNIPER",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 3.sp,
-                                    color = Color(0xFFBC13FE)
-                                )
+                                title,
+                                fontSize = 9.sp,
+                                fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
+                                color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
                             )
-                            Text("DAST EXPLOITATION SUITE", color = Platinum, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = Color(0xFFBC13FE),
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = Color(0xFFBC13FE)
-                        )
-                    },
-                    divider = {}
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { 
-                                Text(
-                                    title, 
-                                    fontSize = 9.sp, 
-                                    fontWeight = if (selectedTab == index) FontWeight.Black else FontWeight.Normal,
-                                    color = if (selectedTab == index) Platinum else Silver.copy(alpha = 0.5f)
-                                ) 
-                            }
-                        )
-                    }
+                    )
                 }
             }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            when (selectedTab) {
-                0 -> AutoPwnContent(viewModel)
-                1 -> WebFuzzerContent(viewModel)
-                2 -> DirectoryScannerContent(viewModel)
-                3 -> RequestRepeaterContent(viewModel)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (selectedTab) {
+                    0 -> AutoPwnContent(viewModel)
+                    1 -> WebFuzzerContent(viewModel)
+                    2 -> DirectoryScannerContent(viewModel)
+                    3 -> RequestRepeaterContent(viewModel)
+                }
             }
         }
     }
@@ -108,7 +88,7 @@ fun WebSniperScreen(
 
 @Composable
 fun AutoPwnContent(viewModel: WebSniperViewModel) {
-    var targetDomain by remember { mutableStateOf("192.168.1.100") }
+    var targetDomain by rememberSaveable { mutableStateOf("192.168.1.100") }
     val autoPwnState by viewModel.autoPwnState.collectAsState()
     val logs by viewModel.autoPwnLogs.collectAsState()
     val report by viewModel.autoPwnReport.collectAsState()
@@ -221,8 +201,8 @@ fun AutoPwnContent(viewModel: WebSniperViewModel) {
 
 @Composable
 fun WebFuzzerContent(viewModel: WebSniperViewModel) {
-    var targetUrl by remember { mutableStateOf("http://192.168.1.100/vulnerable.php?id=") }
-    var extractionMode by remember { mutableStateOf(false) }
+    var targetUrl by rememberSaveable { mutableStateOf("http://192.168.1.100/vulnerable.php?id=") }
+    var extractionMode by rememberSaveable { mutableStateOf(false) }
     val isFuzzing by viewModel.isFuzzing.collectAsState()
     val logs by viewModel.fuzzerLogs.collectAsState()
     val results by viewModel.fuzzerResults.collectAsState()
@@ -326,7 +306,7 @@ fun WebFuzzerContent(viewModel: WebSniperViewModel) {
 
 @Composable
 fun DirectoryScannerContent(viewModel: WebSniperViewModel) {
-    var targetDomain by remember { mutableStateOf("192.168.1.100") }
+    var targetDomain by rememberSaveable { mutableStateOf("192.168.1.100") }
     val isScanning by viewModel.isScanningDirs.collectAsState()
     val progress by viewModel.dirProgress.collectAsState()
     val results by viewModel.dirResults.collectAsState()
@@ -402,10 +382,10 @@ fun DirectoryScannerContent(viewModel: WebSniperViewModel) {
 
 @Composable
 fun RequestRepeaterContent(viewModel: WebSniperViewModel) {
-    var method by remember { mutableStateOf("GET") }
-    var url by remember { mutableStateOf("http://192.168.1.100/api/v1/user") }
-    var headersText by remember { mutableStateOf("Authorization: Bearer <token>\nUser-Agent: Mozilla/5.0") }
-    var bodyText by remember { mutableStateOf("") }
+    var method by rememberSaveable { mutableStateOf("GET") }
+    var url by rememberSaveable { mutableStateOf("http://192.168.1.100/api/v1/user") }
+    var headersText by rememberSaveable { mutableStateOf("Authorization: Bearer <token>\nUser-Agent: Mozilla/5.0") }
+    var bodyText by rememberSaveable { mutableStateOf("") }
     
     val isRepeating by viewModel.isRepeating.collectAsState()
     val responseHeaders by viewModel.repeaterHeaders.collectAsState()

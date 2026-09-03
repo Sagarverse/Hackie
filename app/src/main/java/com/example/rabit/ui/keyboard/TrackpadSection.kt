@@ -42,6 +42,7 @@ fun TrackpadSection(viewModel: MainViewModel) {
     val airMouseEnabled by viewModel.airMouseEnabled.collectAsState()
     val airMouseSensitivity by viewModel.airMouseSensitivity.collectAsState()
     val isCalibrating by viewModel.isAirMouseCalibrating.collectAsState()
+    val trackpadSensitivity by viewModel.trackpadSensitivity.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text("PRECISION TRACKPAD", color = Silver, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
@@ -81,7 +82,15 @@ fun TrackpadSection(viewModel: MainViewModel) {
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
-                        viewModel.sendMouseMove(dragAmount.x, dragAmount.y)
+                        // Invert Y so dragging the finger up moves the
+                        // cursor up (the natural "screen pan" direction
+                        // on macOS / Windows trackpads). Matches the
+                        // air-mouse path in GyroscopeAirMouse.kt:157.
+                        val s = if (trackpadSensitivity <= 0f) 1f else trackpadSensitivity
+                        viewModel.sendMouseMove(
+                            dx = dragAmount.x * s,
+                            dy = dragAmount.y * s,
+                        )
                     }
                 },
             contentAlignment = Alignment.Center

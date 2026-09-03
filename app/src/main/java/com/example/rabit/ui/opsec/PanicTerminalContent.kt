@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,16 +36,20 @@ fun PanicTerminalContent(
     val isWiping by killSwitchViewModel.isWiping.collectAsState()
     val totalBytesFreed by killSwitchViewModel.totalBytesFreed.collectAsState()
     
-    var showNukeConfirm by remember { mutableStateOf(false) }
-    var showWipeConfirm by remember { mutableStateOf(false) }
-    
+    val warningColor = MaterialTheme.colorScheme.tertiary
+    val dangerColor = MaterialTheme.colorScheme.error
+    val infoColor = MaterialTheme.colorScheme.primary
+
+    var showNukeConfirm by rememberSaveable { mutableStateOf(false) }
+    var showWipeConfirm by rememberSaveable { mutableStateOf(false) }
+
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            Icon(Icons.Default.Warning, null, tint = Color(0xFFE11D48), modifier = Modifier.size(80.dp))
+            Icon(Icons.Default.Warning, null, tint = dangerColor, modifier = Modifier.size(80.dp))
             Spacer(Modifier.height(12.dp))
             Text(
                 "CRITICAL SECURITY OVERRIDE",
@@ -69,7 +74,7 @@ fun PanicTerminalContent(
                 description = "Instantly hide tactical UI and switch to Decoy Mode. Requires secret knock to return.",
                 icon = Icons.Default.VisibilityOff,
                 buttonText = "ENGAGE DECOY",
-                buttonColor = Color(0xFF1E88E5),
+                buttonColor = infoColor,
                 onClick = { viewModel.setDecoyMode(true) }
             )
         }
@@ -81,7 +86,7 @@ fun PanicTerminalContent(
                 description = "Securely erase logs, caches, and forensic data. Frees storage and destroys traces.",
                 icon = Icons.Default.CleaningServices,
                 buttonText = if (isWiping) "WIPING..." else "EXECUTE WIPE",
-                buttonColor = Color(0xFFEAB308),
+                buttonColor = warningColor,
                 isLoading = isWiping,
                 onClick = { showWipeConfirm = true }
             )
@@ -119,7 +124,7 @@ fun PanicTerminalContent(
                 description = "Wipe ALL settings, API keys, and custom payloads. Factory reset Hackie Pro environment.",
                 icon = Icons.Default.DeleteForever,
                 buttonText = "NUKE SYSTEM",
-                buttonColor = Color(0xFFE11D48),
+                buttonColor = dangerColor,
                 onClick = { showNukeConfirm = true }
             )
         }
@@ -129,10 +134,10 @@ fun PanicTerminalContent(
         AlertDialog(
             onDismissRequest = { showWipeConfirm = false },
             containerColor = Surface0,
-            title = { Text("CONFIRM EVIDENCE WIPE", color = Color(0xFFEAB308), fontWeight = FontWeight.Black) },
+            title = { Text("CONFIRM EVIDENCE WIPE", color = warningColor, fontWeight = FontWeight.Black) },
             text = { Text("Forensic logs, cached payloads, and network traces will be permanently destroyed. Continue?", color = Platinum) },
             confirmButton = {
-                Button(onClick = { showWipeConfirm = false; killSwitchViewModel.executeKillSwitch() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEAB308))) {
+                Button(onClick = { showWipeConfirm = false; killSwitchViewModel.executeKillSwitch() }, colors = ButtonDefaults.buttonColors(containerColor = warningColor)) {
                     Text("EXECUTE", color = Color.Black, fontWeight = FontWeight.Black)
                 }
             },
@@ -146,10 +151,10 @@ fun PanicTerminalContent(
         AlertDialog(
             onDismissRequest = { showNukeConfirm = false },
             containerColor = Surface0,
-            title = { Text("INITIATE SELF DESTRUCT?", color = Color(0xFFE11D48), fontWeight = FontWeight.Black) },
+            title = { Text("INITIATE SELF DESTRUCT?", color = dangerColor, fontWeight = FontWeight.Black) },
             text = { Text("This will permanently delete ALL data, including keys and macros. The app will restart in Decoy Mode.", color = Platinum) },
             confirmButton = {
-                Button(onClick = { showNukeConfirm = false; viewModel.nukeData() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48))) {
+                Button(onClick = { showNukeConfirm = false; viewModel.nukeData() }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor)) {
                     Text("NUKE", fontWeight = FontWeight.Black)
                 }
             },

@@ -1,7 +1,6 @@
 package com.example.rabit.ui.automation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -15,6 +14,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,8 +27,8 @@ import com.example.rabit.domain.model.EmergencyAction
 import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.*
-import com.example.rabit.ui.components.LocalOpenGlobalDrawer
+import com.example.rabit.ui.theme.hackieColors
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,52 +46,50 @@ fun AutomationDashboardScreen(
     val emergencyStatus by viewModel.emergencyStatus.collectAsState()
     val connectionState by mainViewModel.connectionState.collectAsState<HidDeviceManager.ConnectionState>()
     val isConnected = connectionState is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected
-    val isScanning by viewModel.isTerminalScanning.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     val scope = rememberCoroutineScope()
-    var searchQuery by remember { mutableStateOf("") }
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showTerminalLab by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var contentVisible by remember { mutableStateOf(false) }
+    val colors = hackieColors()
 
-    val systemMacros = remember {
+    val systemMacros = remember(colors.accentTeal, colors.textSecondary) {
         listOf(
-            MacroDefinition("Unlock Mac", Icons.Default.LockOpen, AccentBlue, "UNLOCK_CMD"),
-            MacroDefinition("Lock Mac", Icons.Default.Lock, AccentBlue, "LOCK_CMD"),
-            MacroDefinition("Spotlight", Icons.Default.Search, AccentBlue, "SPOT_CMD"),
-            MacroDefinition("Screen Cap", Icons.Default.Screenshot, AccentTeal, "SHOT_CMD"),
-            MacroDefinition("Mute Mic", Icons.Default.MicOff, AccentBlue, "MUTE_CMD"),
-            MacroDefinition("Sleep Mac", Icons.Default.NightsStay, Silver, "SLEEP_CMD"),
-            MacroDefinition("Sys Info", Icons.Default.Info, AccentBlue, "INFO_CMD")
+            MacroDefinition("Unlock Mac", Icons.Default.LockOpen, colors.accentTeal, "UNLOCK_CMD"),
+            MacroDefinition("Lock Mac", Icons.Default.Lock, colors.accentTeal, "LOCK_CMD"),
+            MacroDefinition("Spotlight", Icons.Default.Search, colors.accentTeal, "SPOT_CMD"),
+            MacroDefinition("Screen Cap", Icons.Default.Screenshot, colors.accentTeal, "SHOT_CMD"),
+            MacroDefinition("Mute Mic", Icons.Default.MicOff, colors.accentTeal, "MUTE_CMD"),
+            MacroDefinition("Sleep Mac", Icons.Default.NightsStay, colors.textSecondary, "SLEEP_CMD"),
+            MacroDefinition("Sys Info", Icons.Default.Info, colors.accentTeal, "INFO_CMD")
         )
     }
-    val webMacros = remember {
+    val webMacros = remember(colors.accentTeal, colors.textSecondary) {
         listOf(
-            MacroDefinition("New Tab", Icons.Default.Add, AccentBlue, "TAB_CMD"),
-            MacroDefinition("Reload", Icons.Default.Refresh, AccentBlue, "RELOAD_CMD"),
-            MacroDefinition("History", Icons.Default.History, AccentBlue, "HIST_CMD"),
-            MacroDefinition("Private", Icons.Default.Shield, Silver, "PRIV_CMD"),
-            MacroDefinition("Go Back", Icons.AutoMirrored.Filled.ArrowBack, Silver, "BACK_CMD"),
-            MacroDefinition("FS Mode", Icons.Default.Fullscreen, AccentTeal, "FS_CMD")
+            MacroDefinition("New Tab", Icons.Default.Add, colors.accentTeal, "TAB_CMD"),
+            MacroDefinition("Reload", Icons.Default.Refresh, colors.accentTeal, "RELOAD_CMD"),
+            MacroDefinition("History", Icons.Default.History, colors.accentTeal, "HIST_CMD"),
+            MacroDefinition("Private", Icons.Default.Shield, colors.textSecondary, "PRIV_CMD"),
+            MacroDefinition("Go Back", Icons.AutoMirrored.Filled.ArrowBack, colors.textSecondary, "BACK_CMD"),
+            MacroDefinition("FS Mode", Icons.Default.Fullscreen, colors.accentTeal, "FS_CMD")
         )
     }
-    val productivityMacros = remember {
+    val productivityMacros = remember(colors.accentTeal, colors.textPrimary) {
         listOf(
-            MacroDefinition("Mission Ctrl", Icons.Default.GridView, AccentBlue, "MC_CMD"),
-            MacroDefinition("Switch App", Icons.Default.Tab, AccentBlue, "SW_CMD"),
-            MacroDefinition("Hide Others", Icons.Default.VisibilityOff, AccentBlue, "HIDE_CMD"),
-            MacroDefinition("Terminal", Icons.Default.Code, Platinum, "TERM_CMD"),
-            MacroDefinition("Open Safari", Icons.Default.Language, AccentBlue, "LAUNCH_SAFARI"),
-            MacroDefinition("Open Spotify", Icons.Default.MusicNote, AccentBlue, "LAUNCH_SPOTIFY")
+            MacroDefinition("Mission Ctrl", Icons.Default.GridView, colors.accentTeal, "MC_CMD"),
+            MacroDefinition("Switch App", Icons.Default.Tab, colors.accentTeal, "SW_CMD"),
+            MacroDefinition("Hide Others", Icons.Default.VisibilityOff, colors.accentTeal, "HIDE_CMD"),
+            MacroDefinition("Terminal", Icons.Default.Code, colors.textPrimary, "TERM_CMD"),
+            MacroDefinition("Open Safari", Icons.Default.Language, colors.accentTeal, "LAUNCH_SAFARI"),
+            MacroDefinition("Open Spotify", Icons.Default.MusicNote, colors.accentTeal, "LAUNCH_SPOTIFY")
         )
     }
-    val creativeMacros = remember {
+    val creativeMacros = remember(colors.accentTeal, colors.textSecondary) {
         listOf(
-            MacroDefinition("Zoom In", Icons.Default.ZoomIn, Silver, "ZI_CMD"),
-            MacroDefinition("Zoom Out", Icons.Default.ZoomOut, Silver, "ZO_CMD"),
-            MacroDefinition("Render", Icons.Default.Movie, AccentBlue, "RENDER_CMD"),
-            MacroDefinition("Export", Icons.Default.IosShare, AccentTeal, "EXPORT_CMD")
+            MacroDefinition("Zoom In", Icons.Default.ZoomIn, colors.textSecondary, "ZI_CMD"),
+            MacroDefinition("Zoom Out", Icons.Default.ZoomOut, colors.textSecondary, "ZO_CMD"),
+            MacroDefinition("Render", Icons.Default.Movie, colors.accentTeal, "RENDER_CMD"),
+            MacroDefinition("Export", Icons.Default.IosShare, colors.accentTeal, "EXPORT_CMD")
         )
     }
 
@@ -99,7 +97,7 @@ fun AutomationDashboardScreen(
     val filteredWeb = remember(searchQuery) { filterMacros(webMacros, searchQuery) }
     val filteredProductivity = remember(searchQuery) { filterMacros(productivityMacros, searchQuery) }
     val filteredCreative = remember(searchQuery) { filterMacros(creativeMacros, searchQuery) }
-    val customMacroList = customMacros.map { MacroDefinition(it.name, Icons.Default.Bolt, AccentBlue, it.command) }
+    val customMacroList = customMacros.map { MacroDefinition(it.name, Icons.Default.Bolt, colors.accentTeal, it.command) }
     val filteredCustom = remember(searchQuery, customMacros) { filterMacros(customMacroList, searchQuery) }
     val totalMatches = filteredSystem.size + filteredWeb.size + filteredProductivity.size + filteredCreative.size + filteredCustom.size
 
@@ -107,40 +105,9 @@ fun AutomationDashboardScreen(
         contentVisible = true
     }
 
-
-    val openDrawer = LocalOpenGlobalDrawer.current
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "AUTOMATION HUB",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("SYSTEM ORCHESTRATION", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { openDrawer?.invoke() }) {
-                        Icon(Icons.Default.Menu, "Menu", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* Search */ }) {
-                        Icon(Icons.Default.Search, "Search", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Automation hub",
+        subtitle = "System orchestration",
     ) { padding ->
         AnimatedVisibility(
             visible = contentVisible,
@@ -171,10 +138,10 @@ fun AutomationDashboardScreen(
                         },
                         label = { Text("Search macros, commands, categories") },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentBlue,
-                            unfocusedBorderColor = BorderColor,
-                            focusedTextColor = Platinum,
-                            unfocusedTextColor = Platinum
+                            focusedBorderColor = colors.accentTeal,
+                            unfocusedBorderColor = colors.outline,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
                         )
                     )
                 }
@@ -182,7 +149,7 @@ fun AutomationDashboardScreen(
                     item {
                         Text(
                             text = "$totalMatches result(s) for '$searchQuery'",
-                            color = Silver,
+                            color = colors.textSecondary,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 4.dp)
                         )
@@ -193,15 +160,15 @@ fun AutomationDashboardScreen(
                 if (searchQuery.isBlank()) {
                 // ─── QUICK COMMAND BAR ───
                 item {
-                    var quickCmd by remember { mutableStateOf("") }
+                    var quickCmd by rememberSaveable { mutableStateOf("") }
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        color = Graphite.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f))
+                        color = colors.surface1.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.35f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("QUICK HID COMMAND", color = Platinum.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("QUICK HID COMMAND", color = colors.textPrimary.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             OutlinedTextField(
                                 value = quickCmd,
                                 onValueChange = { quickCmd = it },
@@ -217,18 +184,18 @@ fun AutomationDashboardScreen(
                                         },
                                         enabled = isConnected
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (isConnected) AccentBlue else Silver)
+                                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (isConnected) colors.accentTeal else colors.textSecondary)
                                     }
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentBlue,
-                                    unfocusedBorderColor = BorderColor,
-                                    focusedTextColor = Platinum
+                                    focusedBorderColor = colors.accentTeal,
+                                    unfocusedBorderColor = colors.outline,
+                                    focusedTextColor = colors.textPrimary
                                 ),
                                 shape = RoundedCornerShape(12.dp),
                                 singleLine = true
                             )
-                            Text("Hits ENTER automatically. For raw text use shortcuts below.", color = Silver.copy(alpha = 0.5f), fontSize = 10.sp)
+                            Text("Hits ENTER automatically. For raw text use shortcuts below.", color = colors.textSecondary.copy(alpha = 0.5f), fontSize = 10.sp)
                         }
                     }
                 }
@@ -310,12 +277,12 @@ fun AutomationDashboardScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            color = Graphite.copy(alpha = 0.45f),
-                            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f))
+                            color = colors.surface1.copy(alpha = 0.45f),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.4f))
                         ) {
                             Text(
                                 "No macros found for '$searchQuery'",
-                                color = Silver,
+                                color = colors.textSecondary,
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(14.dp)
                             )
@@ -327,8 +294,8 @@ fun AutomationDashboardScreen(
     }
 
     if (showAddDialog) {
-        var name by remember { mutableStateOf("") }
-        var command by remember { mutableStateOf("") }
+        var name by rememberSaveable { mutableStateOf("") }
+        var command by rememberSaveable { mutableStateOf("") }
         val complexExample = remember {
             """
             KEY(CMD+SPACE)
@@ -342,31 +309,31 @@ fun AutomationDashboardScreen(
         }
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            containerColor = Graphite,
-            title = { Text("Define New Macro", color = Platinum) },
+            containerColor = colors.surface1,
+            title = { Text("Define New Macro", color = colors.textPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Write complex steps with one command per line or use '&&'.", color = Silver, fontSize = 12.sp)
+                    Text("Write complex steps with one command per line or use '&&'.", color = colors.textSecondary, fontSize = 12.sp)
                     Surface(
-                        color = SoftGrey.copy(alpha = 0.18f),
+                        color = colors.surface2.copy(alpha = 0.18f),
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.3f))
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.3f))
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Supported syntax", color = Platinum, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text("KEY(CMD+SPACE)", color = Silver, fontSize = 11.sp)
-                            Text("TEXT(hello world)", color = Silver, fontSize = 11.sp)
-                            Text("WAIT(500)", color = Silver, fontSize = 11.sp)
-                            Text("MEDIA(MUTE)", color = Silver, fontSize = 11.sp)
+                            Text("Supported syntax", color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("KEY(CMD+SPACE)", color = colors.textSecondary, fontSize = 11.sp)
+                            Text("TEXT(hello world)", color = colors.textSecondary, fontSize = 11.sp)
+                            Text("WAIT(500)", color = colors.textSecondary, fontSize = 11.sp)
+                            Text("MEDIA(MUTE)", color = colors.textSecondary, fontSize = 11.sp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Example: Open Terminal and run whoami", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                            Text("KEY(CMD+SPACE)", color = AccentBlue, fontSize = 11.sp)
-                            Text("WAIT(300)", color = AccentBlue, fontSize = 11.sp)
-                            Text("TEXT(Terminal)", color = AccentBlue, fontSize = 11.sp)
-                            Text("KEY(ENTER)", color = AccentBlue, fontSize = 11.sp)
-                            Text("WAIT(700)", color = AccentBlue, fontSize = 11.sp)
-                            Text("TEXT(whoami)", color = AccentBlue, fontSize = 11.sp)
-                            Text("KEY(ENTER)", color = AccentBlue, fontSize = 11.sp)
+                            Text("Example: Open Terminal and run whoami", color = colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Text("KEY(CMD+SPACE)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("WAIT(300)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("TEXT(Terminal)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("KEY(ENTER)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("WAIT(700)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("TEXT(whoami)", color = colors.accentTeal, fontSize = 11.sp)
+                            Text("KEY(ENTER)", color = colors.accentTeal, fontSize = 11.sp)
                         }
                     }
                     TextButton(
@@ -375,9 +342,9 @@ fun AutomationDashboardScreen(
                             command = complexExample
                         }
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentBlue)
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = colors.accentTeal)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Insert Example", color = AccentBlue, fontWeight = FontWeight.Bold)
+                        Text("Insert Example", color = colors.accentTeal, fontWeight = FontWeight.Bold)
                     }
                     OutlinedTextField(
                         value = name,
@@ -385,9 +352,9 @@ fun AutomationDashboardScreen(
                         label = { Text("Automation Name") },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentBlue,
-                            unfocusedBorderColor = BorderColor,
-                            focusedTextColor = Platinum
+                            focusedBorderColor = colors.accentTeal,
+                            unfocusedBorderColor = colors.outline,
+                            focusedTextColor = colors.textPrimary
                         )
                     )
                     OutlinedTextField(
@@ -396,9 +363,9 @@ fun AutomationDashboardScreen(
                         label = { Text("Command Sequence / Text") },
                         placeholder = { Text("KEY(CMD+SPACE)\nWAIT(300)\nTEXT(Terminal)\nKEY(ENTER)") },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentBlue,
-                            unfocusedBorderColor = BorderColor,
-                            focusedTextColor = Platinum
+                            focusedBorderColor = colors.accentTeal,
+                            unfocusedBorderColor = colors.outline,
+                            focusedTextColor = colors.textPrimary
                         )
                     )
                 }
@@ -411,11 +378,11 @@ fun AutomationDashboardScreen(
                             showAddDialog = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
-                ) { Text("Deploy", color = Obsidian, fontWeight = FontWeight.Bold) }
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentTeal)
+                ) { Text("Deploy", color = colors.canvas, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Cancel", color = Silver) }
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel", color = colors.textSecondary) }
             }
         )
     }
@@ -426,10 +393,11 @@ private fun EmergencyControlPanel(
     status: String,
     onAction: (EmergencyAction) -> Unit
 ) {
+    val colors = hackieColors()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = "EMERGENCY CONTROL",
-            color = Platinum.copy(alpha = 0.6f),
+            color = colors.textPrimary.copy(alpha = 0.6f),
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
             fontSize = 12.sp
@@ -438,8 +406,8 @@ private fun EmergencyControlPanel(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            color = Graphite.copy(alpha = 0.5f),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f))
+            color = colors.surface1.copy(alpha = 0.5f),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.35f))
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -479,13 +447,13 @@ private fun EmergencyControlPanel(
 
                 Text(
                     text = "Status: $status",
-                    color = Silver,
+                    color = colors.textSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp, start = 2.dp)
                 )
                 Text(
                     text = "Note: Network/clipboard/app-closing use SSH when available for host-level control.",
-                    color = Silver.copy(alpha = 0.7f),
+                    color = colors.textSecondary.copy(alpha = 0.7f),
                     fontSize = 11.sp,
                     lineHeight = 15.sp
                 )
@@ -501,114 +469,22 @@ private fun EmergencyButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = hackieColors()
     Surface(
         onClick = onClick,
         modifier = modifier.height(48.dp),
         shape = RoundedCornerShape(12.dp),
-        color = SoftGrey.copy(alpha = 0.18f),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f))
+        color = colors.surface2.copy(alpha = 0.18f),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.35f))
     ) {
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = colors.accentTeal, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(label, color = Platinum, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun QuickToolPanel(
-    onWakeOnLan: () -> Unit = {},
-    onSshTerminal: () -> Unit = {},
-    onSystemStats: () -> Unit = {},
-    onProcessManager: () -> Unit = {},
-    onRemoteExplorer: () -> Unit = {},
-    onAutoClicker: () -> Unit = {}
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            ToolCard(
-                title = "Remote Explorer",
-                desc = "ADB File Provider",
-                icon = Icons.Default.FolderOpen,
-                color = AccentBlue,
-                onClick = onRemoteExplorer,
-                modifier = Modifier.weight(1f)
-            )
-
-            ToolCard(
-                title = "SSH Terminal",
-                desc = "Raw remote command",
-                icon = Icons.Default.Terminal,
-                color = Color.White,
-                onClick = onSshTerminal,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            ToolCard(
-                title = "Process Manager",
-                desc = "Force quit apps",
-                icon = Icons.Default.Cancel,
-                color = Color.Red,
-                onClick = onProcessManager,
-                modifier = Modifier.weight(1f)
-            )
-
-            ToolCard(
-                title = "Live Monitor",
-                desc = "Real-time health",
-                icon = Icons.Default.Speed,
-                color = AccentTeal,
-                onClick = onSystemStats,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            ToolCard(
-                title = "Auto Clicker",
-                desc = "Automated Clicks",
-                icon = Icons.Default.AdsClick,
-                color = WarningYellow,
-                onClick = onAutoClicker,
-                modifier = Modifier.weight(1f)
-            )
-            
-            // Placeholder for future expansion or dual-card row
-            Box(modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun ToolCard(
-    title: String,
-    desc: String,
-    icon: ImageVector,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        color = SoftGrey.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
-        modifier = modifier.height(72.dp)
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = color)
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(title, color = Platinum, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                Text(desc, color = Silver, fontSize = 11.sp)
-            }
+            Text(label, color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -627,11 +503,12 @@ private fun IntegratedShortcutPanel(automationViewModel: AutomationViewModel, ma
             if (shortcuts.isNotEmpty()) category.copy(shortcuts = shortcuts) else null
         }
     }
+    val colors = hackieColors()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = "SHORTCUT GUIDE",
-            color = Platinum.copy(alpha = 0.6f),
+            color = colors.textPrimary.copy(alpha = 0.6f),
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
             fontSize = 12.sp
@@ -640,18 +517,18 @@ private fun IntegratedShortcutPanel(automationViewModel: AutomationViewModel, ma
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            color = Graphite.copy(alpha = 0.45f),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.4f))
+            color = colors.surface1.copy(alpha = 0.45f),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.4f))
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (filteredCategories.isEmpty()) {
-                    Text("No shortcut guide entries match this search.", color = Silver, fontSize = 12.sp)
+                    Text("No shortcut guide entries match this search.", color = colors.textSecondary, fontSize = 12.sp)
                 }
 
                 filteredCategories.forEach { category ->
                     Text(
                         text = category.name,
-                        color = category.color,
+                        color = colors.accentTeal,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     )
@@ -659,18 +536,18 @@ private fun IntegratedShortcutPanel(automationViewModel: AutomationViewModel, ma
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         category.shortcuts.forEach { shortcut ->
                             Surface(
+                                onClick = {
+                                    if (shortcut.consumerCode != null) {
+                                        mainViewModel.sendConsumerKey(shortcut.consumerCode)
+                                    } else {
+                                        mainViewModel.sendKeyCombination(shortcut.codes)
+                                    }
+                                },
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (shortcut.consumerCode != null) {
-                                            mainViewModel.sendConsumerKey(shortcut.consumerCode)
-                                        } else {
-                                            mainViewModel.sendKeyCombination(shortcut.codes)
-                                        }
-                                    },
+                                    .fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                color = SoftGrey.copy(alpha = 0.2f),
-                                border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.35f))
+                                color = colors.surface2.copy(alpha = 0.2f),
+                                border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.35f))
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -679,8 +556,8 @@ private fun IntegratedShortcutPanel(automationViewModel: AutomationViewModel, ma
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(shortcut.name, color = Platinum, fontSize = 12.sp)
-                                    Text(shortcut.keys, color = Silver, fontSize = 11.sp)
+                                    Text(shortcut.name, color = colors.textPrimary, fontSize = 12.sp)
+                                    Text(shortcut.keys, color = colors.textSecondary, fontSize = 11.sp)
                                 }
                             }
                         }
@@ -700,14 +577,12 @@ private data class IntegratedShortcutItem(
 
 private data class IntegratedShortcutCategory(
     val name: String,
-    val color: Color,
     val shortcuts: List<IntegratedShortcutItem>
 )
 
 private fun buildIntegratedShortcutCategories(): List<IntegratedShortcutCategory> = listOf(
     IntegratedShortcutCategory(
         "System",
-        AccentBlue,
         listOf(
             IntegratedShortcutItem("Lock Screen", "Ctrl + Cmd + Q", listOf(HidKeyCodes.MODIFIER_LEFT_CTRL, HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_Q)),
             IntegratedShortcutItem("Spotlight", "Cmd + Space", listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_SPACE)),
@@ -716,7 +591,6 @@ private fun buildIntegratedShortcutCategories(): List<IntegratedShortcutCategory
     ),
     IntegratedShortcutCategory(
         "Browser",
-        AccentBlue,
         listOf(
             IntegratedShortcutItem("New Tab", "Cmd + T", listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_T)),
             IntegratedShortcutItem("Reload", "Cmd + R", listOf(HidKeyCodes.MODIFIER_LEFT_GUI, HidKeyCodes.KEY_R)),
@@ -725,7 +599,6 @@ private fun buildIntegratedShortcutCategories(): List<IntegratedShortcutCategory
     ),
     IntegratedShortcutCategory(
         "Media",
-        AccentBlue,
         listOf(
             IntegratedShortcutItem("Play / Pause", "Media", emptyList(), consumerCode = HidKeyCodes.MEDIA_PLAY_PAUSE),
             IntegratedShortcutItem("Volume Up", "Media", emptyList(), consumerCode = HidKeyCodes.MEDIA_VOL_UP),
@@ -744,6 +617,7 @@ fun MacroCategory(
     onAddClick: (() -> Unit)? = null,
     enabled: Boolean = true
 ) {
+    val colors = hackieColors()
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -751,11 +625,11 @@ fun MacroCategory(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = Platinum.copy(alpha=0.4f), modifier = Modifier.size(16.dp))
+                Icon(icon, contentDescription = null, tint = colors.textPrimary.copy(alpha=0.4f), modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = title,
-                    color = Platinum.copy(alpha=0.6f),
+                    color = colors.textPrimary.copy(alpha=0.6f),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -763,7 +637,7 @@ fun MacroCategory(
             }
             if (onAddClick != null) {
                 IconButton(onClick = onAddClick, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = "Add", tint = AccentBlue, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = colors.accentTeal, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -801,12 +675,13 @@ fun MacroGridItem(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val colors = hackieColors()
     Surface(
         onClick = onClick,
         enabled = enabled,
-        color = SoftGrey.copy(alpha = 0.12f),
+        color = colors.surface2.copy(alpha = 0.12f),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.2f)),
         modifier = modifier.height(64.dp)
     ) {
         Row(
@@ -824,16 +699,16 @@ fun MacroGridItem(
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = macro.name,
-                    color = if (enabled) Platinum else Silver.copy(alpha = 0.55f),
+                    color = if (enabled) colors.textPrimary else colors.textSecondary.copy(alpha = 0.55f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1
                 )
             }
-            
+
             if (onDelete != null) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Delete", tint = Silver.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Delete", tint = colors.textSecondary.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -842,65 +717,6 @@ fun MacroGridItem(
 
 
 data class MacroDefinition(val name: String, val icon: ImageVector, val color: Color, val command: String)
-
-@Composable
-fun TerminalLabSection(
-    onScan: () -> Unit,
-    onUnlockSsh: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Platinum.copy(alpha = 0.1f))
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    color = AccentTeal.copy(alpha = 0.2f),
-                    shape = CircleShape,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Science, null, tint = AccentTeal, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("TERMINAL LAB", color = Platinum, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, letterSpacing = 1.sp)
-                    Text("Bridge & Node Management", color = Silver.copy(alpha = 0.6f), fontSize = 11.sp)
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(20.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = onScan,
-                    modifier = Modifier.weight(1f).height(45.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Platinum.copy(alpha = 0.05f))
-                ) {
-                    Icon(Icons.Default.Radar, null, tint = Platinum, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("SCAN", color = Platinum, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-                
-                Button(
-                    onClick = onUnlockSsh,
-                    modifier = Modifier.weight(1f).height(45.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal.copy(alpha = 0.15f)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Usb, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("HID UNLOCK", color = AccentTeal, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-        }
-    }
-}
 
 private fun filterMacros(list: List<MacroDefinition>, query: String): List<MacroDefinition> {
     val q = query.trim().lowercase()

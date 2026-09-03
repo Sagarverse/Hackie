@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
 import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.theme.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -148,81 +149,53 @@ ENTER
         )
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            "PAYLOAD INJECTOR",
-                            color = AccentPurple,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            "DuckyScript HID Engine",
-                            color = Silver.copy(alpha = 0.7f),
-                            fontSize = 11.sp
-                        )
+    ScreenScaffold(
+        title = "Payload injector",
+        subtitle = "DuckyScript HID engine",
+        onBack = onBack,
+        actions = {
+            if (isInjectorRunning) {
+                if (isInjectorPaused) {
+                    IconButton(onClick = { automationViewModel.resumeInjector() }) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Platinum)
+                } else {
+                    IconButton(onClick = { automationViewModel.pauseInjector() }) {
+                        Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
                     }
-                },
-                actions = {
-                    if (isInjectorRunning) {
-                        if (isInjectorPaused) {
-                            IconButton(onClick = { automationViewModel.resumeInjector() }) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
-                            }
-                        } else {
-                            IconButton(onClick = { automationViewModel.pauseInjector() }) {
-                                Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
-                            }
-                        }
-                        IconButton(onClick = { automationViewModel.abortInjector() }) {
-                            Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
-                        }
-                    }
-                    // Connection pill
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isConnected) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f),
-                        border = BorderStroke(0.5.dp, if (isConnected) SuccessGreen.copy(alpha = 0.5f) else ErrorRed.copy(alpha = 0.4f)),
-                        modifier = Modifier.padding(end = 16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(if (isConnected) SuccessGreen else ErrorRed)
-                            )
-                            Text(
-                                if (isConnected) "LINKED" else "NO LINK",
-                                color = if (isConnected) SuccessGreen else ErrorRed,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Graphite.copy(alpha = 0.7f),
-                    scrolledContainerColor = Graphite.copy(alpha = 0.7f)
-                )
-            )
-        }
+                }
+                IconButton(onClick = { automationViewModel.abortInjector() }) {
+                    Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+                }
+            }
+            // Connection pill
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (isConnected) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f),
+                border = BorderStroke(0.5.dp, if (isConnected) SuccessGreen.copy(alpha = 0.5f) else ErrorRed.copy(alpha = 0.4f)),
+                modifier = Modifier.padding(end = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isConnected) SuccessGreen else ErrorRed)
+                    )
+                    Text(
+                        if (isConnected) "LINKED" else "NO LINK",
+                        color = if (isConnected) SuccessGreen else ErrorRed,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier

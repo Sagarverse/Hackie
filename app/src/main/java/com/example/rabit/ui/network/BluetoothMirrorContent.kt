@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,9 +44,10 @@ fun BluetoothMirrorContent(
             LazyColumn(modifier = Modifier.padding(8.dp)) {
                 items(pairedDevices) { device ->
                     Surface(
+                        onClick = { viewModel.cloneDevice(device) },
                         color = if (clonedProfile?.address == device.address) Color.Yellow.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth().clickable { viewModel.cloneDevice(device) },
+                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth(),
                         border = if (clonedProfile?.address == device.address) androidx.compose.foundation.BorderStroke(1.dp, Color.Yellow) else null
                     ) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

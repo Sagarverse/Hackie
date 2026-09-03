@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import com.example.rabit.ui.helper.HelperViewModel
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,36 +31,10 @@ fun SystemMonitorScreen(
     val accentColor = AccentBlue
     val bgColor = Graphite
 
-    Scaffold(
-        containerColor = bgColor,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            if (currentSubFeature == "processes") "PROCESS MANAGER" else "SYSTEM STATS",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                color = accentColor
-                            )
-                        )
-                        Text(
-                            "SYSTEM MONITOR",
-                            color = accentColor.copy(alpha = 0.7f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "System monitor",
+        subtitle = "Live device telemetry",
+        onBack = onBack
     ) { padding ->
         Row(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Main Content Area

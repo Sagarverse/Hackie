@@ -1105,9 +1105,7 @@ object RabitNetworkServer {
                                     totalBytes = contentLength,
                                     processedBytes = 0L
                                 )
-                                val outputDir = Environment.getExternalStoragePublicDirectory(
-                                    Environment.DIRECTORY_DOWNLOADS
-                                ).also { it.mkdirs() }
+                                val outputDir = receivedFilesDir(context)
                                 val destFile = File(outputDir, "Hackie_$originalName")
                                 part.streamProvider().use { input ->
                                     destFile.outputStream().use { output ->
@@ -1164,9 +1162,7 @@ object RabitNetworkServer {
                                     totalBytes = contentLength,
                                     processedBytes = 0L
                                 )
-                                val outputDir = Environment.getExternalStoragePublicDirectory(
-                                    Environment.DIRECTORY_DOWNLOADS
-                                ).also { it.mkdirs() }
+                                val outputDir = receivedFilesDir(context)
                                 val destFile = File(outputDir, "Hackie_$originalName")
                                 part.streamProvider().use { input ->
                                     destFile.outputStream().use { output ->
@@ -1664,10 +1660,14 @@ object RabitNetworkServer {
         } finally {
             mdnsAppContext = null
         }
-        unregisterService()
+        try {
+            unregisterService()
+        } catch (e: Exception) {
+            Log.e(TAG, "mDNS unregister failed", e)
+        }
         val engine = server
         server = null
-        
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // gracePeriod 0 ensures it stops accepting new connections instantly
@@ -1680,6 +1680,26 @@ object RabitNetworkServer {
             }
         }
         Log.d(TAG, "Rabit network server stopped")
+    }
+
+    /**
+     * Returns the directory where files received via the web bridge are saved.
+     *
+     * Uses the app's private external storage (`getExternalFilesDir`) instead of
+     * the public/shared Downloads directory. On Android 10+ scoped storage, writes
+     * to `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)`
+     * silently fail unless the app holds `MANAGE_EXTERNAL_STORAGE`, and even
+     * when the write succeeds the app cannot `delete()` the file. Private app
+     * storage has no such restriction.
+     *
+     * The directory is created on demand. Files end up at
+     * `/sdcard/Android/data/<pkg>/files/Download/Hackie_XXX`.
+     */
+    fun receivedFilesDir(context: Context): File {
+        val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: File(context.filesDir, "Downloads")
+        if (!base.exists()) base.mkdirs()
+        return base
     }
 
     private fun loadAssetText(context: Context, path: String): String? {

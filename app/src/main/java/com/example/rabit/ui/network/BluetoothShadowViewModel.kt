@@ -177,6 +177,10 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
     private val _activeIdentity = MutableStateFlow("Original_Hardware")
     val activeIdentity = _activeIdentity.asStateFlow()
 
+    // The original Bluetooth adapter name captured when ghosting begins.
+    // Restored in stopGhosting() so the device's advertised name reverts.
+    private var originalAdapterName: String? = null
+
     private var advertiser: android.bluetooth.le.BluetoothLeAdvertiser? = null
     private var advertiseCallback: android.bluetooth.le.AdvertiseCallback? = null
 
@@ -210,6 +214,7 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
 
         // Temporarily change local adapter name for the advertisement
         val oldName = adapter.name
+        originalAdapterName = oldName
         adapter.name = identity
 
         advertiseCallback = object : android.bluetooth.le.AdvertiseCallback() {
@@ -220,6 +225,7 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
                 addLog("ERROR: Ghosting failed (Code: $errorCode)")
                 _isGhosting.value = false
                 adapter.name = oldName
+                originalAdapterName = null
             }
         }
 
@@ -305,6 +311,15 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
     @SuppressLint("MissingPermission")
     fun stopGhosting() {
         advertiser?.stopAdvertising(advertiseCallback)
+        // Restore the original adapter name so the device doesn't keep
+        // advertising under the spoofed identity.
+        if (originalAdapterName != null) {
+            runCatching {
+                bluetoothAdapter?.name = originalAdapterName
+            }
+            originalAdapterName = null
+        }
+        _activeIdentity.value = "Original_Hardware"
         _isGhosting.value = false
         addLog("GHOST: Identity mask removed. Reverting to original hardware ID.")
     }

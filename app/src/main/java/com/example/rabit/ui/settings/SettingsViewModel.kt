@@ -184,6 +184,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setVibrationEnabled(enabled: Boolean) {
         _vibrationEnabled.value = enabled
         prefs.edit().putBoolean("vibration_enabled", enabled).apply()
+        // Also write to the user-level preferences so the centralized
+        // Haptics helper honors this flag at every callsite.
+        com.example.rabit.data.prefs.UserPreferences.setVibrationEnabled(
+            getApplication(), enabled,
+        )
     }
 
     fun setTrackpadSensitivity(sensitivity: Float) {

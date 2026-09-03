@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.theme.*
 import com.example.rabit.ui.components.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @Composable
 fun AutoClickerScreen(
@@ -38,8 +39,10 @@ fun AutoClickerScreen(
     var intervalText by remember(interval) { mutableStateOf(interval.toString()) }
     var loopsText by remember(loops) { mutableStateOf(loops.toString()) }
 
-    Scaffold(
-        containerColor = Obsidian
+    ScreenScaffold(
+        title = "Auto clicker",
+        subtitle = "Recorded tap sequences",
+        onBack = onBack
     ) { padding ->
         Column(
             modifier = Modifier

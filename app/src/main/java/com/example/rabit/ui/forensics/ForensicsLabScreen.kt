@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,32 +50,15 @@ fun ForensicsLabScreen(
         }
     }
 
-    Scaffold(
-        containerColor = bgColor,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        if (currentSubFeature == "app") "APP FORENSICS LAB" else "EXIF FORENSICS LAB",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                        color = Color.White
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (currentSubFeature == "app" && uiState is ForensicsState.AppSelected) {
-                            viewModel.backToList()
-                        } else {
-                            onBack()
-                        }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
+    ScreenScaffold(
+        title = "Forensics lab",
+        subtitle = "Disk and memory analysis",
+        onBack = {
+            if (currentSubFeature == "app" && uiState is ForensicsState.AppSelected) {
+                viewModel.backToList()
+            } else {
+                onBack()
+            }
         }
     ) { padding ->
         Row(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -327,7 +311,7 @@ fun AppDetailView(state: ForensicsState.AppSelected, onAnalyzeClick: () -> Unit)
                             ) {
                                 Text(
                                     text = secret,
-                                    color = if (secret.startsWith("http")) AccentBlue else Color(0xFFE11D48),
+                                    color = if (secret.startsWith("http")) AccentBlue else MaterialTheme.colorScheme.error,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(12.dp)

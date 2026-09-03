@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.components.ScreenScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,36 +38,15 @@ fun KeystrokeMonitorScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Obsidian,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "KEYSTROKE MONITOR",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = (1.5).sp,
-                                color = Platinum
-                            )
-                        )
-                        Text("LIVE HARDWARE INTERCEPT", color = AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Platinum)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.clearKeystrokes() }) {
-                        Icon(Icons.Default.DeleteSweep, null, tint = Platinum)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-        }
+    ScreenScaffold(
+        title = "Keystroke monitor",
+        subtitle = "Live hardware intercept",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { viewModel.clearKeystrokes() }) {
+                Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.onSurface)
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier

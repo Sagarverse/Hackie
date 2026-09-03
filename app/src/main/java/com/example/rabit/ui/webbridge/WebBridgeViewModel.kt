@@ -442,15 +442,32 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
         RabitNetworkServer.currentPin = pin
         _webBridgePin.value = pin
         prefs.edit().putString("web_bridge_pin", pin).apply()
-        
+
         refreshLocalIp()
-        
-        val intent = Intent(getApplication<Application>(), HidService::class.java).apply {
-            action = HidService.ACTION_START_WEB_BRIDGE
+
+        // Use plain startService (not startForegroundService) — this mirrors
+        // stopWebBridge() below and avoids the Android 12+
+        // ForegroundServiceStartNotAllowedException crash when the user
+        // toggles the bridge off→on quickly: the action handler in
+        // HidService does not call startForeground(), so a foreground
+        // service is not actually required.
+        val app = getApplication<Application>()
+        try {
+            val intent = Intent(app, HidService::class.java).apply {
+                action = HidService.ACTION_START_WEB_BRIDGE
+            }
+            app.startService(intent)
+        } catch (e: Exception) {
+            // Fallback: start the server directly if the service is not reachable
+            Log.w("WebBridgeVM", "Could not reach HidService to start bridge, starting directly", e)
+            if (!RabitNetworkServer.isRunning) {
+                Thread {
+                    RabitNetworkServer.start(app)
+                }.start()
+            }
         }
-        androidx.core.content.ContextCompat.startForegroundService(getApplication<Application>(), intent)
         prefs.edit().putBoolean("web_bridge_enabled", true).apply()
-        
+
         // Poll for server readiness instead of a fixed delay
         viewModelScope.launch {
             var attempts = 0
@@ -506,14 +523,24 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshReceivedFiles() {
         viewModelScope.launch(Dispatchers.IO) {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val hackieDir = File(downloadsDir, "Hackie")
-            val files = mutableListOf<File>()
-            downloadsDir.listFiles()?.filter { it.isFile && it.name.startsWith("Hackie_") }?.let { files.addAll(it) }
-            if (hackieDir.exists() && hackieDir.isDirectory) {
-                hackieDir.listFiles()?.filter { it.isFile }?.let { files.addAll(it) }
+            val ctx = getApplication<Application>()
+            // Primary: app-private Downloads folder (where RabitNetworkServer now writes).
+            // Secondary: legacy paths the user may have populated before the fix.
+            val candidates = buildList {
+                RabitNetworkServer.receivedFilesDir(ctx).takeIf { it.exists() }?.let(::add)
+                val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (publicDownloads.exists()) add(publicDownloads)
+                val legacyHackieDir = File(publicDownloads, "Hackie")
+                if (legacyHackieDir.exists() && legacyHackieDir.isDirectory) add(legacyHackieDir)
             }
-            _receivedFiles.value = files.sortedByDescending { it.lastModified() }
+            val files = mutableListOf<File>()
+            for (dir in candidates) {
+                dir.listFiles()?.filter { it.isFile && it.name.startsWith("Hackie_") }?.let { files.addAll(it) }
+            }
+            // Deduplicate by absolute path (legacy and new paths may overlap briefly).
+            _receivedFiles.value = files
+                .distinctBy { it.absolutePath }
+                .sortedByDescending { it.lastModified() }
         }
     }
 
@@ -839,17 +866,22 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
     private fun handleP2PUploadStart(transferId: String, fileName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val hackieDir = File(downloadsDir, "Hackie")
-                if (!hackieDir.exists()) hackieDir.mkdirs()
+                // Write to the app-private Downloads folder so the file is
+                // (a) actually writable on Android 10+ scoped storage, and
+                // (b) visible to refreshReceivedFiles(), which filters for
+                // anything starting with "Hackie_". Same destination as
+                // the LAN upload route in RabitNetworkServer.
+                val ctx = getApplication<Application>()
+                val hackieDir = com.example.rabit.data.network.RabitNetworkServer.receivedFilesDir(ctx)
 
                 // Sanitize filename to prevent directory traversal
                 val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                val targetFile = File(hackieDir, safeName)
-                
+                val prefixedName = "Hackie_$safeName"
+                val targetFile = File(hackieDir, prefixedName)
+
                 // If exists, append timestamp to avoid overwriting
                 val finalFile = if (targetFile.exists()) {
-                    File(hackieDir, "${System.currentTimeMillis()}_$safeName")
+                    File(hackieDir, "Hackie_${System.currentTimeMillis()}_$safeName")
                 } else targetFile
 
                 Log.d("WebBridgeVM", "P2P Upload Start: $transferId, saving to ${finalFile.absolutePath}")
@@ -901,10 +933,13 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
                 val bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size)
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val hackieDir = File(downloadsDir, "Hackie/Screenshots")
+                // Same fix as the upload path: use app-private storage so the
+                // write actually succeeds on Android 10+ scoped storage.
+                val ctx = getApplication<Application>()
+                val baseDir = com.example.rabit.data.network.RabitNetworkServer.receivedFilesDir(ctx)
+                val hackieDir = File(baseDir, "Screenshots")
                 if (!hackieDir.exists()) hackieDir.mkdirs()
-                
+
                 val file = java.io.File(hackieDir, "exfil_${System.currentTimeMillis()}.png")
                 java.io.FileOutputStream(file).use { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
@@ -918,8 +953,9 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun refreshScreenshots() {
         viewModelScope.launch(Dispatchers.IO) {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val hackieDir = File(downloadsDir, "Hackie/Screenshots")
+            val ctx = getApplication<Application>()
+            val baseDir = com.example.rabit.data.network.RabitNetworkServer.receivedFilesDir(ctx)
+            val hackieDir = File(baseDir, "Screenshots")
             if (hackieDir.exists() && hackieDir.isDirectory) {
                 val files = hackieDir.listFiles { f -> f.name.startsWith("exfil_") }
                     ?.sortedByDescending { it.lastModified() }

@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.rabit.ui.theme.*
+import com.example.rabit.ui.theme.hackieColors
 
 // Light SkeuoCard removed — use DarkSkeuoCard for the app's dark theme
 
@@ -33,15 +33,20 @@ fun DarkSkeuoCard(
             Color(0xFF141416)
         )
     ),
-    borderColor: Color = CardDarkBorder,
+    borderColor: Color = Color.Unspecified,
     content: @Composable () -> Unit
 ) {
+    val resolvedBorder = if (borderColor == Color.Unspecified) {
+        hackieColors().outline
+    } else {
+        borderColor
+    }
     Box(
         modifier = modifier
             .shadow(16.dp, RoundedCornerShape(cornerRadius), ambientColor = Color(0x33000000), spotColor = Color(0x33000000))
             .clip(RoundedCornerShape(cornerRadius))
             .background(background)
-            .border(0.5.dp, borderColor, RoundedCornerShape(cornerRadius))
+            .border(0.5.dp, resolvedBorder, RoundedCornerShape(cornerRadius))
             .padding(18.dp),
         contentAlignment = Alignment.Center
     ) {
