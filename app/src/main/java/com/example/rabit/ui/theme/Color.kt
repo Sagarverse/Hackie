@@ -137,23 +137,23 @@ val BrandGradientSubtle = Brush.verticalGradient(
 // ════════════════════════════════════════════════════════════════════════════
 
 // Surfaces
-val Obsidian       = DarkBackground
-val DeepObsidian   = Color(0xFF060910)
-val Graphite       = DarkSurface
-val SoftGrey       = DarkSurfaceVariant
-val Surface0       = DarkBackground
-val Surface1       = DarkSurface
-val Surface2       = DarkSurfaceContainer
-val Surface3       = DarkSurfaceContainerHigh
-val Surface4       = DarkSurfaceContainerHighest
+val Obsidian       = LightBackground
+val DeepObsidian   = Color(0xFFFAFBFD)
+val Graphite       = LightSurface
+val SoftGrey       = LightSurfaceVariant
+val Surface0       = LightBackground
+val Surface1       = LightSurface
+val Surface2       = LightSurfaceContainer
+val Surface3       = LightSurfaceContainerHigh
+val Surface4       = LightSurfaceContainerHighest
 
 // Text
-val TextPrimary    = DarkOnSurface
-val TextSecondary  = DarkOnSurfaceVariant
-val Silver         = DarkOnSurfaceVariant
+val TextPrimary    = LightOnSurface
+val TextSecondary  = LightOnSurfaceVariant
+val Silver         = LightOnSurfaceVariant
 val TextTertiary   = Color(0xFF7A818B)
-val TextDisabled   = DarkOutline
-val Platinum       = DarkOnBackground
+val TextDisabled   = LightOutline
+val Platinum       = LightOnBackground
 
 // Accents (the old single-accent world)
 val AccentBlue     = BrandBlue
@@ -172,17 +172,17 @@ val WarningYellow  = Warning
 val MintTeal       = DarkTertiary
 
 // Borders
-val BorderColor     = DarkOutline
-val BorderStrong    = DarkOutline
-val BorderSubtle    = DarkOutlineVariant
+val BorderColor     = LightOutline
+val BorderStrong    = LightOutline
+val BorderSubtle    = LightOutlineVariant
 val GlassOverlay    = Color(0x550B0F15)
 
 // Component tokens
-val CardBackground  = DarkSurface
-val CardDark        = DarkSurface
-val CardDarkBorder  = DarkOutline
-val KeyBackground   = DarkSurfaceVariant
-val KeyText         = DarkOnSurface
+val CardBackground  = LightSurface
+val CardDark        = LightSurface
+val CardDarkBorder  = LightOutline
+val KeyBackground   = LightSurfaceVariant
+val KeyText         = LightOnSurface
 
 // Device colors
 val MacDeviceColor      = Color(0xFFFFFFFF)
@@ -197,8 +197,8 @@ val StopRed     = LightError
 // AI Chat
 val AiViolet     = BrandBlue
 val AiIndigo     = BrandBlueDark
-val ChatSurface  = DarkBackground
-val InputBarGlass = DarkSurfaceContainer
+val ChatSurface  = LightBackground
+val InputBarGlass = LightSurfaceContainer
 val AiOrbGlow    = Color(0x553B82F6)
 
 // Old gradient presets (kept for any callsite that still imports them)

@@ -83,7 +83,5 @@ fun hackieColors(): HackieColors {
     // matching Hackie palette. Because HackieTheme rebuilds the
     // composition when the mode changes, this re-runs and the
     // correct palette is returned for the new scheme.
-    val scheme = MaterialTheme.colorScheme
-    val isDark = scheme.background.luminance() < 0.5f
-    return if (isDark) DarkHackieColors else LightHackieColors
+    return LightHackieColors
 }
