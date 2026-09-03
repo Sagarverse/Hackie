@@ -32,6 +32,8 @@ fun EncoderDecoderContent(viewModel: EncoderDecoderViewModel) {
     val urlOutput by viewModel.urlOutput.collectAsState()
     val binaryOutput by viewModel.binaryOutput.collectAsState()
     val rot13Output by viewModel.rot13Output.collectAsState()
+    val md5Output by viewModel.md5Output.collectAsState()
+    val sha256Output by viewModel.sha256Output.collectAsState()
     val context = LocalContext.current
 
     Column(
@@ -73,6 +75,8 @@ fun EncoderDecoderContent(viewModel: EncoderDecoderViewModel) {
                 CryptoResultCard("URL Encoding", urlOutput, context)
                 CryptoResultCard("Binary", binaryOutput, context)
                 CryptoResultCard("ROT13", rot13Output, context)
+                CryptoResultCard("MD5 Hash", md5Output, context)
+                CryptoResultCard("SHA-256 Hash", sha256Output, context)
             } else {
                 Box(modifier = Modifier.fillMaxSize().padding(top = 64.dp), contentAlignment = Alignment.Center) {
                     Text("Awaiting input payload...", color = Silver.copy(alpha = 0.4f), fontFamily = FontFamily.Monospace, fontSize = 12.sp)

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.security.MessageDigest
 
 class EncoderDecoderViewModel : ViewModel() {
     private val _inputText = MutableStateFlow("")
@@ -25,6 +26,12 @@ class EncoderDecoderViewModel : ViewModel() {
 
     private val _rot13Output = MutableStateFlow("")
     val rot13Output = _rot13Output.asStateFlow()
+
+    private val _md5Output = MutableStateFlow("")
+    val md5Output = _md5Output.asStateFlow()
+
+    private val _sha256Output = MutableStateFlow("")
+    val sha256Output = _sha256Output.asStateFlow()
 
     var isEncodingMode = true
         private set
@@ -46,8 +53,20 @@ class EncoderDecoderViewModel : ViewModel() {
             _urlOutput.value = ""
             _binaryOutput.value = ""
             _rot13Output.value = ""
+            _md5Output.value = ""
+            _sha256Output.value = ""
             return
         }
+
+        _md5Output.value = try {
+            val md = MessageDigest.getInstance("MD5")
+            md.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) { "Error" }
+        
+        _sha256Output.value = try {
+            val md = MessageDigest.getInstance("SHA-256")
+            md.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) { "Error" }
 
         if (isEncodingMode) {
             _base64Output.value = try { Base64.encodeToString(text.toByteArray(), Base64.NO_WRAP) } catch (e: Exception) { "Error" }
