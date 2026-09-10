@@ -374,7 +374,12 @@ class WebBridgeViewModel(application: Application) : AndroidViewModel(applicatio
                     "play_pause" -> repository.executeSpecialKey("PLAY")
                     "brightness_up" -> repository.executeSpecialKey("BRIGHT_UP")
                     "brightness_down" -> repository.executeSpecialKey("BRIGHT_DOWN")
-                    "lock" -> repository.executeKeyCombo("CTRL+GUI+Q")
+                    "lock" -> {
+                        val targetOsStr = prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+                        val targetOs = com.example.rabit.domain.model.TargetOs.fromString(targetOsStr)
+                        val mapping = com.example.rabit.domain.model.OsKeyMappings.forOs(targetOs)
+                        repository.executeKeyCombo(mapping.lockScreen)
+                    }
                 }
             }
         }

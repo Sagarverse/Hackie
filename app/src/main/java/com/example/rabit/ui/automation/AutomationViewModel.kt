@@ -354,11 +354,19 @@ class AutomationViewModel(
             _emergencyStatus.value = "Executing ${action.name}..."
             when (action) {
                 EmergencyAction.LOCK_MACHINE -> {
-                    executeKeyCombo("CTRL+CMD+Q")
+                    val prefs = getApplication<Application>().getSharedPreferences("rabit_prefs", android.content.Context.MODE_PRIVATE)
+                    val targetOsStr = prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+                    val targetOs = com.example.rabit.domain.model.TargetOs.fromString(targetOsStr)
+                    val mapping = com.example.rabit.domain.model.OsKeyMappings.forOs(targetOs)
+                    executeKeyCombo(mapping.lockScreen)
                 }
                 EmergencyAction.KILL_INTERNET_ADAPTER -> {
                     // This typically requires SSH or a helper agent, but we can try a macro
-                    executeMacro2Script("KEY(CMD+SPACE) && WAIT(400) && TEXT(Terminal) && KEY(ENTER) && WAIT(1000) && TEXT(networksetup -setnetworkserviceenabled Wi-Fi off) && KEY(ENTER)")
+                    val prefs = getApplication<Application>().getSharedPreferences("rabit_prefs", android.content.Context.MODE_PRIVATE)
+                    val targetOsStr = prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+                    val targetOs = com.example.rabit.domain.model.TargetOs.fromString(targetOsStr)
+                    val mapping = com.example.rabit.domain.model.OsKeyMappings.forOs(targetOs)
+                    executeMacro2Script("KEY(${mapping.openAppLauncher}) && WAIT(400) && TEXT(Terminal) && KEY(ENTER) && WAIT(1000) && TEXT(networksetup -setnetworkserviceenabled Wi-Fi off) && KEY(ENTER)")
                 }
                 EmergencyAction.STOP_AUDIO -> {
                     executeSpecialKey("MUTE")

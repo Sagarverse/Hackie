@@ -49,7 +49,8 @@ fun KeyboardScreen(
     onNavigateToAssistant: () -> Unit,
     onNavigateToSnippets: () -> Unit = {},
     onNavigateToAutomation: () -> Unit = {},
-    onNavigateToWebBridge: () -> Unit = {}
+    onNavigateToWebBridge: () -> Unit = {},
+    onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val connectionState by viewModel.connectionState.collectAsState()
@@ -99,7 +100,27 @@ fun KeyboardScreen(
             isOnline -> "Connected"
             else -> "Connect a device to start"
         },
-        onBack = onDisconnect,
+        onBack = onBack,
+        actions = {
+            if (isTextPushing) {
+                IconButton(onClick = {
+                    if (isPushPaused) viewModel.resumeTextPush()
+                    else viewModel.pauseTextPush()
+                }) {
+                    Icon(
+                        imageVector = if (isPushPaused) androidx.compose.material.icons.Icons.Default.PlayArrow else androidx.compose.material.icons.Icons.Default.Pause,
+                        contentDescription = if (isPushPaused) "Resume" else "Pause"
+                    )
+                }
+                IconButton(onClick = { viewModel.stopTextPush() }) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Stop,
+                        contentDescription = "Stop",
+                        tint = androidx.compose.material3.MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
     ) { _ ->
         Column(
             modifier = Modifier

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Monitor
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.ScreenSearchDesktop
@@ -129,7 +130,7 @@ internal enum class Section(val title: String) {
 internal data class SidePanelCallbacks(
     val onNavigate: (String) -> Unit,
     val onPanicLock: () -> Unit,
-    val onToggleTheme: () -> Unit,
+    val onEngageDecoy: () -> Unit,
     val onRunScan: () -> Unit,
     val onOpenSnippets: () -> Unit,
 )
@@ -214,7 +215,7 @@ internal fun SidePanelBody(
         Spacer(Modifier.height(HackieSpacing.md))
         StatusHeader(
             isHidConnected = isHidConnected,
-            onToggleTheme = callbacks.onToggleTheme,
+            onEngageDecoy = callbacks.onEngageDecoy,
         )
 
         Spacer(Modifier.height(HackieSpacing.md))
@@ -224,7 +225,7 @@ internal fun SidePanelBody(
             isHidConnected = isHidConnected,
             onScan = callbacks.onRunScan,
             onLock = callbacks.onPanicLock,
-            onTheme = callbacks.onToggleTheme,
+            onEngageDecoy = callbacks.onEngageDecoy,
             onSnippets = callbacks.onOpenSnippets,
         )
 
@@ -563,7 +564,7 @@ private fun NavEntry.matches(query: String): Boolean {
 @Composable
 private fun StatusHeader(
     isHidConnected: Boolean,
-    onToggleTheme: () -> Unit,
+    onEngageDecoy: () -> Unit,
 ) {
     val ringColor by animateColorAsState(
         targetValue = if (isHidConnected) Success else MaterialTheme.colorScheme.outlineVariant,
@@ -639,7 +640,7 @@ private fun StatusHeader(
         Surface(
             onClick = {
                 view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                onToggleTheme()
+                onEngageDecoy()
             },
             color = MaterialTheme.colorScheme.surfaceContainer,
             shape = CircleShape,
@@ -664,7 +665,7 @@ private fun QuickActionsRow(
     isHidConnected: Boolean,
     onScan: () -> Unit,
     onLock: () -> Unit,
-    onTheme: () -> Unit,
+    onEngageDecoy: () -> Unit,
     onSnippets: () -> Unit,
 ) {
     val view = LocalView.current
@@ -677,9 +678,9 @@ private fun QuickActionsRow(
             view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             onSnippets()
         },
-        QuickAction("Theme", Icons.Default.DarkMode, MaterialTheme.colorScheme.secondary) {
+        QuickAction("Decoy", Icons.Default.PowerSettingsNew, MaterialTheme.colorScheme.secondary) {
             view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            onTheme()
+            onEngageDecoy()
         },
         QuickAction(
             "Lock",

@@ -94,6 +94,53 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _macAutofillPostEnter = MutableStateFlow(prefs.getBoolean("mac_autofill_post_enter", false))
     val macAutofillPostEnter = _macAutofillPostEnter.asStateFlow()
 
+    // ═══ Target OS ═══
+    private val _targetOs = MutableStateFlow(
+        com.example.rabit.domain.model.TargetOs.fromString(
+            prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+        )
+    )
+    val targetOs = _targetOs.asStateFlow()
+
+    fun setTargetOs(os: com.example.rabit.domain.model.TargetOs) {
+        _targetOs.value = os
+        prefs.edit().putString("target_os", os.name).apply()
+    }
+
+    // ═══ Exit on Close ═══
+    private val _exitOnClose = MutableStateFlow(prefs.getBoolean("exit_on_close", false))
+    val exitOnClose = _exitOnClose.asStateFlow()
+
+    fun setExitOnClose(enabled: Boolean) {
+        _exitOnClose.value = enabled
+        prefs.edit().putBoolean("exit_on_close", enabled).apply()
+    }
+
+    // ═══ Jarvis Voice Command ═══
+    private val _jarvisEnabled = MutableStateFlow(prefs.getBoolean("jarvis_enabled", false))
+    val jarvisEnabled = _jarvisEnabled.asStateFlow()
+
+    private val _jarvisConfirmationRequired = MutableStateFlow(prefs.getBoolean("jarvis_confirmation_required", true))
+    val jarvisConfirmationRequired = _jarvisConfirmationRequired.asStateFlow()
+    
+    private val _jarvisMode = MutableStateFlow(prefs.getString("jarvis_mode", "BASIC") ?: "BASIC")
+    val jarvisMode = _jarvisMode.asStateFlow()
+
+    fun setJarvisEnabled(enabled: Boolean) {
+        _jarvisEnabled.value = enabled
+        prefs.edit().putBoolean("jarvis_enabled", enabled).apply()
+    }
+
+    fun setJarvisConfirmationRequired(required: Boolean) {
+        _jarvisConfirmationRequired.value = required
+        prefs.edit().putBoolean("jarvis_confirmation_required", required).apply()
+    }
+
+    fun setJarvisMode(mode: String) {
+        _jarvisMode.value = mode
+        prefs.edit().putString("jarvis_mode", mode).apply()
+    }
+
     val geminiApiKey: String get() = prefs.getString("gemini_api_key", "") ?: ""
 
     // Passwords Vault

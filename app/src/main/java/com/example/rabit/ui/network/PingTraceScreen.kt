@@ -54,7 +54,23 @@ fun PingTraceContent(viewModel: PingTraceViewModel) {
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Platinum, unfocusedTextColor = Platinum, focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor),
                     shape = RoundedCornerShape(12.dp),
-                    textStyle = TextStyle(fontFamily = FontFamily.Monospace)
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            val ip = com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String()
+                            if (ip != null) {
+                                // For ping, we usually want to ping the gateway or a specific IP, but we'll use the device IP for testing
+                                val parts = ip.split(".")
+                                if (parts.size == 4) {
+                                    targetHost = "${parts[0]}.${parts[1]}.${parts[2]}.1" // Default to gateway guess
+                                } else {
+                                    targetHost = ip
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Wifi, contentDescription = "Auto fetch IP")
+                        }
+                    }
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

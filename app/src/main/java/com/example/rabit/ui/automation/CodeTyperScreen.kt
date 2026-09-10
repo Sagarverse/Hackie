@@ -77,19 +77,26 @@ fun CodeTyperScreen(
         subtitle = "Send text over HID",
         onBack = onBack,
         actions = {
-            if (isCodeTyping) {
-                if (isCodeTyperPaused) {
-                    IconButton(onClick = { automationViewModel.resumeCodeTyper() }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
-                    }
-                } else {
-                    IconButton(onClick = { automationViewModel.pauseCodeTyper() }) {
-                        Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
-                    }
+            if (isCodeTyperPaused) {
+                IconButton(
+                    onClick = { automationViewModel.resumeCodeTyper() },
+                    enabled = isCodeTyping
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = if (isCodeTyping) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = { automationViewModel.abortCodeTyper() }) {
-                    Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+            } else {
+                IconButton(
+                    onClick = { automationViewModel.pauseCodeTyper() },
+                    enabled = isCodeTyping
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = "Pause", tint = if (isCodeTyping) WarningYellow else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            IconButton(
+                onClick = { automationViewModel.abortCodeTyper() },
+                enabled = isCodeTyping
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = "Abort", tint = if (isCodeTyping) ErrorRed else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Connection pill
             Surface(
@@ -160,15 +167,15 @@ fun CodeTyperScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF0D0D14),
-                    border = BorderStroke(1.dp, AccentTeal.copy(alpha = 0.25f))
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column {
                         // Editor header
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(AccentTeal.copy(alpha = 0.08f))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -215,7 +222,7 @@ fun CodeTyperScreen(
                             textStyle = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
-                                color = Platinum,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 20.sp
                             ),
                             cursorBrush = SolidColor(AccentTeal),

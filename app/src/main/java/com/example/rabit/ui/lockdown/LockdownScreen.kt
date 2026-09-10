@@ -104,21 +104,13 @@ fun LockdownScreen(viewModel: LockdownViewModel, onBack: () -> Unit) {
                         textAlign = TextAlign.Center
                     )
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         TacticalActionButton(
-                            label = "Mac lock",
-                            icon = Icons.Default.Computer,
+                            label = "Lock Target",
+                            icon = Icons.Default.Lock,
                             color = MaterialTheme.colorScheme.onSurface,
-                            onClick = { viewModel.triggerMacLock() },
-                            modifier = Modifier.weight(1f),
-                            enabled = isConnected
-                        )
-                        TacticalActionButton(
-                            label = "Windows lock",
-                            icon = Icons.Default.GridOn,
-                            color = accentCyan,
-                            onClick = { viewModel.triggerWindowsLock() },
-                            modifier = Modifier.weight(1f),
+                            onClick = { viewModel.triggerLock() },
+                            modifier = Modifier.fillMaxWidth(),
                             enabled = isConnected
                         )
                     }

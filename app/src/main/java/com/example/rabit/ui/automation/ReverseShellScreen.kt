@@ -345,7 +345,7 @@ private fun HubTab(viewModel: AutomationViewModel) {
 
             Surface(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                color = Color(0xFF0D0D14),
+                color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, BorderColor.copy(alpha = 0.4f))
             ) {

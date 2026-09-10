@@ -1,5 +1,7 @@
 package com.example.rabit.ui.pairing
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,14 +18,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Hardware
 import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.Phone
@@ -32,6 +37,9 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,10 +64,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.rabit.domain.model.TargetOs
 import com.example.rabit.ui.MainViewModel
 import com.example.rabit.ui.components.AppCard
 import com.example.rabit.ui.components.AppCardElevated
@@ -103,6 +115,11 @@ fun PairingScreen(
     var manualName by remember { mutableStateOf("") }
     var manualMac by remember { mutableStateOf("") }
 
+    // ── Bluetooth Automator state ─────────────────────────────────
+    var selectedOs by remember { mutableStateOf(TargetOs.MAC_OS) }
+    var isInjecting by remember { mutableStateOf(false) }
+    val view = LocalView.current
+
     val transportMode by viewModel.hidTransportMode.collectAsState()
     val isRootAvail by viewModel.isRootAvailable.collectAsState()
     val usbState by viewModel.usbGadgetState.collectAsState()
@@ -116,18 +133,15 @@ fun PairingScreen(
             ?.deviceName
             .orEmpty()
 
-    // While we're in the "Connecting…" state, pick the address of the
-    // device the user is most likely to have tapped — the last one in
-    // the combined list. The data layer doesn't expose which row the
-    // user clicked, so this is a best-effort highlight.
+    var targetAddress by remember { mutableStateOf<String?>(null) }
+
     val connectingAddress: String? = remember(
-        connectionState, savedDevices, discoveredDevices,
+        connectionState, targetAddress
     ) {
         if (connectionState !is com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connecting) {
             null
         } else {
-            (savedDevices.map { it.address } + discoveredDevices.map { it.address })
-                .lastOrNull()
+            targetAddress
         }
     }
 
@@ -257,6 +271,54 @@ fun PairingScreen(
                 )
             }
 
+            // ── Bluetooth Automator (OS select + inject) ─────────
+            item {
+                BluetoothAutomatorCard(
+                    selectedOs = selectedOs,
+                    onSelectOs = { selectedOs = it },
+                    isUsbConnected = isUsb && usbState is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected,
+                    isInjecting = isInjecting,
+                    onInject = {
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        isInjecting = true
+                        val payload = when (selectedOs) {
+                            TargetOs.MAC_OS -> """
+                                GUI SPACE
+                                DELAY 500
+                                STRING Bluetooth
+                                DELAY 500
+                                ENTER
+                                DELAY 1000
+                                TAB
+                                TAB
+                                TAB
+                            """.trimIndent()
+                            TargetOs.WINDOWS -> """
+                                GUI r
+                                DELAY 300
+                                STRING ms-settings:bluetooth
+                                ENTER
+                                DELAY 1500
+                                TAB
+                                TAB
+                                SPACE
+                            """.trimIndent()
+                            TargetOs.LINUX -> """
+                                ALT F2
+                                DELAY 300
+                                STRING gnome-control-center bluetooth
+                                ENTER
+                                DELAY 1500
+                                TAB
+                                TAB
+                            """.trimIndent()
+                        }
+                        viewModel.executeDuckyScript(payload)
+                        view.postDelayed({ isInjecting = false }, 3000)
+                    },
+                )
+            }
+
             // ── Active identity card ─────────────────────────────────
             item {
                 ActiveIdentityCard(
@@ -298,6 +360,7 @@ fun PairingScreen(
                             com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected &&
                             device.name == connectedName,
                         onClick = {
+                            targetAddress = device.address
                             shadowViewModel.stopGhosting()
                             shadowViewModel.stopSpamming()
                             viewModel.connectToDevice(device.address)
@@ -316,6 +379,7 @@ fun PairingScreen(
                                 com.example.rabit.data.bluetooth.HidDeviceManager.ConnectionState.Connected &&
                                 device.name == connectedName,
                             onClick = {
+                                targetAddress = device.address
                                 shadowViewModel.stopGhosting()
                                 shadowViewModel.stopSpamming()
                                 viewModel.connectToDevice(device.address)
@@ -581,6 +645,136 @@ private fun TransportSegment(
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(HackieSpacing.xs))
             Text(text = label, style = MaterialTheme.typography.labelLarge, color = content)
+        }
+    }
+}
+
+// ── Bluetooth Automator card ─────────────────────────────────────────────
+
+@Composable
+private fun BluetoothAutomatorCard(
+    selectedOs: TargetOs,
+    onSelectOs: (TargetOs) -> Unit,
+    isUsbConnected: Boolean,
+    isInjecting: Boolean,
+    onInject: () -> Unit,
+) {
+    AppCard {
+        Column(verticalArrangement = Arrangement.spacedBy(HackieSpacing.md)) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+            ) {
+                IconTile(
+                    icon = Icons.Default.BluetoothConnected,
+                    background = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Bluetooth Automator",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Open BT settings on target via USB HID",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                LabelPill(
+                    text = if (isUsbConnected) "Ready" else "No USB",
+                    background = if (isUsbConnected) Success.copy(alpha = 0.15f)
+                    else MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                    foreground = if (isUsbConnected) Success
+                    else MaterialTheme.colorScheme.error,
+                )
+            }
+
+            // OS selector
+            Text(
+                text = "Target OS",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(HackieSpacing.xs),
+            ) {
+                TargetOs.entries.forEach { os ->
+                    val isSelected = selectedOs == os
+                    Surface(
+                        onClick = { onSelectOs(os) },
+                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                        border = if (isSelected) BorderStroke(
+                            1.5.dp,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        ) else null,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(id = os.iconRes),
+                                contentDescription = os.displayName,
+                                modifier = Modifier.size(22.dp),
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = os.displayName,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Inject button
+            Button(
+                onClick = onInject,
+                enabled = isUsbConnected && !isInjecting,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                ),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                if (isInjecting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(Modifier.size(HackieSpacing.xs))
+                    Text("Injecting…")
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.FlashOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(HackieSpacing.xs))
+                    Text("Automate Pairing")
+                }
+            }
+
+            Text(
+                text = "Sends keyboard shortcuts to open Bluetooth settings on the connected target.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

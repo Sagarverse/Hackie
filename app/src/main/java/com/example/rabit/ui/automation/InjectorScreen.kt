@@ -68,15 +68,19 @@ fun InjectorScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val isConnected = connectionState is HidDeviceManager.ConnectionState.Connected
 
+    val mapping = viewModel.getOsKeyMapping()
+    val mod = if (mapping.copy.contains("CMD")) "CMD" else "CTRL"
+    val launcherKey = mapping.openAppLauncher.replace("+", " ")
+
     val defaultPayload = """
-REM Hackie — System Audit (macOS)
+REM Hackie — System Audit
 DELAY 500
-GUI SPACE
+$launcherKey
 DELAY 400
 STRING Terminal
 ENTER
 DELAY 1500
-KEY (CTRL+CMD+F)
+KEY ($mod+SHIFT+F)
 DELAY 300
 STRING clear
 ENTER
@@ -118,34 +122,34 @@ ENTER
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val templateLibrary = remember {
+    val templateLibrary = remember(mod, launcherKey) {
         listOf(
             // ── Quick Actions ──
-            "🔐 Lock Screen" to "KEY (CTRL+CMD+Q)\n",
+            "🔐 Lock Screen" to "KEY (${mapping.lockScreen})\n",
             "🔊 Mute / Unmute" to "F10\n",
-            "📸 Screenshot" to "KEY (CMD+SHIFT+3)\n",
-            "📋 Screenshot → Clipboard" to "KEY (CMD+CTRL+SHIFT+3)\n",
-            "🔍 Spotlight Search" to "DELAY 300\nGUI SPACE\n",
-            "🌐 Open Browser" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING safari\nENTER\n",
+            "📸 Screenshot" to "KEY (${mapping.screenshot})\n",
+            "📋 Screenshot → Clipboard" to "KEY (${mapping.screenshotArea})\n",
+            "🔍 Spotlight Search" to "DELAY 300\n$launcherKey\n",
+            "🌐 Open Browser" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING browser\nENTER\n",
             // ── Terminal ──
-            "💻 Open Terminal" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\n",
-            "💻 Terminal + whoami" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING whoami\nENTER\n",
-            "💻 Terminal + ifconfig" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING ifconfig | grep 'inet '\nENTER\n",
-            "💻 Terminal + netstat" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING netstat -an | grep LISTEN\nENTER\n",
-            // ── macOS Shortcuts ──
-            "⌘ Select All + Copy" to "KEY (CMD+A)\nDELAY 100\nKEY (CMD+C)\n",
-            "⌘ Undo" to "KEY (CMD+Z)\n",
-            "⌘ Force Quit Menu" to "KEY (CMD+ALT+ESC)\n",
-            "⌘ Close Window" to "KEY (CMD+W)\n",
-            "⌘ Quit App" to "KEY (CMD+Q)\n",
-            "⌘ Switch App" to "KEY (CMD+TAB)\n",
-            "⌘ Mission Control" to "F3\n",
-            "⌘ Show Desktop" to "KEY (CMD+F3)\n",
+            "💻 Open Terminal" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\n",
+            "💻 Terminal + whoami" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING whoami\nENTER\n",
+            "💻 Terminal + ifconfig" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING ifconfig | grep 'inet '\nENTER\n",
+            "💻 Terminal + netstat" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING netstat -an | grep LISTEN\nENTER\n",
+            // ── Shortcuts ──
+            "⌘ Select All + Copy" to "KEY ($mod+A)\nDELAY 100\nKEY ($mod+C)\n",
+            "⌘ Undo" to "KEY ($mod+Z)\n",
+            "⌘ Force Quit Menu" to "KEY (${mapping.forceQuit})\n",
+            "⌘ Close Window" to "KEY (${mapping.closeWindow})\n",
+            "⌘ Quit App" to "KEY ($mod+Q)\n",
+            "⌘ Switch App" to "KEY (${mapping.switchApp})\n",
+            "⌘ Mission Control" to "KEY (${mapping.missionControl})\n",
+            "⌘ Show Desktop" to "KEY (${mapping.showDesktop})\n",
             // ── Hackie Ops ──
-            "🎭 Hackie Takeover" to "DELAY 500\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nKEY (CTRL+CMD+F)\nDELAY 300\nSTRING clear\nENTER\nDELAY 200\nSTRING echo \"[ HACKIE ] System access established — \$(whoami)@\$(hostname)\"\nENTER\nSTRING say \"You are under the control of Hackie\"\nENTER\nDELAY 800\nSTRING cmatrix -b -C green\nENTER\n",
-            "🕵️ System Recon" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING echo \"=== RECON ===\" && whoami && hostname && sw_vers -productVersion && ipconfig getifaddr en0\nENTER\n",
-            "🔐 Dump Keychain List" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING security list-keychains\nENTER\n",
-            "🌐 DNS Leak Test" to "DELAY 300\nGUI SPACE\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING nslookup whoami.akamai.net\nENTER\n"
+            "🎭 Hackie Takeover" to "DELAY 500\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nKEY ($mod+SHIFT+F)\nDELAY 300\nSTRING clear\nENTER\nDELAY 200\nSTRING echo \"[ HACKIE ] System access established — \$(whoami)@\$(hostname)\"\nENTER\nSTRING echo \"You are under the control of Hackie\"\nENTER\nDELAY 800\nSTRING cmatrix -b -C green\nENTER\n",
+            "🕵️ System Recon" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING echo \"=== RECON ===\" && whoami && hostname\nENTER\n",
+            "🔐 Dump Keychain List" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING security list-keychains\nENTER\n",
+            "🌐 DNS Leak Test" to "DELAY 300\n$launcherKey\nDELAY 400\nSTRING Terminal\nENTER\nDELAY 1500\nSTRING nslookup whoami.akamai.net\nENTER\n"
         )
     }
 
@@ -154,19 +158,29 @@ ENTER
         subtitle = "DuckyScript HID engine",
         onBack = onBack,
         actions = {
-            if (isInjectorRunning) {
-                if (isInjectorPaused) {
-                    IconButton(onClick = { automationViewModel.resumeInjector() }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = SuccessGreen)
-                    }
-                } else {
-                    IconButton(onClick = { automationViewModel.pauseInjector() }) {
-                        Icon(Icons.Default.Pause, contentDescription = "Pause", tint = WarningYellow)
-                    }
+            IconButton(onClick = { showToolsSheet = true }) {
+                Icon(Icons.Default.Save, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
+            }
+            if (isInjectorPaused) {
+                IconButton(
+                    onClick = { automationViewModel.resumeInjector() },
+                    enabled = isInjectorRunning
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = if (isInjectorRunning) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = { automationViewModel.abortInjector() }) {
-                    Icon(Icons.Default.Stop, contentDescription = "Abort", tint = ErrorRed)
+            } else {
+                IconButton(
+                    onClick = { automationViewModel.pauseInjector() },
+                    enabled = isInjectorRunning
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = "Pause", tint = if (isInjectorRunning) WarningYellow else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            IconButton(
+                onClick = { automationViewModel.abortInjector() },
+                enabled = isInjectorRunning
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = "Abort", tint = if (isInjectorRunning) ErrorRed else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Connection pill
             Surface(
@@ -275,15 +289,15 @@ ENTER
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF0D0D14),
-                    border = BorderStroke(1.dp, AccentPurple.copy(alpha = 0.25f))
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column {
                         // Editor header
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(AccentPurple.copy(alpha = 0.08f))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -340,7 +354,7 @@ ENTER
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
-                                color = Platinum,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 20.sp
                             ),
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(AccentPurple),
@@ -580,13 +594,13 @@ ENTER
                         listOf(
                             "F1 … F12" to "Function keys (standalone line)",
                             "KEY (F11)" to "Function key via KEY command",
-                            "KEY (CMD+A)" to "Select All",
-                            "KEY (CMD+C)" to "Copy",
-                            "KEY (CMD+V)" to "Paste",
-                            "KEY (CTRL+CMD+Q)" to "Lock Screen",
-                            "KEY (CTRL+CMD+F)" to "Toggle Full Screen",
-                            "KEY (CMD+SHIFT+3)" to "Screenshot",
-                            "KEY (CMD+ALT+ESC)" to "Force Quit Menu",
+                            "KEY ($mod+A)" to "Select All",
+                            "KEY ($mod+C)" to "Copy",
+                            "KEY ($mod+V)" to "Paste",
+                            "KEY (${mapping.lockScreen})" to "Lock Screen",
+                            "KEY (${mapping.switchApp})" to "Switch App",
+                            "KEY (${mapping.screenshot})" to "Screenshot",
+                            "KEY (${mapping.forceQuit})" to "Force Quit Menu",
                             "GUI A" to "Classic DuckyScript style"
                         ).forEach { (cmd, desc) ->
                             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {

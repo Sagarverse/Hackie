@@ -61,12 +61,12 @@ class LockdownViewModel(application: Application) : AndroidViewModel(application
         repository.setModifier(0, false)
     }
 
-    fun triggerMacLock() {
-        repository.executeKeyCombo("CMD+CTRL+Q")
-    }
-
-    fun triggerWindowsLock() {
-        repository.executeKeyCombo("GUI+L")
+    fun triggerLock() {
+        val prefs = getApplication<Application>().getSharedPreferences("rabit_prefs", android.content.Context.MODE_PRIVATE)
+        val targetOsStr = prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+        val targetOs = com.example.rabit.domain.model.TargetOs.fromString(targetOsStr)
+        val mapping = com.example.rabit.domain.model.OsKeyMappings.forOs(targetOs)
+        repository.executeKeyCombo(mapping.lockScreen)
     }
 
     override fun onCleared() {

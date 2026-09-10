@@ -207,5 +207,82 @@ fun TrackpadSection(viewModel: MainViewModel) {
                 }
             )
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Hardware Mouse Passthrough (OTG/Bluetooth Mouse)
+        var hardwareMouseEnabled by remember { mutableStateOf(false) }
+        val view = androidx.compose.ui.platform.LocalView.current
+        
+        DisposableEffect(hardwareMouseEnabled) {
+            if (hardwareMouseEnabled) {
+                view.isFocusable = true
+                view.isFocusableInTouchMode = true
+                view.requestFocus()
+                view.requestPointerCapture()
+                view.setOnGenericMotionListener { _, event ->
+                    if ((event.source and android.view.InputDevice.SOURCE_MOUSE) != 0) {
+                        val dx = event.getAxisValue(android.view.MotionEvent.AXIS_RELATIVE_X)
+                        val dy = event.getAxisValue(android.view.MotionEvent.AXIS_RELATIVE_Y)
+                        val scroll = event.getAxisValue(android.view.MotionEvent.AXIS_VSCROLL)
+                        
+                        // Multiply scroll to match HID expected scale if needed (usually 1 or -1 is fine)
+                        val scrollInt = if (scroll > 0) 1 else if (scroll < 0) -1 else 0
+                        
+                        viewModel.sendMouseMove(dx, dy, event.buttonState, scrollInt)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                view.setOnKeyListener { _, keyCode, keyEvent ->
+                    // Optionally consume keys if hardware mouse triggers them, though usually it doesn't
+                    false
+                }
+            } else {
+                view.releasePointerCapture()
+                view.setOnGenericMotionListener(null)
+            }
+            onDispose {
+                view.releasePointerCapture()
+                view.setOnGenericMotionListener(null)
+            }
+        }
+
+        PremiumGlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            backgroundColor = Graphite.copy(alpha = 0.4f)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier.size(32.dp).background(if (hardwareMouseEnabled) AccentBlue.copy(alpha = 0.1f) else Silver.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Mouse, 
+                                contentDescription = null, 
+                                tint = if (hardwareMouseEnabled) AccentBlue else Silver,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text("HARDWARE PASSTHROUGH", color = Platinum, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(if (hardwareMouseEnabled) "Capturing Physical Mouse (Press ESC to release)" else "Connect OTG/BT Mouse", color = Silver, fontSize = 10.sp)
+                        }
+                    }
+                    Switch(
+                        checked = hardwareMouseEnabled,
+                        onCheckedChange = { hardwareMouseEnabled = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = AccentBlue, checkedTrackColor = AccentBlue.copy(alpha = 0.3f))
+                    )
+                }
+            }
+        }
     }
 }

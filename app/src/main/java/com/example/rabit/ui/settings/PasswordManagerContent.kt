@@ -80,10 +80,12 @@ import com.example.rabit.ui.theme.Silver
 import com.example.rabit.ui.theme.SuccessGreen
 import kotlinx.coroutines.delay
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordManagerContent(
     settingsViewModel: com.example.rabit.ui.settings.SettingsViewModel,
-    viewModel: com.example.rabit.ui.MainViewModel
+    viewModel: com.example.rabit.ui.MainViewModel,
+    onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -116,13 +118,181 @@ fun PasswordManagerContent(
         }
     }
 
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Password Manager", fontWeight = FontWeight.Black, color = Platinum) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Platinum)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Obsidian)
+            )
+        },
+        containerColor = Obsidian
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            PremiumSectionHeader("APP PASSWORD VAULT")
+            PremiumGlassCard {
+                Text(
+                    text = "Store passwords by app/site name. Tap Push after biometric check to send the selected password to your Mac.",
+                    color = Silver,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+
+                Button(
+                    onClick = { showVaultEntryDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Vault Entry")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (vaultEntries.isEmpty()) {
+                    Text(
+                        text = "No app passwords saved yet.",
+                        color = Silver.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                } else {
+                    vaultEntries.forEachIndexed { index, entry ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                thickness = 0.5.dp,
+                                color = BorderColor.copy(alpha = 0.4f)
+                            )
+                        }
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            Text(entry.appName, color = Platinum, fontWeight = FontWeight.Bold)
+                            if (entry.username.isNotBlank()) {
+                                Text("User: ${entry.username}", color = Silver, fontSize = 12.sp)
+                            }
+                            if (entry.notes.isNotBlank()) {
+                                Text(entry.notes, color = Silver.copy(alpha = 0.8f), fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+
+                                if (entry.username.isNotBlank()) {
+                                    Button(
+                                        onClick = {
+                                            val pushAction = {
+                                                val error = viewModel.sendMacPassword(entry.username, macAutofillPreEnter, macAutofillPostEnter)
+                                                Toast.makeText(context, error ?: "Username pushed for ${entry.appName}", Toast.LENGTH_SHORT).show()
+                                            }
+
+                                            if (isBiometricSessionActive) {
+                                                pushAction()
+                                            } else if (biometricAuthenticator?.isBiometricAvailable() == true) {
+                                                biometricAuthenticator.authenticate(
+                                                    title = "Unlock ${entry.appName}",
+                                                    subtitle = "Authenticate to push username",
+                                                    onSuccess = {
+                                                        biometricSessionExpiryMs = if (biometricMacAutofillEnabled) {
+                                                            System.currentTimeMillis() + biometricSessionDurationMs
+                                                        } else {
+                                                            0L
+                                                        }
+                                                        pushAction()
+                                                    },
+                                                    onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                                )
+                                            } else {
+                                                Toast.makeText(context, "Biometric auth is unavailable.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        enabled = connectionState is HidDeviceManager.ConnectionState.Connected,
+                                        modifier = Modifier.weight(1f).height(44.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                                    ) {
+                                        Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Push User", fontSize = 12.sp)
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val pushAction = {
+                                            val error = viewModel.sendMacPassword(entry.password, macAutofillPreEnter, macAutofillPostEnter)
+                                            Toast.makeText(context, error ?: "Password pushed for ${entry.appName}", Toast.LENGTH_SHORT).show()
+                                        }
+
+                                        if (isBiometricSessionActive) {
+                                            pushAction()
+                                        } else if (biometricAuthenticator?.isBiometricAvailable() == true) {
+                                            biometricAuthenticator.authenticate(
+                                                title = "Unlock ${entry.appName}",
+                                                subtitle = "Authenticate to push password",
+                                                onSuccess = {
+                                                    biometricSessionExpiryMs = if (biometricMacAutofillEnabled) {
+                                                        System.currentTimeMillis() + biometricSessionDurationMs
+                                                    } else {
+                                                        0L
+                                                    }
+                                                    pushAction()
+                                                },
+                                                onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                            )
+                                        } else {
+                                            Toast.makeText(context, "Biometric auth is unavailable.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    enabled = connectionState is HidDeviceManager.ConnectionState.Connected,
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
+                                ) {
+                                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Push Pass", fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { settingsViewModel.removeVaultEntry(entry.id) },
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentOrange)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Delete", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            
+            PremiumSectionHeader("STATUS")
+            PremiumGlassCard {
+                Text(
+                    text = if (connectionState is HidDeviceManager.ConnectionState.Connected) {
+                        "Connected to host. Password autofill is available."
+                    } else {
+                        "Host disconnected. Connect to use password push."
+                    },
+                    color = Silver,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+
+            
             PremiumSectionHeader("PASSWORD VAULT")
             PremiumGlassCard {
                 Text(
@@ -220,6 +390,28 @@ fun PasswordManagerContent(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+            PremiumSectionHeader("VAULT ACTIONS")
+            PremiumGlassCard {
+                Text(
+                    text = if (macPassword.isBlank()) "No password stored" else "Password stored securely",
+                    color = if (macPassword.isBlank()) AccentOrange else SuccessGreen,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+
+                Button(
+                    onClick = { showPasswordDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                ) {
+                    Icon(Icons.Default.Password, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (macPassword.isBlank()) "Set Mac Password" else "Update Mac Password")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Button(
                     onClick = {
@@ -269,119 +461,10 @@ fun PasswordManagerContent(
                 }
             }
 
-            PremiumSectionHeader("APP PASSWORD VAULT")
-            PremiumGlassCard {
-                Text(
-                    text = "Store passwords by app/site name. Tap Push after biometric check to send the selected password to your Mac.",
-                    color = Silver,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-
-                Button(
-                    onClick = { showVaultEntryDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Vault Entry")
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (vaultEntries.isEmpty()) {
-                    Text(
-                        text = "No app passwords saved yet.",
-                        color = Silver.copy(alpha = 0.8f),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                } else {
-                    vaultEntries.forEachIndexed { index, entry ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                thickness = 0.5.dp,
-                                color = BorderColor.copy(alpha = 0.4f)
-                            )
-                        }
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                            Text(entry.appName, color = Platinum, fontWeight = FontWeight.Bold)
-                            if (entry.username.isNotBlank()) {
-                                Text("User: ${entry.username}", color = Silver, fontSize = 12.sp)
-                            }
-                            if (entry.notes.isNotBlank()) {
-                                Text(entry.notes, color = Silver.copy(alpha = 0.8f), fontSize = 11.sp)
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                                Button(
-                                    onClick = {
-                                        val pushAction = {
-                                            val error = viewModel.sendMacPassword(entry.password, macAutofillPreEnter, macAutofillPostEnter)
-                                            Toast.makeText(context, error ?: "Password pushed for ${entry.appName}", Toast.LENGTH_SHORT).show()
-                                        }
-
-                                        if (isBiometricSessionActive) {
-                                            pushAction()
-                                        } else if (biometricAuthenticator?.isBiometricAvailable() == true) {
-                                            biometricAuthenticator.authenticate(
-                                                title = "Unlock ${entry.appName}",
-                                                subtitle = "Authenticate to push password",
-                                                onSuccess = {
-                                                    biometricSessionExpiryMs = if (biometricMacAutofillEnabled) {
-                                                        System.currentTimeMillis() + biometricSessionDurationMs
-                                                    } else {
-                                                        0L
-                                                    }
-                                                    pushAction()
-                                                },
-                                                onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                                            )
-                                        } else {
-                                            Toast.makeText(context, "Biometric auth is unavailable on this device.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    enabled = connectionState is HidDeviceManager.ConnectionState.Connected,
-                                    modifier = Modifier.weight(1f).height(44.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
-                                ) {
-                                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Biometric Push", fontSize = 12.sp)
-                                }
-
-                                OutlinedButton(
-                                    onClick = { settingsViewModel.removeVaultEntry(entry.id) },
-                                    modifier = Modifier.weight(1f).height(44.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentOrange)
-                                ) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Delete", fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            PremiumSectionHeader("STATUS")
-            PremiumGlassCard {
-                Text(
-                    text = if (connectionState is HidDeviceManager.ConnectionState.Connected) {
-                        "Connected to host. Password autofill is available."
-                    } else {
-                        "Host disconnected. Connect to use password push."
-                    },
-                    color = Silver,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-
+            
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
     if (showPasswordDialog) {
         var tempPass by remember { mutableStateOf(macPassword) }
         var hidden by remember { mutableStateOf(true) }
@@ -551,4 +634,5 @@ fun PasswordManagerContent(
             }
         )
     }
+}
 }

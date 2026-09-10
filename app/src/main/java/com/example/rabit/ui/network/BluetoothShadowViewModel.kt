@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.rabit.data.gemini.GeminiRepositoryImpl
 import com.example.rabit.domain.model.gemini.GeminiRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -230,6 +231,71 @@ class BluetoothShadowViewModel(application: Application) : AndroidViewModel(appl
         }
 
         advertiser?.startAdvertising(settings, data, advertiseCallback)
+    }
+
+    // ═══ Hardware MAC Address Randomization (Root Required) ═══
+    private val _isRootAvailable = MutableStateFlow(checkRoot())
+    val isRootAvailable = _isRootAvailable.asStateFlow()
+
+    private val _currentMacAddress = MutableStateFlow(bluetoothAdapter?.address ?: "Unknown")
+    val currentMacAddress = _currentMacAddress.asStateFlow()
+
+    private fun checkRoot(): Boolean {
+        return try {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo root"))
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun randomizeMacAddress(customMac: String? = null) {
+        if (!_isRootAvailable.value) {
+            addLog("ERROR: Hardware MAC change requires Root access.")
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val newMac = customMac ?: generateRandomLocallyAdministeredMac()
+                addLog("MAC: Changing hardware address to $newMac...")
+
+                // 1. Bring hci0 down
+                var process = Runtime.getRuntime().exec(arrayOf("su", "-c", "hciconfig hci0 down"))
+                process.waitFor()
+
+                // 2. Change address
+                process = Runtime.getRuntime().exec(arrayOf("su", "-c", "bdaddr -i hci0 $newMac"))
+                process.waitFor()
+                if (process.exitValue() != 0) {
+                     // Fallback for some systems using spoofer scripts or macchanger
+                     Runtime.getRuntime().exec(arrayOf("su", "-c", "macchanger -m $newMac hci0")).waitFor()
+                }
+
+                // 3. Bring hci0 up
+                process = Runtime.getRuntime().exec(arrayOf("su", "-c", "hciconfig hci0 up"))
+                process.waitFor()
+
+                // Update UI state
+                _currentMacAddress.value = newMac
+                addLog("SUCCESS: Hardware MAC address updated to $newMac.")
+
+            } catch (e: Exception) {
+                addLog("ERROR: Failed to change MAC address: ${e.message}")
+            }
+        }
+    }
+
+    private fun generateRandomLocallyAdministeredMac(): String {
+        val random = java.util.Random()
+        val macBytes = ByteArray(6)
+        random.nextBytes(macBytes)
+        
+        // Set locally administered bit (bit 1 of first byte = 1)
+        // Clear multicast bit (bit 0 of first byte = 0)
+        macBytes[0] = (macBytes[0].toInt() and 0xFE or 0x02).toByte()
+        
+        return macBytes.joinToString(":") { "%02X".format(it) }
     }
 
     private val _isSpamming = MutableStateFlow(false)

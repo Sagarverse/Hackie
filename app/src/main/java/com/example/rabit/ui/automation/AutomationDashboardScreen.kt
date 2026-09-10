@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -55,33 +59,61 @@ fun AutomationDashboardScreen(
 
     val systemMacros = remember(colors.accentTeal, colors.textSecondary) {
         listOf(
-            MacroDefinition("Unlock Mac", Icons.Default.LockOpen, colors.accentTeal, "UNLOCK_CMD"),
-            MacroDefinition("Lock Mac", Icons.Default.Lock, colors.accentTeal, "LOCK_CMD"),
-            MacroDefinition("Spotlight", Icons.Default.Search, colors.accentTeal, "SPOT_CMD"),
+            MacroDefinition("Unlock Device", Icons.Default.LockOpen, colors.accentTeal, "UNLOCK_CMD"),
+            MacroDefinition("Lock Device", Icons.Default.Lock, colors.accentTeal, "LOCK_CMD"),
+            MacroDefinition("Search/Spotlight", Icons.Default.Search, colors.accentTeal, "SPOT_CMD"),
             MacroDefinition("Screen Cap", Icons.Default.Screenshot, colors.accentTeal, "SHOT_CMD"),
+            MacroDefinition("Screen Cap Region", Icons.Default.Crop, colors.textSecondary, "SHOT_REGION_CMD"),
             MacroDefinition("Mute Mic", Icons.Default.MicOff, colors.accentTeal, "MUTE_CMD"),
-            MacroDefinition("Sleep Mac", Icons.Default.NightsStay, colors.textSecondary, "SLEEP_CMD"),
-            MacroDefinition("Sys Info", Icons.Default.Info, colors.accentTeal, "INFO_CMD")
+            MacroDefinition("Sleep Device", Icons.Default.NightsStay, colors.textSecondary, "SLEEP_CMD"),
+            MacroDefinition("Sys Info", Icons.Default.Info, colors.accentTeal, "INFO_CMD"),
+            MacroDefinition("Volume Up", Icons.Default.VolumeUp, colors.accentTeal, "VOL_UP_CMD"),
+            MacroDefinition("Volume Down", Icons.Default.VolumeDown, colors.textSecondary, "VOL_DOWN_CMD"),
+            MacroDefinition("Volume Mute", Icons.Default.VolumeOff, colors.textSecondary, "VOL_MUTE_CMD"),
+            MacroDefinition("Brightness Up", Icons.Default.BrightnessHigh, colors.accentTeal, "BRIGHT_UP_CMD"),
+            MacroDefinition("Brightness Down", Icons.Default.BrightnessLow, colors.textSecondary, "BRIGHT_DOWN_CMD"),
+            MacroDefinition("Play/Pause", Icons.Default.PlayArrow, colors.accentTeal, "MEDIA_PLAY_CMD"),
+            MacroDefinition("Next Track", Icons.Default.SkipNext, colors.textSecondary, "MEDIA_NEXT_CMD"),
+            MacroDefinition("Prev Track", Icons.Default.SkipPrevious, colors.textSecondary, "MEDIA_PREV_CMD"),
+            MacroDefinition("Force Quit Menu", Icons.Default.Close, colors.accentTeal, "FORCE_QUIT_CMD"),
+            MacroDefinition("Activity Monitor", Icons.Default.Monitor, colors.accentTeal, "ACT_MONITOR_CMD")
         )
     }
     val webMacros = remember(colors.accentTeal, colors.textSecondary) {
         listOf(
             MacroDefinition("New Tab", Icons.Default.Add, colors.accentTeal, "TAB_CMD"),
+            MacroDefinition("Close Tab", Icons.Default.Close, colors.textSecondary, "CLOSE_TAB_CMD"),
+            MacroDefinition("Reopen Tab", Icons.Default.Restore, colors.accentTeal, "REOPEN_TAB_CMD"),
             MacroDefinition("Reload", Icons.Default.Refresh, colors.accentTeal, "RELOAD_CMD"),
-            MacroDefinition("History", Icons.Default.History, colors.accentTeal, "HIST_CMD"),
-            MacroDefinition("Private", Icons.Default.Shield, colors.textSecondary, "PRIV_CMD"),
+            MacroDefinition("Hard Reload", Icons.Default.Sync, colors.accentTeal, "HARD_RELOAD_CMD"),
+            MacroDefinition("History", Icons.Default.History, colors.textSecondary, "HIST_CMD"),
+            MacroDefinition("Private/Incognito", Icons.Default.Shield, colors.accentTeal, "PRIV_CMD"),
             MacroDefinition("Go Back", Icons.AutoMirrored.Filled.ArrowBack, colors.textSecondary, "BACK_CMD"),
-            MacroDefinition("FS Mode", Icons.Default.Fullscreen, colors.accentTeal, "FS_CMD")
+            MacroDefinition("Go Forward", Icons.AutoMirrored.Filled.ArrowForward, colors.textSecondary, "FORWARD_CMD"),
+            MacroDefinition("FS Mode", Icons.Default.Fullscreen, colors.accentTeal, "FS_CMD"),
+            MacroDefinition("Dev Tools", Icons.Default.DeveloperMode, colors.accentTeal, "DEV_TOOLS_CMD"),
+            MacroDefinition("Zoom In", Icons.Default.ZoomIn, colors.accentTeal, "WEB_ZOOM_IN_CMD"),
+            MacroDefinition("Zoom Out", Icons.Default.ZoomOut, colors.textSecondary, "WEB_ZOOM_OUT_CMD")
         )
     }
     val productivityMacros = remember(colors.accentTeal, colors.textPrimary) {
         listOf(
-            MacroDefinition("Mission Ctrl", Icons.Default.GridView, colors.accentTeal, "MC_CMD"),
-            MacroDefinition("Switch App", Icons.Default.Tab, colors.accentTeal, "SW_CMD"),
+            MacroDefinition("Mission Ctrl/Task View", Icons.Default.GridView, colors.accentTeal, "MC_CMD"),
+            MacroDefinition("Switch App", Icons.Default.Tab, colors.textSecondary, "SW_CMD"),
+            MacroDefinition("Hide App", Icons.Default.VisibilityOff, colors.textSecondary, "HIDE_APP_CMD"),
             MacroDefinition("Hide Others", Icons.Default.VisibilityOff, colors.accentTeal, "HIDE_CMD"),
             MacroDefinition("Terminal", Icons.Default.Code, colors.textPrimary, "TERM_CMD"),
-            MacroDefinition("Open Safari", Icons.Default.Language, colors.accentTeal, "LAUNCH_SAFARI"),
-            MacroDefinition("Open Spotify", Icons.Default.MusicNote, colors.accentTeal, "LAUNCH_SPOTIFY")
+            MacroDefinition("Open Safari/Edge", Icons.Default.Language, colors.accentTeal, "LAUNCH_SAFARI"),
+            MacroDefinition("Open Spotify", Icons.Default.MusicNote, colors.textSecondary, "LAUNCH_SPOTIFY"),
+            MacroDefinition("Open VS Code", Icons.Default.Code, colors.accentTeal, "LAUNCH_VSCODE"),
+            MacroDefinition("Open Notes", Icons.Default.Notes, colors.textSecondary, "LAUNCH_NOTES"),
+            MacroDefinition("Copy", Icons.Default.ContentCopy, colors.accentTeal, "COPY_CMD"),
+            MacroDefinition("Paste", Icons.Default.ContentPaste, colors.accentTeal, "PASTE_CMD"),
+            MacroDefinition("Cut", Icons.Default.ContentCut, colors.textSecondary, "CUT_CMD"),
+            MacroDefinition("Select All", Icons.Default.SelectAll, colors.textSecondary, "SELECT_ALL_CMD"),
+            MacroDefinition("Undo", Icons.AutoMirrored.Filled.Undo, colors.textSecondary, "UNDO_CMD"),
+            MacroDefinition("Redo", Icons.AutoMirrored.Filled.Redo, colors.textSecondary, "REDO_CMD"),
+            MacroDefinition("Find", Icons.Default.FindInPage, colors.accentTeal, "FIND_CMD")
         )
     }
     val creativeMacros = remember(colors.accentTeal, colors.textSecondary) {
@@ -89,7 +121,13 @@ fun AutomationDashboardScreen(
             MacroDefinition("Zoom In", Icons.Default.ZoomIn, colors.textSecondary, "ZI_CMD"),
             MacroDefinition("Zoom Out", Icons.Default.ZoomOut, colors.textSecondary, "ZO_CMD"),
             MacroDefinition("Render", Icons.Default.Movie, colors.accentTeal, "RENDER_CMD"),
-            MacroDefinition("Export", Icons.Default.IosShare, colors.accentTeal, "EXPORT_CMD")
+            MacroDefinition("Export", Icons.Default.IosShare, colors.accentTeal, "EXPORT_CMD"),
+            MacroDefinition("New Project", Icons.Default.CreateNewFolder, colors.accentTeal, "NEW_PROJ_CMD"),
+            MacroDefinition("Save", Icons.Default.Save, colors.accentTeal, "SAVE_CMD"),
+            MacroDefinition("Save As", Icons.Default.SaveAs, colors.textSecondary, "SAVE_AS_CMD"),
+            MacroDefinition("Color Picker", Icons.Default.Colorize, colors.textSecondary, "COLOR_PICKER_CMD"),
+            MacroDefinition("Brush Tool", Icons.Default.Brush, colors.textSecondary, "BRUSH_TOOL_CMD"),
+            MacroDefinition("Selection Tool", Icons.Default.CropFree, colors.textSecondary, "SELECT_TOOL_CMD")
         )
     }
 
@@ -105,10 +143,37 @@ fun AutomationDashboardScreen(
         contentVisible = true
     }
 
+    val pagerState = rememberPagerState(pageCount = { 2 })
+
     ScreenScaffold(
         title = "Automation hub",
         subtitle = "System orchestration",
     ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Pager Indicator
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                repeat(2) { iteration ->
+                    val color = if (pagerState.currentPage == iteration) colors.accentTeal else colors.outline
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .background(color, CircleShape)
+                            .size(8.dp)
+                    )
+                }
+            }
+            
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> {
         AnimatedVisibility(
             visible = contentVisible,
             enter = fadeIn(animationSpec = tween(320)) + slideInVertically(initialOffsetY = { it / 14 }, animationSpec = tween(320))
@@ -287,6 +352,15 @@ fun AutomationDashboardScreen(
                                 modifier = Modifier.padding(14.dp)
                             )
                         }
+                    }
+                }
+            }
+        }
+    
+                    }
+                    1 -> {
+                        val macroViewModel: MacroBuilderViewModel = viewModel()
+                        MacroBuilderContent(macroViewModel, mainViewModel)
                     }
                 }
             }
@@ -739,32 +813,66 @@ private fun handleMacro(command: String, viewModel: AutomationViewModel, mainVie
         "LOCK_CMD" -> viewModel.executeMacro2Script("KEY(CMD+CTRL+Q)")
         "SPOT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE)")
         "SHOT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+4)")
+        "SHOT_REGION_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+4) && WAIT(200)")
         "MUTE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+M)")
         "SLEEP_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+POWER)")
         "SAY_HELLO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER) && WAIT(500) && TEXT(say hello) && KEY(ENTER)")
         "TOGGLE_DARK_MODE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER) && WAIT(500) && TEXT(osascript -e 'tell app \"System Events\" to tell appearance preferences to set dark mode to not dark mode') && KEY(ENTER)")
         "INFO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(System Information) && KEY(ENTER)")
         "FORCE_QUIT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+ESC)")
+        "VOL_UP_CMD" -> viewModel.executeMacro2Script("MEDIA(VOL_UP)")
+        "VOL_DOWN_CMD" -> viewModel.executeMacro2Script("MEDIA(VOL_DOWN)")
+        "VOL_MUTE_CMD" -> viewModel.executeMacro2Script("MEDIA(VOL_MUTE)")
+        "BRIGHT_UP_CMD" -> viewModel.executeMacro2Script("KEY(F15)")
+        "BRIGHT_DOWN_CMD" -> viewModel.executeMacro2Script("KEY(F14)")
+        "MEDIA_PLAY_CMD" -> viewModel.executeMacro2Script("MEDIA(PLAY)")
+        "MEDIA_NEXT_CMD" -> viewModel.executeMacro2Script("MEDIA(NEXT)")
+        "MEDIA_PREV_CMD" -> viewModel.executeMacro2Script("MEDIA(PREV)")
+        "ACT_MONITOR_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Activity Monitor) && KEY(ENTER)")
 
         "TAB_CMD" -> viewModel.executeMacro2Script("KEY(CMD+T)")
+        "CLOSE_TAB_CMD" -> viewModel.executeMacro2Script("KEY(CMD+W)")
+        "REOPEN_TAB_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+T)")
         "RELOAD_CMD" -> viewModel.executeMacro2Script("KEY(CMD+R)")
+        "HARD_RELOAD_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+R)")
         "HIST_CMD" -> viewModel.executeMacro2Script("KEY(CMD+Y)") 
         "PRIV_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+N)") 
         "BACK_CMD" -> viewModel.executeMacro2Script("KEY(CMD+[)")
+        "FORWARD_CMD" -> viewModel.executeMacro2Script("KEY(CMD+])")
         "FS_CMD" -> viewModel.executeMacro2Script("KEY(CMD+CTRL+F)")
+        "DEV_TOOLS_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+I)")
+        "WEB_ZOOM_IN_CMD" -> viewModel.executeMacro2Script("KEY(CMD+=)")
+        "WEB_ZOOM_OUT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+-)")
 
         "MC_CMD" -> viewModel.executeMacro2Script("KEY(CTRL+UP)")
         "SW_CMD" -> viewModel.executeMacro2Script("KEY(CMD+TAB)")
-        "HIDE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+H)")
+        "HIDE_APP_CMD" -> viewModel.executeMacro2Script("KEY(CMD+H)")
+        "HIDE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+ALT+H)")
         "TERM_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Terminal) && KEY(ENTER)")
         "LAUNCH_SAFARI" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Safari) && KEY(ENTER)")
         "LAUNCH_SPOTIFY" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Spotify) && KEY(ENTER)")
+        "LAUNCH_VSCODE" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Visual Studio Code) && KEY(ENTER)")
+        "LAUNCH_NOTES" -> viewModel.executeMacro2Script("KEY(CMD+SPACE) && WAIT(200) && TEXT(Notes) && KEY(ENTER)")
+        
+        "COPY_CMD" -> viewModel.executeMacro2Script("KEY(CMD+C)")
+        "PASTE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+V)")
+        "CUT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+X)")
+        "SELECT_ALL_CMD" -> viewModel.executeMacro2Script("KEY(CMD+A)")
+        "UNDO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+Z)")
+        "REDO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+Z)")
+        "FIND_CMD" -> viewModel.executeMacro2Script("KEY(CMD+F)")
 
         "PLAY_CMD" -> viewModel.executeMacro2Script("MEDIA(PLAY)")
         "ZI_CMD" -> viewModel.executeMacro2Script("KEY(CMD+=)")
         "ZO_CMD" -> viewModel.executeMacro2Script("KEY(CMD+-)")
         "RENDER_CMD" -> viewModel.executeMacro2Script("KEY(CMD+M)")
         "EXPORT_CMD" -> viewModel.executeMacro2Script("KEY(CMD+E)")
+        "NEW_PROJ_CMD" -> viewModel.executeMacro2Script("KEY(CMD+N)")
+        "SAVE_CMD" -> viewModel.executeMacro2Script("KEY(CMD+S)")
+        "SAVE_AS_CMD" -> viewModel.executeMacro2Script("KEY(CMD+SHIFT+S)")
+        "COLOR_PICKER_CMD" -> viewModel.executeMacro2Script("KEY(CMD+CTRL+C)")
+        "BRUSH_TOOL_CMD" -> viewModel.executeMacro2Script("KEY(B)")
+        "SELECT_TOOL_CMD" -> viewModel.executeMacro2Script("KEY(V)")
 
         else -> viewModel.executeMacro2Script(command) 
     }

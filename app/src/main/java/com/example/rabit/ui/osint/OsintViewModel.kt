@@ -28,19 +28,14 @@ class OsintViewModel : ViewModel() {
 
     private val sites = mapOf(
         "GitHub" to "https://github.com/%s",
-        "Twitter" to "https://twitter.com/%s",
-        "Instagram" to "https://www.instagram.com/%s/",
         "Reddit" to "https://www.reddit.com/user/%s",
         "TikTok" to "https://www.tiktok.com/@%s",
         "YouTube" to "https://www.youtube.com/@%s",
-        "Facebook" to "https://www.facebook.com/%s",
-        "Pinterest" to "https://www.pinterest.com/%s/",
-        "Snapchat" to "https://www.snapchat.com/add/%s",
-        "Telegram" to "https://t.me/%s",
         "Medium" to "https://medium.com/@%s",
         "Steam" to "https://steamcommunity.com/id/%s",
         "Twitch" to "https://www.twitch.tv/%s",
-        "DeviantArt" to "https://www.deviantart.com/%s"
+        "DeviantArt" to "https://www.deviantart.com/%s",
+        "Pastebin" to "https://pastebin.com/u/%s"
     )
 
     fun startUsernameScan(username: String) {
@@ -61,6 +56,7 @@ class OsintViewModel : ViewModel() {
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 3000
                     connection.readTimeout = 3000
+                    connection.instanceFollowRedirects = false
                     connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                     
                     val responseCode = connection.responseCode

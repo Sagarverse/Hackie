@@ -50,13 +50,13 @@ fun ProcessManagerContent(
             Column {
                 Text(
                     "Kill Process",
-                    color = Platinum,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 24.sp
                 )
                 Text(
                     if (connected) "Connected to Mac" else "SSH Not Connected",
-                    color = if (connected) AccentBlue else Color.Red,
+                    color = if (connected) MaterialTheme.colorScheme.primary else Color.Red,
                     fontSize = 12.sp
                 )
             }
@@ -68,7 +68,7 @@ fun ProcessManagerContent(
                 Icon(
                     Icons.Default.Refresh,
                     contentDescription = "Refresh",
-                    tint = Platinum
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -77,7 +77,7 @@ fun ProcessManagerContent(
 
         if (!connected) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Please connect SSH first in Automation tab.", color = Silver)
+                Text("Please connect SSH first in Automation tab.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
@@ -98,9 +98,9 @@ fun ProcessManagerContent(
     if (showKillConfirm != null) {
         AlertDialog(
             onDismissRequest = { showKillConfirm = null },
-            containerColor = Graphite,
-            title = { Text("Force Kill?", color = Platinum) },
-            text = { Text("Are you sure you want to kill process PID ${showKillConfirm}?", color = Silver) },
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            title = { Text("Force Kill?", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Are you sure you want to kill process PID ${showKillConfirm}?", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
                 TextButton(onClick = {
                     showKillConfirm?.let { viewModel.killRemoteProcess(it) }
@@ -111,7 +111,7 @@ fun ProcessManagerContent(
             },
             dismissButton = {
                 TextButton(onClick = { showKillConfirm = null }) {
-                    Text("CANCEL", color = Platinum)
+                    Text("CANCEL", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )
@@ -125,7 +125,7 @@ fun ProcessItem(
     onKill: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier.fillMaxWidth(),
         border = CardDefaults.outlinedCardBorder()
     ) {
@@ -138,15 +138,15 @@ fun ProcessItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     process.command.ifBlank { "Unknown Process" }.substringAfterLast("/"),
-                    color = Platinum,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     maxLines = 1
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("PID: ${process.pid}", color = Silver, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Text("PID: ${process.pid}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     Text("CPU: ${process.cpu}%", color = if (process.cpu > 50) Color.Red else Color.Green, fontSize = 11.sp)
-                    Text("MEM: ${process.mem}%", color = AccentBlue, fontSize = 11.sp)
+                    Text("MEM: ${process.mem}%", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                 }
             }
             

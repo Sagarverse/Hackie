@@ -103,24 +103,24 @@ fun NetworkAuditorContent(viewModel: NetworkAuditorViewModel, accentColor: Color
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
                     .heightIn(max = 300.dp),
-                color = Color(0xFF1A1A2E).copy(alpha = 0.95f),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFFBC13FE).copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFBC13FE), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.AutoAwesome, null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("NEURAL ANALYST INSIGHTS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Text("NEURAL ANALYST INSIGHTS", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, fontSize = 11.sp, fontWeight = FontWeight.Black)
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { viewModel.clearAiAnalysis() }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, null, tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
                         text = aiResult ?: "",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.verticalScroll(rememberScrollState())
@@ -133,12 +133,12 @@ fun NetworkAuditorContent(viewModel: NetworkAuditorViewModel, accentColor: Color
 
 @Composable
 fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
-    val accentColor = Color(0xFF00F2FF)
+    val accentColor = androidx.compose.material3.MaterialTheme.colorScheme.secondary
     
     Surface(
-        color = Color.White.copy(alpha = 0.03f),
+        color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+        border = BorderStroke(0.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -166,11 +166,11 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
                 Spacer(Modifier.width(16.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = device.hostname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(text = device.hostname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(text = device.ip, fontSize = 12.sp, color = accentColor, fontFamily = FontFamily.Monospace)
-                        Text(text = "•", fontSize = 12.sp, color = Color.Gray)
-                        Text(text = device.macAddress, fontSize = 12.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                        Text(text = "•", fontSize = 12.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(text = device.macAddress, fontSize = 12.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                     }
                 }
                 
@@ -178,35 +178,35 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
-                    tint = Color.Gray
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Spacer(Modifier.height(12.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = Color.White.copy(alpha = 0.1f))
+            HorizontalDivider(thickness = 0.5.dp, color = androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("INFERRED USER", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("INFERRED USER", fontSize = 9.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Default.Person, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(text = device.userName, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                        Text(text = device.userName, fontSize = 12.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                     }
                 }
                 
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("MANUFACTURER", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("MANUFACTURER", fontSize = 9.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text(text = device.manufacturer, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(text = device.manufacturer, fontSize = 12.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                 }
             }
             
             if (device.services.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Text("OPEN PORTS / SERVICES", fontSize = 9.sp, color = Color(0xFFBC13FE), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("OPEN PORTS / SERVICES", fontSize = 9.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Spacer(Modifier.height(8.dp))
                 @OptIn(ExperimentalLayoutApi::class)
                 FlowRow(
@@ -226,15 +226,15 @@ fun DeviceCard(device: NetworkAuditorViewModel.NetworkDevice) {
 @Composable
 fun ServiceTag(name: String) {
     Surface(
-        color = Color(0xFFBC13FE).copy(alpha = 0.1f),
+        color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer,
         shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(0.5.dp, Color(0xFFBC13FE).copy(alpha = 0.3f))
+        border = BorderStroke(0.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
     ) {
         Text(
             text = name,
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFBC13FE),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
@@ -244,13 +244,12 @@ fun ServiceTag(name: String) {
 fun EmptyState(onScan: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.WifiTethering, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray.copy(alpha = 0.3f))
+            Icon(Icons.Default.WifiTethering, contentDescription = null, modifier = Modifier.size(64.dp), tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
             Spacer(Modifier.height(16.dp))
-            Text("Ready for Network Audit", color = Color.Gray)
+            Text("Ready for Network Audit", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = onScan,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F2FF), contentColor = Color.Black)
             ) {
                 Text("START SCAN", fontWeight = FontWeight.Bold)
             }

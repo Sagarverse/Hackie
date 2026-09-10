@@ -250,7 +250,7 @@ fun HelperScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        color = androidx.compose.ui.graphics.Color.Black,
                         shape = MaterialTheme.shapes.medium,
                     ) {
                         Box(modifier = Modifier.padding(HackieSpacing.md)) {
@@ -260,8 +260,8 @@ fun HelperScreen(
                                     fontFamily = FontFamily.Monospace,
                                 ),
                                 color = if (terminalOutput.isBlank())
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                else MaterialTheme.colorScheme.onSurface,
+                                    androidx.compose.ui.graphics.Color.Gray
+                                else androidx.compose.ui.graphics.Color(0xFF00FF00),
                                 modifier = Modifier.verticalScroll(rememberScrollState()),
                             )
                         }

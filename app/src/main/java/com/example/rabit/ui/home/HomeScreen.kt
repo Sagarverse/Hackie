@@ -3,13 +3,15 @@ package com.example.rabit.ui.home
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,52 +19,75 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.rabit.data.bluetooth.HidDeviceManager
+import com.example.rabit.domain.model.TargetOs
 import com.example.rabit.ui.MainViewModel
+import com.example.rabit.ui.settings.SettingsViewModel
 import com.example.rabit.ui.components.AppCard
-import com.example.rabit.ui.components.AppCardElevated
 import com.example.rabit.ui.components.IconTile
 import com.example.rabit.ui.components.InfoPill
 import com.example.rabit.ui.components.LabelPill
 import com.example.rabit.ui.components.MediaMiniPlayer
-import com.example.rabit.ui.components.PrimaryButton
 import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.components.StatusDot
+import com.example.rabit.ui.theme.AccentBlue
+import com.example.rabit.ui.theme.Graphite
 import com.example.rabit.ui.theme.HackieSpacing
+import com.example.rabit.ui.theme.Platinum
+import com.example.rabit.ui.theme.Silver
+
+import com.example.rabit.ui.theme.hackieColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
+    settingsViewModel: SettingsViewModel,
     onOpenHelper: () -> Unit,
     onOpenKeyboard: () -> Unit,
     onOpenAssistant: () -> Unit,
@@ -70,6 +95,7 @@ fun HomeScreen(
     onOpenVault: () -> Unit,
     onOpenWebBridge: () -> Unit,
 ) {
+    val colors = hackieColors()
     val connectionState by viewModel.connectionState.collectAsState()
     val knownWorkstations by viewModel.knownWorkstations.collectAsState()
     val isHelperConnected by viewModel.isHelperConnected.collectAsState()
@@ -80,8 +106,10 @@ fun HomeScreen(
     val helperConnectionStatus by viewModel.helperConnectionStatus.collectAsState()
     val nowPlayingTitle by viewModel.nowPlayingTitle.collectAsState()
     val nowPlayingArtist by viewModel.nowPlayingArtist.collectAsState()
-    val nowPlayingAlbum by viewModel.nowPlayingAlbum.collectAsState()
     val nowPlayingArtworkBase64 by viewModel.nowPlayingArtworkBase64.collectAsState()
+    
+    val targetOs by settingsViewModel.targetOs.collectAsState()
+    val typingSpeed by viewModel.typingSpeed.collectAsState()
 
     val artwork = remember(nowPlayingArtworkBase64) {
         try {
@@ -119,43 +147,213 @@ fun HomeScreen(
     }
 
     ScreenScaffold(
-        title = "Home",
-        subtitle = if (online) "Connected" else "Not connected",
+        title = "Hackie",
+        subtitle = if (online) "Command Center Active" else "Standing By",
     ) { _ ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = HackieSpacing.md),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            contentPadding = PaddingValues(
                 top = HackieSpacing.sm,
                 bottom = HackieSpacing.xl,
             ),
             verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
         ) {
-            // ── Hero status card ─────────────────────────────────────
+            // ── Premium Hero Card ─────────────────────────────────────
             item {
-                HeroStatusCard(
+                PremiumHeroCard(
                     online = online,
                     deviceName = deviceDisplayName,
                     helperStatus = helperConnectionStatus,
                     bluetoothName = bluetoothConnectedName,
-                    helperHost = resolvedHelperHost,
-                    bluetoothMac = bluetoothConnectedMac,
-                    helperMac = helperMac,
                     onPrimaryAction = if (online) onOpenKeyboard else onOpenHelper,
-                    primaryLabel = if (online) "Open keyboard" else "Connect a device",
+                    primaryLabel = if (online) "Open Keyboard" else "Connect Device",
                 )
+            }
+
+            // ── OS Switcher & Speed Control ─────────────────────────
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.md)
+                ) {
+                    // OS Switcher
+                    PremiumGlassCard(modifier = Modifier.weight(1.5f)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Computer, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("TARGET OS", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TargetOs.entries.forEach { os ->
+                                    val isSelected = targetOs == os
+                                    Surface(
+                                        onClick = { settingsViewModel.setTargetOs(os) },
+                                        color = if (isSelected) AccentBlue.copy(alpha = 0.2f) else Color.Transparent,
+                                        contentColor = if (isSelected) AccentBlue else Silver,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f).height(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(id = os.iconRes),
+                                                contentDescription = os.displayName,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = if (isSelected) AccentBlue else Silver
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Speed Control
+                    PremiumGlassCard(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Speed, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("INJECT", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            val speeds = listOf("Slow", "Normal", "Fast", "Turbo")
+                            val nextSpeed = speeds[(speeds.indexOf(typingSpeed) + 1) % speeds.size]
+                            Surface(
+                                onClick = { viewModel.setTypingSpeed(nextSpeed) },
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha=0.3f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = typingSpeed,
+                                        color = Platinum,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Target Password Input ───────────────────────────────
+            item {
+                var targetPassword by rememberSaveable { mutableStateOf("") }
+                var passwordVisible by rememberSaveable { mutableStateOf(false) }
+                
+                Surface(
+                    color = colors.surface1.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(0.5.dp, colors.outline.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = targetPassword,
+                        onValueChange = { 
+                            targetPassword = it 
+                            // Could save to DataStore/ViewModel here, or just keep in memory for macro use
+                        },
+                        label = { Text("Target Device Password", color = colors.textSecondary) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        trailingIcon = {
+                            androidx.compose.material3.IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = "Toggle Password Visibility",
+                                    tint = colors.textSecondary
+                                )
+                            }
+                        },
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentBlue,
+                            unfocusedBorderColor = colors.outline,
+                            focusedTextColor = Platinum,
+                            unfocusedTextColor = Silver
+                        )
+                    )
+                }
+            }
+
+            // ── Quick Actions Grid ───────────────────────────────────
+            item {
+                Text(
+                    text = "Quick Actions",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.xs),
+                )
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                ) {
+                    val macPassword by viewModel.macPassword.collectAsState()
+                    PremiumActionTile(
+                        icon = Icons.Default.Lock,
+                        label = "Lock Target",
+                        onClick = { viewModel.sendSystemShortcut(MainViewModel.SystemShortcut.LOCK_SCREEN) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PremiumActionTile(
+                        icon = Icons.Default.LockOpen,
+                        label = "Unlock Target",
+                        onClick = { viewModel.sendMacPassword(macPassword, preEnter = true, postEnter = true) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(HackieSpacing.sm))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                ) {
+                    PremiumActionTile(
+                        icon = Icons.Default.Bolt,
+                        label = "Macros",
+                        onClick = onOpenMacros,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PremiumActionTile(
+                        icon = Icons.Default.SmartToy,
+                        label = "AI Assistant",
+                        onClick = onOpenAssistant,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(modifier = Modifier.height(HackieSpacing.sm))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+                ) {
+                    PremiumActionTile(
+                        icon = Icons.Default.AccountTree,
+                        label = "Web Bridge",
+                        onClick = onOpenWebBridge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PremiumActionTile(
+                        icon = Icons.Default.ContentPaste,
+                        label = "Vault",
+                        onClick = onOpenVault,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             // ── Now playing mini bar ─────────────────────────────────
             if (online) {
                 item {
-                    AppCardElevated(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = HackieSpacing.xs,
-                            vertical = HackieSpacing.xs,
-                        ),
-                    ) {
+                    PremiumGlassCard {
                         MediaMiniPlayer(
                             title = nowPlayingTitle.ifBlank { "Nothing playing" },
                             artist = nowPlayingArtist.ifBlank { null },
@@ -168,120 +366,34 @@ fun HomeScreen(
                 }
             }
 
-            // ── Shortcuts grid ───────────────────────────────────────
+            // ── Connection Details & Diagnostics ──────────────────────
             item {
                 Text(
-                    text = "Shortcuts",
+                    text = "System Diagnostics",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.xs),
+                    modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.sm),
                 )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
-                ) {
-                    ShortcutTile(
-                        icon = Icons.Default.Bolt,
-                        label = "Macros",
-                        onClick = onOpenMacros,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ShortcutTile(
-                        icon = Icons.Default.SmartToy,
-                        label = "AI Assistant",
-                        onClick = onOpenAssistant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ShortcutTile(
-                        icon = Icons.Default.AccountTree,
-                        label = "Web Bridge",
-                        onClick = onOpenWebBridge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ShortcutTile(
-                        icon = Icons.Default.ContentPaste,
-                        label = "Vault",
-                        onClick = onOpenVault,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            // ── Device details (when connected) ──────────────────────
-            if (online) {
-                item {
-                    Text(
-                        text = "Connection",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = HackieSpacing.xs, top = HackieSpacing.sm),
-                    )
-                }
-                item {
-                    AppCard {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
-                            verticalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
-                        ) {
-                            InfoPill(
-                                label = "IP",
-                                value = when {
-                                    isHelperConnected && !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
-                                    bluetoothConnectedName != null -> "Bluetooth"
-                                    !resolvedHelperHost.isNullOrBlank() -> resolvedHelperHost
-                                    else -> "—"
-                                },
-                            )
-                            InfoPill(
-                                label = "MAC",
-                                value = (bluetoothConnectedMac ?: helperMac).take(17),
-                            )
-                            if (bluetoothConnectedName != null) {
-                                LabelPill(
-                                    text = "Bluetooth HID",
-                                    background = MaterialTheme.colorScheme.secondaryContainer,
-                                    foreground = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Diagnostic row (Helper, Rescan) ──────────────────────
-            item {
-                Spacer(Modifier.height(HackieSpacing.xs))
             }
             item {
                 AppCard {
                     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                         DiagnosticRow(
                             icon = Icons.Default.Devices,
-                            title = "Helper",
-                            subtitle = helperConnectionStatus,
+                            title = "Connection Mode",
+                            subtitle = if (online && bluetoothConnectedName != null) "Bluetooth HID" 
+                                       else if (online) "Helper Agent" else "Disconnected",
                             onClick = onOpenHelper,
                         )
-                        androidx.compose.material3.HorizontalDivider(
+                        HorizontalDivider(
                             modifier = Modifier.padding(vertical = HackieSpacing.xxs),
                             color = MaterialTheme.colorScheme.outlineVariant,
                         )
                         DiagnosticRow(
                             icon = Icons.Default.Sensors,
-                            title = "Rescan",
-                            subtitle = "Re-detect the helper on the local network",
+                            title = "Rescan Network",
+                            subtitle = "Re-detect helper on local Wi-Fi",
                             onClick = { viewModel.discoverHelperOnLocalWifi() },
-                        )
-                        androidx.compose.material3.HorizontalDivider(
-                            modifier = Modifier.padding(vertical = HackieSpacing.xxs),
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                        )
-                        DiagnosticRow(
-                            icon = Icons.Default.Wifi,
-                            title = "Ping",
-                            subtitle = "Send a ping to the connected device",
-                            onClick = { viewModel.pingRemoteDevice() },
                         )
                     }
                 }
@@ -290,113 +402,131 @@ fun HomeScreen(
     }
 }
 
-// ── Hero status card ─────────────────────────────────────────────────────
+// ── Components ─────────────────────────────────────────────────────────
 
 @Composable
-private fun HeroStatusCard(
+private fun PremiumHeroCard(
     online: Boolean,
     deviceName: String?,
     helperStatus: String,
     bluetoothName: String?,
-    helperHost: String?,
-    bluetoothMac: String?,
-    helperMac: String?,
     onPrimaryAction: () -> Unit,
     primaryLabel: String,
 ) {
+    val gradientColors = if (online) {
+        listOf(Color(0xFF1E3A8A), Color(0xFF0F172A)) // Blue to dark slate
+    } else {
+        listOf(Color(0xFF334155), Color(0xFF0F172A)) // Slate to darker slate
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onPrimaryAction() },
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(HackieSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(HackieSpacing.md),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusDot(
-                    color = if (online) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.outline,
-                )
-                Spacer(Modifier.size(HackieSpacing.xs))
+        Box(modifier = Modifier.background(Brush.linearGradient(gradientColors))) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(color = if (online) Color(0xFF10B981) else Color(0xFF94A3B8))
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        text = if (online) "SYSTEM ONLINE" else "OFFLINE",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (online) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        letterSpacing = 1.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = deviceName ?: "No Target Linked",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.sagar.rabit.R.drawable.rabit_pro_icon),
+                        contentDescription = "Device",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+
                 Text(
-                    text = if (online) "Connected" else "Not connected",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (online) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = when {
+                        online && bluetoothName != null -> "Connected via Bluetooth HID"
+                        online -> helperStatus.ifBlank { "Helper connected" }
+                        else -> "Pair a Mac, PC, or Android to start controlling."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFCBD5E1),
                 )
             }
-
-            Text(
-                text = deviceName ?: "No device linked",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Text(
-                text = when {
-                    online && bluetoothName != null -> "Paired over Bluetooth HID"
-                    online -> helperStatus.ifBlank { "Helper connected" }
-                    else -> "Pair a Mac, PC, or Android to start."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(Modifier.height(HackieSpacing.xs))
-
-            PrimaryButton(
-                text = primaryLabel,
-                onClick = onPrimaryAction,
-                modifier = Modifier.fillMaxWidth(),
-                icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            )
         }
     }
 }
 
-// ── Shortcut tile ────────────────────────────────────────────────────────
+@Composable
+private fun PremiumGlassCard(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Graphite.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+    ) {
+        content()
+    }
+}
 
 @Composable
-private fun ShortcutTile(
+private fun PremiumActionTile(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AppCard(
-        onClick = onClick,
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = HackieSpacing.md,
-            vertical = HackieSpacing.md,
-        ),
-    ) {
+    PremiumGlassCard(modifier = modifier.clickable { onClick() }) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(HackieSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(12.dp)
         ) {
-            IconTile(icon = icon, size = 40.dp, iconSize = 20.dp)
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF3B82F6).copy(alpha = 0.2f), Color.Transparent))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+            }
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Platinum,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
         }
     }
 }
-
-// ── Diagnostic row (used in the bottom card) ─────────────────────────────
 
 @Composable
 private fun DiagnosticRow(

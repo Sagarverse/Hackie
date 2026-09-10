@@ -50,6 +50,9 @@ fun MacroLabScreen(
 
     val savedMacros by viewModel.customMacros.collectAsState()
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
+    
+    val isInjectorRunning by viewModel.isInjectorRunning.collectAsState()
+    val isInjectorPaused by viewModel.isInjectorPaused.collectAsState()
 
     ScreenScaffold(
         title = "Macro lab",
@@ -58,8 +61,29 @@ fun MacroLabScreen(
         actions = {
             if (currentMacro.isNotBlank()) {
                 IconButton(onClick = { showSaveDialog = true }) {
-                    Icon(Icons.Default.Save, "Save macro", tint = Success)
+                    Icon(Icons.Default.Save, "Save macro", tint = MaterialTheme.colorScheme.primary)
                 }
+            }
+            if (isInjectorPaused) {
+                IconButton(
+                    onClick = { viewModel.resumeInjector() },
+                    enabled = isInjectorRunning
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = if (isInjectorRunning) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                IconButton(
+                    onClick = { viewModel.pauseInjector() },
+                    enabled = isInjectorRunning
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = "Pause", tint = if (isInjectorRunning) WarningYellow else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            IconButton(
+                onClick = { viewModel.abortInjector() },
+                enabled = isInjectorRunning
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = "Abort", tint = if (isInjectorRunning) ErrorRed else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
     ) { padding ->

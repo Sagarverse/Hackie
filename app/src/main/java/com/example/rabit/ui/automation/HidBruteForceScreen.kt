@@ -34,7 +34,7 @@ fun HidBruteForceScreen(
     var selectedTab by remember { mutableStateOf(0) } // 0: HID, 1: HASH
     val accentColor = Color(0xFFFF3131) // Aggressive Red
     val hashAccentColor = Color(0xFFEAB308) // Gold
-    val bgColor = Color(0xFF05050A)
+    val bgColor = MaterialTheme.colorScheme.surfaceContainer
 
     ScreenScaffold(
         title = "Brute force lab",

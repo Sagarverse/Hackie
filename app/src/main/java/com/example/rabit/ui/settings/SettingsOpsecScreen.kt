@@ -30,7 +30,7 @@ fun SettingsOpsecScreen(
     onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("General", "Passwords", "Panic")
+    val tabs = listOf("General", "Panic")
     val accent = MaterialTheme.colorScheme.primary
     val error = MaterialTheme.colorScheme.error
 
@@ -49,13 +49,13 @@ fun SettingsOpsecScreen(
                         if (selectedTab < tabPositions.size) {
                             TabRowDefaults.SecondaryIndicator(
                                 modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                color = if (selectedTab == 2) error else accent,
+                                color = if (selectedTab == 1) error else accent,
                             )
                         }
                     },
                 ) {
                     tabs.forEachIndexed { index, title ->
-                        val color = if (index == 2) error else accent
+                        val color = if (index == 1) error else accent
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
@@ -77,11 +77,7 @@ fun SettingsOpsecScreen(
                         settingsViewModel = settingsViewModel,
                         automationViewModel = automationViewModel,
                     )
-                    1 -> PasswordManagerContent(
-                        settingsViewModel = settingsViewModel,
-                        viewModel = viewModel,
-                    )
-                    2 -> PanicTerminalContent(
+                    1 -> PanicTerminalContent(
                         viewModel = viewModel,
                         killSwitchViewModel = killSwitchViewModel,
                     )

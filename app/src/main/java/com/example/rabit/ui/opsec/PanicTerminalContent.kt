@@ -71,7 +71,7 @@ fun PanicTerminalContent(
         item {
             OPSECCard(
                 title = "TIER 1: STEALTH DECOY",
-                description = "Instantly hide tactical UI and switch to Decoy Mode. Requires secret knock to return.",
+                description = "Instantly hide tactical UI and switch to a decoy notes app. To return, type '6202' and long-press the 'My Notes' title.",
                 icon = Icons.Default.VisibilityOff,
                 buttonText = "ENGAGE DECOY",
                 buttonColor = infoColor,

@@ -26,6 +26,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.Icons
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -33,6 +37,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.example.rabit.data.prefs.UserPreferences
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import kotlin.math.roundToInt
 
 val LocalOpenGlobalDrawer = staticCompositionLocalOf<(() -> Unit)?> { null }
 
@@ -88,12 +97,14 @@ fun RabitAppScaffold(
     onBack: (() -> Unit)? = null,
     topBarActions: @Composable RowScope.() -> Unit = {},
     onPanicLock: (() -> Unit)? = null,
+    onEngageDecoy: () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+    var showFad by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val isWide = configuration.screenWidthDp >= 600
@@ -121,7 +132,7 @@ fun RabitAppScaffold(
     }
 
     val drawerContent: @Composable () -> Unit = {
-        SidePanelBody(
+        AdvancedSidePanel(
             currentRoute = currentRoute,
             isHidConnected = isHidConnected,
             callbacks = SidePanelCallbacks(
@@ -130,19 +141,11 @@ fun RabitAppScaffold(
                     closeDrawer()
                     onPanicLock?.invoke()
                 },
-                onToggleTheme = {
-                    val ctx = view.context
-                    val current = UserPreferences.themeMode(ctx)
-                    val next = when (current) {
-                        UserPreferences.ThemeMode.SYSTEM -> UserPreferences.ThemeMode.DARK
-                        UserPreferences.ThemeMode.DARK -> UserPreferences.ThemeMode.LIGHT
-                        UserPreferences.ThemeMode.LIGHT -> UserPreferences.ThemeMode.SYSTEM
-                    }
-                    UserPreferences.setThemeMode(ctx, next)
+                onEngageDecoy = {
+                    closeDrawer()
+                    onEngageDecoy()
                 },
                 onRunScan = {
-                    // Navigate to home; HomeScreen's scan toggle is the
-                    // universal scan entry point.
                     dispatchNavigate("home")
                     closeDrawer()
                 },
@@ -158,7 +161,6 @@ fun RabitAppScaffold(
             featureSshTerminalVisible = featureSshTerminalVisible,
         )
     }
-
     if (isWide) {
         PermanentNavigationDrawer(
             modifier = Modifier.fillMaxHeight(),
@@ -178,7 +180,9 @@ fun RabitAppScaffold(
                 }
             },
         ) {
-            Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background
+            ) { padding ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -186,6 +190,27 @@ fun RabitAppScaffold(
                 ) {
                     CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
                         content(PaddingValues(0.dp))
+                    }
+                    
+                    FloatingActionDashboard(
+                        isVisible = showFad,
+                        onDismiss = { showFad = false },
+                        onAction = { action ->
+                            showFad = false
+                        }
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        DraggableFadButton(
+                            onClick = { 
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                showFad = true 
+                            }
+                        )
                     }
                 }
             }
@@ -214,7 +239,9 @@ fun RabitAppScaffold(
                 }
             },
         ) {
-            Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background
+            ) { padding ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -223,8 +250,57 @@ fun RabitAppScaffold(
                     CompositionLocalProvider(LocalOpenGlobalDrawer provides openDrawer) {
                         content(PaddingValues(0.dp))
                     }
+                    
+                    FloatingActionDashboard(
+                        isVisible = showFad,
+                        onDismiss = { showFad = false },
+                        onAction = { action ->
+                            showFad = false
+                        }
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        DraggableFadButton(
+                            onClick = { 
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                showFad = true 
+                            }
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DraggableFadButton(onClick: () -> Unit) {
+    var offsetX by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+    var offsetY by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+    
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            }
+    ) {
+        androidx.compose.material3.FloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.primary
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Default.Dashboard,
+                contentDescription = "Open FAD"
+            )
         }
     }
 }

@@ -179,29 +179,45 @@ fun OsintDashboard(viewModel: OsintGhostViewModel, status: OsintStatus, logs: Li
 
 @Composable
 fun OsintResultItem(result: OsintResult) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
     Surface(
-        color = Color.White.copy(alpha = 0.03f),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.2f))
+        onClick = {
+            runCatching {
+                uriHandler.openUri(result.url)
+            }
+        },
+        color = Graphite.copy(alpha = 0.4f),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Public, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(AccentBlue.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Public, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+            }
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(result.siteName, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(result.siteName, color = Platinum, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     result.url,
                     color = Silver.copy(alpha = 0.6f),
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Text("FOUND", color = SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Black)
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(Icons.Default.OpenInBrowser, contentDescription = "Open Link", tint = Silver, modifier = Modifier.size(18.dp))
         }
     }
 }

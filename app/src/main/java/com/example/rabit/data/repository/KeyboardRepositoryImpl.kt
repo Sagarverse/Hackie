@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 class KeyboardRepositoryImpl(context: Context) : KeyboardRepository {
-    private val hidDeviceManager = HidDeviceManager.getInstance(context)
+    internal val hidDeviceManager = HidDeviceManager.getInstance(context)
     private val usbHidGadget = UsbHidGadgetManager.getInstance(context)
     private val bluetoothScanner = BluetoothScanner(context)
     private val deviceRepository = com.example.rabit.data.repository.DeviceRepositoryImpl(context)

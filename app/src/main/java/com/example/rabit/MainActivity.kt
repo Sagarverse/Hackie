@@ -213,6 +213,15 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent)
     }
 
+    override fun onStop() {
+        super.onStop()
+        val prefs = getSharedPreferences("rabit_prefs", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean("exit_on_close", false) && isFinishing) {
+            finishAffinity()
+            System.exit(0)
+        }
+    }
+
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
         
@@ -305,6 +314,18 @@ fun AppNavigation(
     // HID target so we don't leave a live channel around.
     var isPanicLocked by remember { mutableStateOf(false) }
 
+    // Jarvis auto-start/stop based on settings toggle
+    val jarvisEnabled by settingsViewModel.jarvisEnabled.collectAsState()
+    val jarvisConfirmation by settingsViewModel.jarvisConfirmationRequired.collectAsState()
+    LaunchedEffect(jarvisEnabled, jarvisConfirmation) {
+        if (jarvisEnabled) {
+            viewModel.jarvisEngine.confirmationRequired = jarvisConfirmation
+            viewModel.startJarvis()
+        } else {
+            viewModel.stopJarvis()
+        }
+    }
+
     // Routes that should NOT show the professional drawer (Onboarding & Initial Pairing)
     val noDrawerRoutes = listOf("onboarding", "onboarding_splash")
     val showDrawer = currentRoute.split("?").first() !in noDrawerRoutes
@@ -327,6 +348,7 @@ fun AppNavigation(
                 composable("home") {
                     HomeScreen(
                         viewModel = viewModel,
+                        settingsViewModel = settingsViewModel,
                         onOpenHelper = {
                             navController.navigate("helper") { launchSingleTop = true }
                         },
@@ -347,6 +369,15 @@ fun AppNavigation(
                         onOpenWebBridge = {
                             navController.navigate("web_bridge") { launchSingleTop = true }
                         },
+                    )
+                }
+                composable("decoy_calculator") {
+                    com.example.rabit.ui.stealth.DecoyCalculatorScreen(
+                        viewModel = decoyViewModel,
+                        onUnlock = {
+                            decoyViewModel.unlockHackie()
+                            navController.popBackStack()
+                        }
                     )
                 }
                 composable("pairing") {
@@ -376,7 +407,8 @@ fun AppNavigation(
                         onNavigateToAssistant = { if (featureAssistantVisible) navController.navigate("assistant") },
                         onNavigateToSnippets = { if (featureSnippetsVisible) navController.navigate("snippets") },
                         onNavigateToAutomation = { if (featureAutomationVisible) navController.navigate("automation") },
-                        onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") }
+                        onNavigateToWebBridge = { if (featureWebBridgeVisible) navController.navigate("web_bridge") },
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("web_bridge") {
@@ -479,6 +511,12 @@ fun AppNavigation(
                         mainViewModel = viewModel,
                         viewModel = automationViewModel,
                         onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("bluetooth_injector") {
+                    com.example.rabit.ui.automation.BluetoothInjectorScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
 
@@ -667,6 +705,13 @@ fun AppNavigation(
                 composable("snippets") {
                     SnippetsScreen(viewModel, onBack = { navController.popBackStack() })
                 }
+                composable("password_manager") {
+                    com.example.rabit.ui.settings.PasswordManagerContent(
+                        settingsViewModel = settingsViewModel,
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 // "shortcuts" route removed — use "automation" instead
                 composable("global_search") {
                     val available = buildSet {
@@ -759,6 +804,12 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("mouse_bridge") {
+                    com.example.rabit.ui.keyboard.MouseBridgeScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }
@@ -769,6 +820,7 @@ fun AppNavigation(
         if (showDrawer) {
             com.example.rabit.ui.components.RabitAppScaffold(
                 currentRoute = if (currentRoute == "keyboard") "main" else currentRoute,
+                onEngageDecoy = { viewModel.setDecoyMode(true) },
                 onNavigate = { route ->
                     val target = when (route) {
                         "main" -> if (isBluetoothConnected) "keyboard" else "pairing"
@@ -814,6 +866,19 @@ fun AppNavigation(
         } else {
             navHost(androidx.compose.foundation.layout.PaddingValues(0.dp))
         }
+
+        // Jarvis Voice Command Overlay — sits on top of all screens when active
+        val jarvisState by viewModel.jarvisState.collectAsState()
+        val jarvisLastText by viewModel.jarvisLastText.collectAsState()
+        val jarvisPending by viewModel.jarvisPendingCommand.collectAsState()
+
+        com.example.rabit.ui.components.JarvisOverlay(
+            state = jarvisState,
+            lastRecognizedText = jarvisLastText,
+            pendingCommand = jarvisPending,
+            onConfirm = { viewModel.confirmJarvisCommand() },
+            onCancel = { viewModel.cancelJarvisCommand() }
+        )
 
         // Panic lock overlay sits on top of everything. The user must
         // explicitly unlock to return to the app.

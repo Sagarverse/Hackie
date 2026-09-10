@@ -52,6 +52,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val secureStorage = SecureStorage(application)
     private val prefs = application.getSharedPreferences("rabit_prefs", Context.MODE_PRIVATE)
 
+    // ═══ USB Mouse Bridge ═══
+    val usbMouseBridge = com.example.rabit.data.bluetooth.UsbMouseBridgeManager.getInstance(application)
+    val mouseBridgeState = usbMouseBridge.bridgeState
+    val mouseBridgeMouseName = usbMouseBridge.detectedMouseName
+    val mouseBridgeEventsForwarded = usbMouseBridge.eventsForwarded
+    val mouseBridgeRootAvailable = usbMouseBridge.isRootAvailable
+    val mouseBridgeError = usbMouseBridge.errorMessage
+
+    fun startMouseBridge() {
+        val hidManager = (repository as? KeyboardRepositoryImpl)?.hidDeviceManager ?: return
+        usbMouseBridge.start(hidManager)
+    }
+    fun stopMouseBridge() = usbMouseBridge.stop()
+    fun setMouseBridgeSensitivity(value: Float) { usbMouseBridge.sensitivity = value }
+
+    // ═══ Jarvis Voice Command Engine ═══
+    val jarvisEngine = com.example.rabit.data.voice.JarvisCommandEngine(application)
+    val jarvisSmartEngine = com.example.rabit.data.voice.JarvisSmartEngine(application)
+    
+    val jarvisState = jarvisEngine.state
+    val jarvisLastText = jarvisEngine.lastRecognizedText
+    val jarvisPendingCommand = jarvisEngine.pendingCommand
+    val jarvisLastExecuted = jarvisEngine.lastExecutedCommand
+    
+    private val _jarvisMode = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("jarvis_mode", "BASIC") ?: "BASIC")
+    val jarvisMode = _jarvisMode.asStateFlow()
+    
+    fun setJarvisMode(mode: String) {
+        _jarvisMode.value = mode
+        prefs.edit().putString("jarvis_mode", mode).apply()
+        jarvisEngine.mode = if (mode == "SMART") com.example.rabit.data.voice.JarvisCommandEngine.JarvisMode.SMART else com.example.rabit.data.voice.JarvisCommandEngine.JarvisMode.BASIC
+    }
+
+    fun startJarvis() {
+        val confirmRequired = prefs.getBoolean("jarvis_confirmation_required", true)
+        val modeStr = prefs.getString("jarvis_mode", "BASIC") ?: "BASIC"
+        
+        jarvisEngine.confirmationRequired = confirmRequired
+        jarvisEngine.mode = if (modeStr == "SMART") com.example.rabit.data.voice.JarvisCommandEngine.JarvisMode.SMART else com.example.rabit.data.voice.JarvisCommandEngine.JarvisMode.BASIC
+        jarvisEngine.smartEngine = jarvisSmartEngine
+        
+        jarvisEngine.onExecuteCommand = { cmd -> executeVoiceCommand(cmd) }
+        jarvisSmartEngine.onExecuteActions = { actions -> 
+            viewModelScope.launch {
+                for (action in actions) {
+                    executeJarvisAction(action)
+                    delay(300) // Small delay between actions
+                }
+                jarvisEngine.resetToListening()
+            }
+        }
+        
+        jarvisEngine.start()
+    }
+    fun stopJarvis() = jarvisEngine.stop()
+    fun confirmJarvisCommand() = jarvisEngine.confirmPendingCommand()
+    fun cancelJarvisCommand() = jarvisEngine.cancelPendingCommand()
+
+    private fun getTargetOs(): com.example.rabit.domain.model.TargetOs {
+        return com.example.rabit.domain.model.TargetOs.fromString(
+            prefs.getString("target_os", "MAC_OS") ?: "MAC_OS"
+        )
+    }
+
+    fun getOsKeyMapping(): com.example.rabit.domain.model.OsKeyMapping {
+        return com.example.rabit.domain.model.OsKeyMappings.forOs(getTargetOs())
+    }
+
     // HID & Connection State
     val connectionState: StateFlow<HidDeviceManager.ConnectionState> = repository.connectionState
     val scannedDevices: StateFlow<Set<BluetoothDevice>> = repository.scannedDevices
@@ -898,6 +966,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendSystemShortcut(shortcut: SystemShortcut) {
+        val mapping = getOsKeyMapping()
         when (shortcut) {
             SystemShortcut.MUTE -> repository.sendConsumerKey(HidKeyCodes.MEDIA_MUTE)
             SystemShortcut.PLAY_PAUSE -> repository.sendConsumerKey(HidKeyCodes.MEDIA_PLAY_PAUSE)
@@ -905,19 +974,99 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             SystemShortcut.PREV -> repository.sendConsumerKey(HidKeyCodes.MEDIA_PREVIOUS)
             SystemShortcut.VOL_UP -> repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
             SystemShortcut.VOL_DOWN -> repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
-            SystemShortcut.LOCK_SCREEN -> repository.executeKeyCombo("CTRL+GUI+Q")
+            SystemShortcut.LOCK_SCREEN -> repository.executeKeyCombo(mapping.lockScreen)
         }
     }
 
     fun unlockMac() {
         viewModelScope.launch {
+            val mapping = getOsKeyMapping()
             val password = secureStorage.getMacPassword() ?: ""
             if (password.isNotBlank()) {
-                repository.executeKeyCombo("GUI+SPACE")
+                repository.executeKeyCombo(mapping.unlockPreamble)
                 delay(300)
                 repository.sendText(password)
                 delay(200)
                 repository.sendKey(HidKeyCodes.KEY_ENTER)
+            }
+        }
+    }
+
+    /**
+     * Execute a voice command from the Jarvis engine.
+     * Maps CommandType to HID actions using the selected OS key mappings.
+     */
+    private fun executeVoiceCommand(command: com.example.rabit.data.voice.JarvisCommandEngine.VoiceCommand) {
+        val mapping = getOsKeyMapping()
+        val type = command.commandType
+        viewModelScope.launch {
+            when (type) {
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.LOCK ->
+                    repository.executeKeyCombo(mapping.lockScreen)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.UNLOCK ->
+                    unlockMac()
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SCREENSHOT ->
+                    repository.executeKeyCombo(mapping.screenshot)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SCREENSHOT_AREA ->
+                    repository.executeKeyCombo(mapping.screenshotArea)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.COPY ->
+                    repository.executeKeyCombo(mapping.copy)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.PASTE ->
+                    repository.executeKeyCombo(mapping.paste)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.CUT ->
+                    repository.executeKeyCombo(mapping.cut)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.UNDO ->
+                    repository.executeKeyCombo(mapping.undo)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.REDO ->
+                    repository.executeKeyCombo(mapping.redo)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SELECT_ALL ->
+                    repository.executeKeyCombo(mapping.selectAll)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.FIND ->
+                    repository.executeKeyCombo(mapping.find)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SAVE ->
+                    repository.executeKeyCombo(mapping.save)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.CLOSE_WINDOW ->
+                    repository.executeKeyCombo(mapping.closeWindow)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SWITCH_APP ->
+                    repository.executeKeyCombo(mapping.switchApp)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.NEW_TAB ->
+                    repository.executeKeyCombo(mapping.newTab)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.CLOSE_TAB ->
+                    repository.executeKeyCombo(mapping.closeTab)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SHOW_DESKTOP ->
+                    repository.executeKeyCombo(mapping.showDesktop)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.MISSION_CONTROL ->
+                    repository.executeKeyCombo(mapping.missionControl)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.SLEEP ->
+                    repository.executeKeyCombo(mapping.sleep)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.FORCE_QUIT ->
+                    repository.executeKeyCombo(mapping.forceQuit)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.MUTE ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_MUTE)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.VOLUME_UP ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_UP)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.VOLUME_DOWN ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_VOL_DOWN)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.PLAY_PAUSE ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_PLAY_PAUSE)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.BRIGHTNESS_UP ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_UP)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.BRIGHTNESS_DOWN ->
+                    repository.sendConsumerKey(HidKeyCodes.MEDIA_BRIGHT_DOWN)
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.OPEN_APP -> {
+                    // Open app launcher, type app name, press Enter
+                    repository.executeKeyCombo(mapping.openAppLauncher)
+                    delay(500)
+                    repository.sendText(command.argument)
+                    delay(300)
+                    repository.sendKey(HidKeyCodes.KEY_ENTER)
+                }
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.TYPE_TEXT -> {
+                    repository.sendText(command.argument)
+                }
+                com.example.rabit.data.voice.JarvisCommandEngine.CommandType.UNKNOWN -> {
+                    Log.w("MainViewModel", "Unknown voice command: ${command.rawText}")
+                }
             }
         }
     }
@@ -1128,6 +1277,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val pass = _macPassword.value
         if (pass.isBlank()) return "No password stored"
         return sendMacPassword(pass, _macAutofillPreEnter.value, _macAutofillPostEnter.value)
+    }
+    // ═══ Smart Jarvis Action Execution ═══
+    private suspend fun executeJarvisAction(action: com.example.rabit.data.voice.JarvisAction) {
+        try {
+            when (action.action) {
+                "connect_device" -> {
+                    val address = action.arguments["address"]
+                    if (address != null) {
+                        connectToDevice(address)
+                    }
+                }
+                "connect_recent" -> {
+                    val recent = savedDevices.value.firstOrNull()
+                    if (recent != null) {
+                        connectToDevice(recent.address)
+                    }
+                }
+                "disconnect" -> disconnectKeyboard()
+                "lock_screen" -> sendSystemShortcut(SystemShortcut.LOCK_SCREEN)
+                "unlock_screen" -> unlockMac()
+                "send_text", "type_text" -> {
+                    val text = action.arguments["text"]
+                    if (text != null) sendText(text)
+                }
+                "key_combo" -> {
+                    val combo = action.arguments["combo"]
+                    if (combo != null) sendKeyCombination(combo)
+                }
+                "open_app" -> {
+                    val name = action.arguments["name"]
+                    if (name != null) {
+                        val os = getTargetOs()
+                        if (os == com.example.rabit.domain.model.TargetOs.MAC_OS) {
+                            sendKeyCombination("GUI+SPACE")
+                            delay(500)
+                            sendText(name)
+                            delay(500)
+                            sendKeyCombination("ENTER")
+                        } else if (os == com.example.rabit.domain.model.TargetOs.WINDOWS) {
+                            sendKeyCombination("GUI")
+                            delay(500)
+                            sendText(name)
+                            delay(500)
+                            sendKeyCombination("ENTER")
+                        }
+                    }
+                }
+                "media_play_pause" -> sendMediaPlayPause()
+                "volume_up" -> sendMediaVolumeUp()
+                "volume_down" -> sendMediaVolumeDown()
+                "mute" -> executeHybridMediaCommand(0x00E2.toShort(), "mute")
+                "screenshot" -> repository.executeKeyCombo(getOsKeyMapping().screenshot)
+                "start_advertising" -> startAdvertising()
+                "wait" -> {
+                    val ms = action.arguments["ms"]?.toLongOrNull() ?: 1000L
+                    delay(ms)
+                }
+                "speak" -> {
+                    val text = action.arguments["text"]
+                    if (text != null) {
+                        Log.d("MainViewModel", "Jarvis Speak: $text")
+                    }
+                }
+                else -> Log.w("MainViewModel", "Unknown Jarvis action: ${action.action}")
+            }
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Error executing Jarvis action", e)
+        }
     }
 
     override fun onCleared() {

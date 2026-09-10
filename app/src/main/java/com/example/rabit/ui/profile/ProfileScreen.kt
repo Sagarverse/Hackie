@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,10 +46,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sagar.rabit.R
 import com.example.rabit.ui.components.AppCard
 import com.example.rabit.ui.components.ScreenScaffold
 import com.example.rabit.ui.components.SectionHeader
@@ -99,11 +103,11 @@ fun ProfileScreen(onBack: () -> Unit) {
                                 .background(accent.copy(alpha = 0.15f), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = accent,
-                                modifier = Modifier.size(48.dp),
+                            Image(
+                                painter = painterResource(id = R.drawable.sagar_profile),
+                                contentDescription = "Sagar M",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
                             )
                         }
                         Text(

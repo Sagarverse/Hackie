@@ -34,6 +34,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -114,6 +115,7 @@ fun SettingsContent(
     var showProximityTargetDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showCommandRefDialog by remember { mutableStateOf(false) }
 
     val liveDistanceLabel = if (proximityLiveDistanceMeters > 0f) {
         String.format("%.1f m", proximityLiveDistanceMeters)
@@ -155,81 +157,70 @@ fun SettingsContent(
 
             GeminiApiSettingsSection(viewModel = geminiSettingsViewModel)
 
-            // ─── Appearance ───
-            PremiumSectionHeader("APPEARANCE")
+            // ─── Target OS ───
+            val targetOs by settingsViewModel.targetOs.collectAsState()
+            PremiumSectionHeader("TARGET OS")
             PremiumGlassCard {
-                // The picker reads from the activity-level theme flow so
-                // it always reflects the value the activity is currently
-                // rendering with. Tapping a radio updates the flow; the
-                // activity re-applies the theme in the same frame.
-                val themeMode by viewModel.themeMode.collectAsState()
-                val context = LocalContext.current
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Palette,
-                            contentDescription = null,
-                            tint = AccentTeal,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Theme",
-                                color = Platinum,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "Changes apply instantly",
-                                color = Silver.copy(alpha = 0.65f),
-                                fontSize = 11.sp,
-                            )
+                        Icon(Icons.Default.Computer, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Operating System", color = Platinum, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Keyboard shortcuts adapt to selected OS", color = Silver, fontSize = 12.sp)
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        com.example.rabit.data.prefs.UserPreferences.ThemeMode.values().forEach { mode ->
-                            val selected = themeMode == mode
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        com.example.rabit.domain.model.TargetOs.entries.forEach { os ->
+                            val isSelected = targetOs == os
                             Surface(
-                                onClick = {
-                                    com.example.rabit.data.prefs.UserPreferences
-                                        .setThemeMode(context, mode)
-                                },
-                                color = if (selected) AccentTeal.copy(alpha = 0.18f) else Color.Transparent,
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(
-                                    0.5.dp,
-                                    if (selected) AccentTeal.copy(alpha = 0.6f) else BorderColor.copy(alpha = 0.3f),
-                                ),
-                                modifier = Modifier.weight(1f),
+                                onClick = { settingsViewModel.setTargetOs(os) },
+                                color = if (isSelected) AccentBlue.copy(alpha = 0.15f) else Graphite.copy(alpha = 0.3f),
+                                contentColor = if (isSelected) AccentBlue else Silver,
+                                shape = RoundedCornerShape(12.dp),
+                                border = if (isSelected) BorderStroke(1.5.dp, AccentBlue.copy(alpha = 0.6f)) else BorderStroke(0.5.dp, BorderColor.copy(alpha = 0.2f)),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp)
                                 ) {
                                     Icon(
-                                        when (mode) {
-                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.SYSTEM -> Icons.Default.PhoneAndroid
-                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.LIGHT -> Icons.Default.LightMode
-                                            com.example.rabit.data.prefs.UserPreferences.ThemeMode.DARK -> Icons.Default.DarkMode
-                                        },
-                                        contentDescription = null,
-                                        tint = if (selected) AccentTeal else Silver,
-                                        modifier = Modifier.size(18.dp),
+                                        painter = androidx.compose.ui.res.painterResource(id = os.iconRes),
+                                        contentDescription = os.displayName,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = if (isSelected) AccentBlue else Silver
                                     )
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        mode.name.lowercase()
-                                            .replaceFirstChar { it.uppercase() },
-                                        color = if (selected) AccentTeal else Platinum,
+                                        os.displayName,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // ─── General ───
+            val exitOnClose by settingsViewModel.exitOnClose.collectAsState()
+            PremiumSectionHeader("GENERAL")
+            PremiumGlassCard {
+                SettingsToggleItem(
+                    title = "Exit on Close",
+                    subtitle = "Kill app completely when you leave — no background",
+                    icon = Icons.Default.ExitToApp,
+                    iconColor = AccentOrange,
+                    checked = exitOnClose,
+                    onCheckedChange = { settingsViewModel.setExitOnClose(it) }
+                )
             }
 
             // ─── Security & Access ───
@@ -489,6 +480,125 @@ fun SettingsContent(
                 }
             }
 
+            // ─── Jarvis Voice Command ───
+            val jarvisEnabled by settingsViewModel.jarvisEnabled.collectAsState()
+            val jarvisConfirmation by settingsViewModel.jarvisConfirmationRequired.collectAsState()
+            val jarvisMode by settingsViewModel.jarvisMode.collectAsState()
+            val geminiApiKey = settingsViewModel.geminiApiKey
+
+            PremiumSectionHeader("JARVIS VOICE COMMAND")
+            PremiumGlassCard {
+                SettingsToggleItem(
+                    title = "Jarvis Voice Control",
+                    subtitle = "Always-listening voice assistant engine",
+                    icon = Icons.Default.Mic,
+                    iconColor = AccentTeal,
+                    checked = jarvisEnabled,
+                    onCheckedChange = { settingsViewModel.setJarvisEnabled(it) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
+                SettingsToggleItem(
+                    title = "Require Confirmation",
+                    subtitle = "Show confirm button before executing commands",
+                    icon = Icons.Default.GppGood,
+                    iconColor = AccentGold,
+                    checked = jarvisConfirmation,
+                    onCheckedChange = { settingsViewModel.setJarvisConfirmationRequired(it) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
+                
+                // Mode Selector
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Psychology, contentDescription = null, tint = Color(0xFFBC13FE), modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("Intelligence Mode", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                if (jarvisMode == "SMART") "Gemini LLM powered (Full App Control)" else "Basic Commands (Hardcoded Shortcuts)",
+                                color = Silver, fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = jarvisMode == "BASIC",
+                            onClick = { settingsViewModel.setJarvisMode("BASIC") },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = AccentBlue.copy(alpha = 0.2f),
+                                activeContentColor = AccentBlue,
+                                inactiveContainerColor = Color.Transparent,
+                                inactiveContentColor = Silver
+                            )
+                        ) { Text("BASIC") }
+                        SegmentedButton(
+                            selected = jarvisMode == "SMART",
+                            onClick = { settingsViewModel.setJarvisMode("SMART") },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = Color(0xFFBC13FE).copy(alpha = 0.2f),
+                                activeContentColor = Color(0xFFBC13FE),
+                                inactiveContainerColor = Color.Transparent,
+                                inactiveContentColor = Silver
+                            )
+                        ) { Text("SMART") }
+                    }
+                    if (jarvisMode == "SMART" && geminiApiKey.isBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(AccentPink.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = AccentPink, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Missing Gemini API Key. Will fallback to Basic mode.", color = AccentPink, fontSize = 12.sp)
+                        }
+                    }
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
+                // Wake word display (read-only)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SettingsIconBadge(icon = Icons.Default.RecordVoiceOver, backgroundColor = AccentPink)
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Activation Word", color = Platinum, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text("Say \"Hey Sagar\" to activate", color = Silver, fontSize = 12.sp)
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AccentPink.copy(alpha = 0.1f),
+                        border = BorderStroke(0.5.dp, AccentPink.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            "Hey Sagar",
+                            color = AccentPink,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = BorderColor.copy(alpha = 0.4f))
+                SettingsClickItem(
+                    title = "Command Reference",
+                    subtitle = "View all available voice commands",
+                    icon = Icons.Default.MenuBook,
+                    iconColor = AccentPurple,
+                    onClick = { showCommandRefDialog = true }
+                )
+            }
+
             // ─── Security & Encryption ───
             PremiumSectionHeader("ENCRYPTION")
             PremiumGlassCard {
@@ -571,66 +681,7 @@ fun SettingsContent(
                 )
             }
 
-            // ─── About the Developer ───
-            PremiumSectionHeader("ABOUT THE DEVELOPER")
-            PremiumGlassCard {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(100.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, AccentBlue, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = com.sagar.rabit.R.drawable.profile_photo),
-                            contentDescription = "Sagar M",
-                            modifier = Modifier.fillMaxSize().clip(CircleShape)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        "SAGAR M",
-                        color = Platinum,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        "Lead Developer • Security Researcher",
-                        color = AccentBlue,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        "Building tactical tools for the next generation of mobile security. Specialized in HID exploitation and native performance. Based in Bengaluru, India.",
-                        color = Silver,
-                        fontSize = 12.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-                    
-                    Spacer(modifier = Modifier.height(20.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Code, null, tint = SuccessGreen, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("v1.5.0-pro Stable Build", color = SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+
 
             Spacer(modifier = Modifier.height(40.dp))
         }
@@ -820,7 +871,7 @@ fun SettingsContent(
             confirmButton = {
                 Button(onClick = {
                     if (automationViewModel.importMacrosJson(importJson)) {
-                        Toast.makeText(context, "Macros imported!", Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "Macros imported!", android.widget.Toast.LENGTH_SHORT).show()
                         showImportDialog = false
                     } else {
                         importError = "Invalid JSON format."
@@ -828,6 +879,46 @@ fun SettingsContent(
                 }, colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)) { Text("Import", color = Obsidian) }
             },
             dismissButton = { TextButton(onClick = { showImportDialog = false }) { Text("Cancel", color = Silver) } }
+        )
+    }
+
+    if (showCommandRefDialog) {
+        AlertDialog(
+            onDismissRequest = { showCommandRefDialog = false },
+            containerColor = Graphite,
+            title = { Text("Jarvis Commands", color = Platinum) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Say \"Hey Sagar\" followed by any of these commands:", color = Silver, fontSize = 13.sp)
+                    
+                    val commands = listOf(
+                        "lock / unlock" to "Lock or unlock the PC",
+                        "screenshot / screenshot area" to "Take a screenshot",
+                        "copy / paste / cut" to "Clipboard operations",
+                        "undo / redo" to "Edit operations",
+                        "close window / switch app" to "Window management",
+                        "mute / volume up / down" to "Media controls",
+                        "play / pause" to "Media playback",
+                        "open [app name]" to "Launch an application",
+                        "type [text]" to "Type dictated text",
+                        "sleep" to "Put the PC to sleep",
+                        "brightness up / down" to "Display brightness"
+                    )
+                    
+                    commands.forEach { (cmd, desc) ->
+                        Column {
+                            Text(cmd, color = AccentTeal, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(desc, color = Silver, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCommandRefDialog = false }) { Text("Close", color = AccentBlue) }
+            }
         )
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -57,11 +58,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import com.example.rabit.ui.MainViewModel
-import com.example.rabit.ui.theme.AccentBlue
-import com.example.rabit.ui.theme.BorderColor
-import com.example.rabit.ui.theme.Graphite
-import com.example.rabit.ui.theme.Platinum
-import com.example.rabit.ui.theme.Silver
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -95,6 +91,12 @@ fun SshTerminalScreen(
     val connected by viewModel.sshConnected.collectAsState()
     val status by viewModel.sshStatus.collectAsState()
     val lines by viewModel.sshTerminalLines.collectAsState()
+
+    val Graphite = MaterialTheme.colorScheme.background
+    val Platinum = MaterialTheme.colorScheme.onSurface
+    val Silver = MaterialTheme.colorScheme.onSurfaceVariant
+    val AccentBlue = MaterialTheme.colorScheme.primary
+    val BorderColor = MaterialTheme.colorScheme.outlineVariant
 
     var hostInput by remember(host) { mutableStateOf(host) }
     var portInput by remember(port) { mutableStateOf(port.toString()) }
@@ -141,7 +143,7 @@ fun SshTerminalScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF162031)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -353,7 +355,7 @@ fun SshTerminalScreen(
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF061306)),
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
             modifier = Modifier
                 .heightIn(min = 220.dp, max = 360.dp)
                 .fillMaxWidth()
@@ -362,12 +364,12 @@ fun SshTerminalScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(12.dp)
-                    .background(Color(0xFF061306), RoundedCornerShape(10.dp))
+                    .background(Color.Black, RoundedCornerShape(10.dp))
             ) {
                 items(lines) { line ->
                     Text(
                         line,
-                        color = Color(0xFF7CFF9B),
+                        color = Color(0xFF00FF00),
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(vertical = 1.dp)
@@ -458,6 +460,12 @@ fun SshNsdScannerDialog(onDismiss: () -> Unit, onSelectNode: (String, Int, Strin
     val nsdManager = remember { context.getSystemService(Context.NSD_SERVICE) as NsdManager }
     val discoveredNodes = remember { androidx.compose.runtime.mutableStateListOf<NsdServiceInfo>() }
     var isScanning by remember { mutableStateOf(true) }
+    
+    val Graphite = MaterialTheme.colorScheme.background
+    val Platinum = MaterialTheme.colorScheme.onSurface
+    val Silver = MaterialTheme.colorScheme.onSurfaceVariant
+    val AccentBlue = MaterialTheme.colorScheme.primary
+    val BorderColor = MaterialTheme.colorScheme.outlineVariant
 
     androidx.compose.runtime.DisposableEffect(Unit) {
         val listener = object : NsdManager.DiscoveryListener {
@@ -513,7 +521,7 @@ fun SshNsdScannerDialog(onDismiss: () -> Unit, onSelectNode: (String, Int, Strin
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(discoveredNodes) { node ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2633)),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
                                     val ip = node.host?.hostAddress ?: ""

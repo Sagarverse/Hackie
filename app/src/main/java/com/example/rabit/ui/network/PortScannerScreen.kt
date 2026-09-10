@@ -53,7 +53,23 @@ fun PortScannerContent(viewModel: PortScannerViewModel) {
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Platinum, unfocusedTextColor = Platinum, focusedBorderColor = SuccessGreen, unfocusedBorderColor = BorderColor),
                     shape = RoundedCornerShape(12.dp),
-                    textStyle = TextStyle(fontFamily = FontFamily.Monospace)
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            val ip = com.example.rabit.data.network.LanIpResolver.preferredLanIpv4String()
+                            if (ip != null) {
+                                // Default to scanning the subnet (e.g. 192.168.1.0/24)
+                                val parts = ip.split(".")
+                                if (parts.size == 4) {
+                                    targetHost = "${parts[0]}.${parts[1]}.${parts[2]}.0/24"
+                                } else {
+                                    targetHost = ip
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Wifi, contentDescription = "Auto fetch IP")
+                        }
+                    }
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -38,7 +38,54 @@ fun BluetoothShadowContent(
     val activeIdentity by viewModel.activeIdentity.collectAsState()
     var selectedGhostIdentity by remember { mutableStateOf("Sony WH-1000XM4") }
 
+    val isRootAvailable by viewModel.isRootAvailable.collectAsState()
+    val currentMac by viewModel.currentMacAddress.collectAsState()
+    
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Hardware MAC Randomization
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+        ) {
+            Column(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Devices, null, tint = Platinum, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("HARDWARE MAC ADDRESS", color = Platinum, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+                Spacer(Modifier.height(8.dp))
+                
+                Text(currentMac, color = AccentTeal, fontSize = 16.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                
+                Spacer(Modifier.height(12.dp))
+                
+                if (!isRootAvailable) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.background(AccentPink.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(8.dp)
+                    ) {
+                        Icon(Icons.Default.Warning, null, tint = AccentPink, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Root access required to change hardware MAC", color = AccentPink, fontSize = 10.sp)
+                    }
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.randomizeMacAddress() },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentTeal, contentColor = Obsidian),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("RANDOMIZE", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.height(12.dp))
+
         // Ghost Identity Spoofer
         Card(
             colors = CardDefaults.cardColors(containerColor = if (isGhosting) SuccessGreen.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f)),
