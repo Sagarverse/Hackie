@@ -110,8 +110,12 @@ fun HackieTheme(
     themeMode: UserPreferences.ThemeMode = UserPreferences.ThemeMode.SYSTEM,
     content: @Composable () -> Unit
 ) {
-    val darkTheme = false
-    val colorScheme = LightColors
+    val darkTheme = when (themeMode) {
+        UserPreferences.ThemeMode.LIGHT -> false
+        UserPreferences.ThemeMode.DARK -> true
+        UserPreferences.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+    val colorScheme = if (darkTheme) DarkColors else LightColors
 
     val view = LocalView.current
     if (!view.isInEditMode) {

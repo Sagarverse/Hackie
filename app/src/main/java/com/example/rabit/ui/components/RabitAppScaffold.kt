@@ -98,6 +98,7 @@ fun RabitAppScaffold(
     topBarActions: @Composable RowScope.() -> Unit = {},
     onPanicLock: (() -> Unit)? = null,
     onEngageDecoy: () -> Unit = {},
+    onThemeToggle: () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -153,6 +154,7 @@ fun RabitAppScaffold(
                     dispatchNavigate("snippets")
                     closeDrawer()
                 },
+                onThemeToggle = onThemeToggle,
             ),
             featureWebBridgeVisible = featureWebBridgeVisible,
             featureAutomationVisible = featureAutomationVisible,

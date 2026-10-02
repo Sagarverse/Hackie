@@ -27,6 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rabit.ui.theme.HackieSpacing
+import com.example.rabit.data.prefs.UserPreferences
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.BrightnessAuto
 
 @Composable
 internal fun AdvancedSidePanel(
@@ -39,6 +44,7 @@ internal fun AdvancedSidePanel(
     featureSnippetsVisible: Boolean,
     featureSshTerminalVisible: Boolean,
 ) {
+    val context = LocalContext.current
     val entries = remember(
         featureWebBridgeVisible,
         featureAutomationVisible,
@@ -80,7 +86,9 @@ internal fun AdvancedSidePanel(
             selectedSection = selectedSection,
             onSectionSelected = { selectedSection = it },
             isHidConnected = isHidConnected,
-            onEngageDecoy = callbacks.onEngageDecoy
+            onEngageDecoy = callbacks.onEngageDecoy,
+            onThemeToggle = callbacks.onThemeToggle,
+            context = context,
         )
         
         // Divider
@@ -107,9 +115,14 @@ private fun PrimaryRail(
     selectedSection: Section,
     onSectionSelected: (Section) -> Unit,
     isHidConnected: Boolean,
-    onEngageDecoy: () -> Unit
+    onEngageDecoy: () -> Unit,
+    onThemeToggle: () -> Unit = {},
+    context: android.content.Context = LocalContext.current,
 ) {
     val view = LocalView.current
+
+    // Current persisted theme so the icon reflects the active mode
+    val currentTheme by UserPreferences.themeModeFlow.collectAsState()
     
     Column(
         modifier = Modifier
@@ -198,7 +211,38 @@ private fun PrimaryRail(
         }
         
         Spacer(modifier = Modifier.weight(1f))
-        
+
+        // ── Theme Toggle Button ────────────────────────────────────────────
+        val themeIcon = when (currentTheme) {
+            UserPreferences.ThemeMode.DARK   -> Icons.Default.DarkMode
+            UserPreferences.ThemeMode.LIGHT  -> Icons.Default.LightMode
+            UserPreferences.ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
+        }
+        val themeLabel = when (currentTheme) {
+            UserPreferences.ThemeMode.DARK   -> "Dark mode"
+            UserPreferences.ThemeMode.LIGHT  -> "Light mode"
+            UserPreferences.ThemeMode.SYSTEM -> "System theme"
+        }
+        IconButton(onClick = {
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            // Cycle: SYSTEM → DARK → LIGHT → SYSTEM
+            val next = when (currentTheme) {
+                UserPreferences.ThemeMode.SYSTEM -> UserPreferences.ThemeMode.DARK
+                UserPreferences.ThemeMode.DARK   -> UserPreferences.ThemeMode.LIGHT
+                UserPreferences.ThemeMode.LIGHT  -> UserPreferences.ThemeMode.SYSTEM
+            }
+            UserPreferences.setThemeMode(context, next)
+            onThemeToggle()
+        }) {
+            Icon(
+                imageVector = themeIcon,
+                contentDescription = themeLabel,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Power Button at bottom
         IconButton(onClick = {
             view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)

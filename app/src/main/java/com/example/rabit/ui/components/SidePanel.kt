@@ -133,6 +133,7 @@ internal data class SidePanelCallbacks(
     val onEngageDecoy: () -> Unit,
     val onRunScan: () -> Unit,
     val onOpenSnippets: () -> Unit,
+    val onThemeToggle: () -> Unit = {},
 )
 
 /**

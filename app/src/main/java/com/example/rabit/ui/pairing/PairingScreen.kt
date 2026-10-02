@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -238,6 +239,7 @@ fun PairingScreen(
                 TransportModeCard(
                     isUsb = isUsb,
                     isRootAvailable = isRootAvail,
+                    usbState = usbState,
                     usbStateText = when (usbState) {
                         is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected ->
                             "Gadget active — ready to type"
@@ -267,6 +269,9 @@ fun PairingScreen(
                                 com.example.rabit.ui.MainViewModel.HidTransportMode.USB
                             )
                         }
+                    },
+                    onDisconnectUsb = {
+                        viewModel.disconnectUsbHid()
                     },
                 )
             }
@@ -524,11 +529,17 @@ private fun ActionCard(
 private fun TransportModeCard(
     isUsb: Boolean,
     isRootAvailable: Boolean,
+    usbState: com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState =
+        com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Disconnected,
     usbStateText: String,
     usbStateTone: Color,
     onPickBluetooth: () -> Unit,
     onPickUsb: () -> Unit,
+    onDisconnectUsb: () -> Unit = {},
 ) {
+    val isUsbConnected = usbState is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Connected
+    val isUsbConfiguring = usbState is com.example.rabit.data.bluetooth.UsbHidGadgetManager.UsbGadgetState.Configuring
+
     AppCard {
         Column(verticalArrangement = Arrangement.spacedBy(HackieSpacing.md)) {
             Row(
@@ -609,6 +620,35 @@ private fun TransportModeCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                // ── Disconnect / Revert to ADB button ────────────────────────
+                // Only shown when the gadget is actively connected or stuck
+                // configuring, so the user always has an escape hatch.
+                if (isUsbConnected || isUsbConfiguring) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onDisconnectUsb,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                        ),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(
+                            Icons.Default.LinkOff,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.size(HackieSpacing.xs))
+                        Text(
+                            text = if (isUsbConfiguring) "Cancel — Revert to ADB"
+                                   else "Disconnect USB HID · Restore ADB",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
             }
         }
     }
